@@ -23,6 +23,31 @@ Game build: Absolver 1.31 (b1.25_575). On any other build LanNative refuses to p
 Take a release zip (or build one, below), close the game and run `Install.bat` on each PC. See `package/README.txt` for keys,
 settings and troubleshooting, and for how to play over a VPN (Hamachi, Radmin VPN, ZeroTier).
 
+## Playing over a VPN (Hamachi, Radmin VPN, ZeroTier)
+A VPN program gives every player a virtual LAN address, so the game sees them as one local network and the only thing that
+changes is which address the joiners type. The LAN steps are tested; the VPN steps below have not been tried in a real
+session yet.
+
+1. Everyone installs the same VPN program. One person creates a private network (name + password), the others join it.
+   Hamachi's free plan allows 5 people per network. Start the VPN before the game.
+2. Check that every player shows as connected in the VPN window. A direct connection is better than a relayed one (less lag).
+3. Everyone installs LanNative (same version) and adds the Steam launch option `-NoEAC`.
+4. **Firewall (the usual problem):** Windows often treats a VPN network as "Public". On the host, allow
+   `Absolver-Win64-Shipping.exe` on that network profile, or add an inbound UDP rule for port 7777.
+5. **Host:** copy your VPN address (Hamachi: right-click your name, Copy IPv4, looks like `25.x.x.x`; Radmin VPN shows
+   `26.x.x.x`), send it to the others, load a character into the open world and press **F6**.
+6. **Joiners:** put the host's VPN address on line 1 of `LanNative\ip.txt`, load a character into the world and press **F7**.
+   For duels the host picks a 1v1 / 3v3 map in the F1 menu; if a joiner can't get in, put `none` on line 2 of `ip.txt`.
+
+If it doesn't connect:
+- Ping the host's VPN address from the joiner's PC. If the ping fails, it is a VPN or firewall problem, not LanNative.
+- If the host has several network adapters, set `hostip = <host VPN address>` in `config.txt` on the host and restart the game
+  (or pick it in F1 > Host address). A set address means *only* that address can join; set it back to `auto` for normal LAN play.
+- Compare the first line of `lannative.log` on every PC to make sure the versions match.
+
+Expect extra lag over a VPN, especially when relayed; the game limits each player to about 20 KB/s. LanNative has no login
+check, so the VPN network password is your only access control: use a strong one and only invite people you trust.
+
 ## Build
 Needs Windows, MSVC Build Tools 2022, Python with `pefile` (only to regenerate headers).
 
