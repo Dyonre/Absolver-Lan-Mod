@@ -21,7 +21,7 @@ Game build: Absolver 1.31 (b1.25_575). On any other build LanNative refuses to p
 
 ## Install (players)
 Take a release zip (or build one, below), close the game and run `Install.bat` on each PC. See `package/README.txt` for keys,
-settings and troubleshooting.
+settings and troubleshooting, and for how to play over a VPN (Hamachi, Radmin VPN, ZeroTier).
 
 ## Build
 Needs Windows, MSVC Build Tools 2022, Python with `pefile` (only to regenerate headers).
@@ -52,7 +52,7 @@ different hash; it is the same code.
 
 | Release | zip SHA-256 | version.dll SHA-256 |
 |---|---|---|
-| v4.3.1 | `1B380773D351F839996DDF0C478BF3A959F112839BD301220A3B2303A8600036` | `A54ABC434E908FA658B379695A35FEB0399B2E89C985E15D32567737F42B0CEE` |
+| v4.3.1 | `42CF8301864066E4772E31CC35AB65449A8051D820A8403FDF1D1EA8D3DBA1E7` | `A54ABC434E908FA658B379695A35FEB0399B2E89C985E15D32567737F42B0CEE` |
 
 The source in `lannative/` is the original source, not decompiled code.
 
