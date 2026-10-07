@@ -24,29 +24,36 @@ Take a release zip (or build one, below), close the game and run `Install.bat` o
 settings and troubleshooting, and for how to play over a VPN (Hamachi, Radmin VPN, ZeroTier).
 
 ## Playing over a VPN (Hamachi, Radmin VPN, ZeroTier)
-A VPN program gives every player a virtual LAN address, so the game sees them as one local network and the only thing that
-changes is which address the joiners type. The LAN steps are tested; the VPN steps below have not been tried in a real
-session yet.
+A VPN gives every player a virtual LAN address, so the game treats you as one local network. (The LAN steps are tested; the VPN
+steps have not been tried in a real session yet.)
 
-1. Everyone installs the same VPN program. One person creates a private network (name + password), the others join it.
-   Hamachi's free plan allows 5 people per network. Start the VPN before the game.
-2. Check that every player shows as connected in the VPN window. A direct connection is better than a relayed one (less lag).
-3. Everyone installs LanNative (same version) and adds the Steam launch option `-NoEAC`.
-4. **Firewall (the usual problem):** Windows often treats a VPN network as "Public". On the host, allow
-   `Absolver-Win64-Shipping.exe` on that network profile, or add an inbound UDP rule for port 7777.
-5. **Host:** copy your VPN address (Hamachi: right-click your name, Copy IPv4, looks like `25.x.x.x`; Radmin VPN shows
-   `26.x.x.x`), send it to the others, load a character into the open world and press **F6**.
-6. **Joiners:** put the host's VPN address on line 1 of `LanNative\ip.txt`, load a character into the world and press **F7**.
-   For duels the host picks a 1v1 / 3v3 map in the F1 menu; if a joiner can't get in, put `none` on line 2 of `ip.txt`.
+**Everyone**
+1. Install the same VPN program. One person creates a private network (name + password) and the others join it. Keep it running
+   while you play. Hamachi's free plan allows 5 people.
+2. Run `Install.bat` from the LanNative zip and add the Steam launch option `-NoEAC`.
 
-If it doesn't connect:
-- Ping the host's VPN address from the joiner's PC. If the ping fails, it is a VPN or firewall problem, not LanNative.
-- If the host has several network adapters, set `hostip = <host VPN address>` in `config.txt` on the host and restart the game
-  (or pick it in F1 > Host address). A set address means *only* that address can join; set it back to `auto` for normal LAN play.
-- Compare the first line of `lannative.log` on every PC to make sure the versions match.
+**Host**
+3. Allow the game through the firewall: Windows Defender Firewall > Allow an app > `Absolver-Win64-Shipping.exe`, tick the
+   network type your VPN uses (usually Public). Or add an inbound UDP rule for port 7777.
+4. Copy your VPN address (Hamachi: right-click your name > Copy IPv4, like `25.x.x.x`; Radmin VPN: like `26.x.x.x`) and send it
+   to the others.
+5. Load a character into the open world and press **F6**.
 
-Expect extra lag over a VPN, especially when relayed; the game limits each player to about 20 KB/s. LanNative has no login
-check, so the VPN network password is your only access control: use a strong one and only invite people you trust.
+**Joiners**
+6. Open `LanNative\ip.txt` and replace line 1 with the host's VPN address.
+7. Load a character into the open world and press **F7**.
+
+For a duel, the host picks a 1v1 / 3v3 map in the F1 menu and the joiners press F7 again. If a joiner can't get into a duel, put
+the word `none` on line 2 of `ip.txt`.
+
+**Can't connect?**
+- Ping the host's VPN address from the joiner's PC. If the ping fails, it is a VPN or firewall problem.
+- Host with several network adapters: set `hostip = <host VPN address>` in `config.txt` and restart the game. Set it back to `auto`
+  for normal LAN play.
+- Check that everyone has the same LanNative version (first line of `lannative.log`).
+
+Expect some extra lag over a VPN. LanNative has no login check, so the VPN password is your only protection: use a strong one
+and only invite people you trust.
 
 ## Build
 Needs Windows, MSVC Build Tools 2022, Python with `pefile` (only to regenerate headers).
@@ -77,7 +84,7 @@ different hash; it is the same code.
 
 | Release | zip SHA-256 | version.dll SHA-256 |
 |---|---|---|
-| v4.3.1 | `42CF8301864066E4772E31CC35AB65449A8051D820A8403FDF1D1EA8D3DBA1E7` | `A54ABC434E908FA658B379695A35FEB0399B2E89C985E15D32567737F42B0CEE` |
+| v4.3.1 | `2C9D3AA1442C10994343A3628F7C98C4F212EC3541D6DA8EBF14A201970E9DF9` | `A54ABC434E908FA658B379695A35FEB0399B2E89C985E15D32567737F42B0CEE` |
 
 The source in `lannative/` is the original source, not decompiled code.
 
