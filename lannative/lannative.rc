@@ -1,0 +1,33 @@
+// Version information for LanNative's loader DLL. Honest metadata only: it says what the file is. It does NOT reuse Microsoft's description of the
+// real version.dll; this file is installed under that name because the game loads a version.dll from its own folder.
+#include <winver.h>
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 4,3,1,0
+ PRODUCTVERSION 4,3,1,0
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0x0L
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_DLL
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "LanNative (unofficial hobby project; not affiliated with Sloclap or Microsoft)"
+            VALUE "FileDescription", "LanNative: unofficial offline/LAN mod loader for Absolver (installed as version.dll; forwards every export to the real Windows version.dll)"
+            VALUE "FileVersion", "4.3.1.0"
+            VALUE "InternalName", "LanNative"
+            VALUE "OriginalFilename", "LanNative-loader.dll"
+            VALUE "ProductName", "LanNative"
+            VALUE "ProductVersion", "4.3.1"
+            VALUE "Comments", "Only active when the game is started with -NoEAC. Makes no network connections of its own and does not touch online services. Logs to the LanNative folder next to it."
+            VALUE "LegalCopyright", "Hobby project, provided as is, no warranty."
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

@@ -1,0 +1,170 @@
+LanNative altar travel list (Absolver 1.31 b1.25_575) - UNTESTED
+===============================================================
+What this is: the 42 respawn altars ("checkpoints") placed in the main world (MainMap_Main), with the zone number stored on each one, read from the
+game's own MainMap_Main.umap. The game's AThePlainesGameMode::InitNewPlayer reads the URL options CheckPoint=<altar path> and zone=<n>
+for every player who logs in and spawns that player at that altar (decompile; not yet run in game).
+
+IMPORTANT - the zone must match the altar. If zone=<n> differs from the altar's own zone the game REPLACES the altar with that zone's
+main altar. Use the zone printed next to each altar. Altars marked * have no zone stored in the map; the game treats that as 0 (the
+altar your own save used, BP_RespawnAltar_03_E3Demo3, was logged with zone 0, which supports this, but the other starred ones are inferred).
+Positions are the altar's AutoSave component location in map units (cm), approximate, only to tell altars apart.
+
+Host (moves YOU): open the console (Tilde) and paste one "Open ..." line. This reloads the world with you as the host, then your
+joiner presses F7 as usual.
+Joiner (moves THEM): put the "ip.txt line 2" text on line 2 of LanNative\ip.txt (line 1 stays the host IP), then press F7. A nonempty
+line 2 overrides the options read from the save.
+The save editor lists one more spawn point, BP_RespawnAltarLight2_509, but it belongs to the tutorial map (/Game/Maps/Tutorial/Tutorial_LDIngredients), a different world, so it is not in this list.
+After a test, tell me whether you arrived at the altar and what lannative.log shows for "travel request:" and "world:".
+
+---- zone 0 ----
+BP_RespawnAltarLight3_17740*   (zone 0, approx -47400, -20473, 1195)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight3_17740?zone=0
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight3_17740?zone=0
+BP_RespawnAltar_03_E3Demo3*   (zone 0, approx -42901, -23002, -584)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltar_03_E3Demo3?zone=0
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltar_03_E3Demo3?zone=0
+BP_RespawnAltarLight2_14019*   (zone 0, approx -42776, -25993, -246)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight2_14019?zone=0
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight2_14019?zone=0
+BP_RespawnAltarLight_90*   (zone 0, approx -36690, -19111, -1235)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight_90?zone=0
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight_90?zone=0
+
+---- zone 1 ----
+BP_RespawnAltarLight4_29084   (zone 1, approx -35935, -15698, -3051)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight4_29084?zone=1
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight4_29084?zone=1
+BP_RespawnAltar_Forest_Swamp2   (zone 1, approx -31214, -13158, -3601)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltar_Forest_Swamp2?zone=1
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltar_Forest_Swamp2?zone=1
+BP_RespawnAltarLight5_35478   (zone 1, approx -28476, -18124, -4127)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight5_35478?zone=1
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight5_35478?zone=1
+BP_RespawnAltarLight6   (zone 1, approx -28101, -11529, -3891)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight6?zone=1
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight6?zone=1
+
+---- zone 2 ----
+BP_RespawnAltarLight7_43952   (zone 2, approx -27447, -16379, -4892)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight7_43952?zone=2
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight7_43952?zone=2
+BP_RespawnAltar_Forest_Swamp   (zone 2, approx -18016, -11770, -5183)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltar_Forest_Swamp?zone=2
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltar_Forest_Swamp?zone=2
+BP_RespawnAltarLight8   (zone 2, approx -17624, -9379, -5115)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight8?zone=2
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight8?zone=2
+
+---- zone 3 ----
+BP_RespawnAltarLight11   (zone 3, approx -25518, 3477, -3875)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight11?zone=3
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight11?zone=3
+BP_RespawnAltarLight9_68827   (zone 3, approx -24353, -6821, -4347)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight9_68827?zone=3
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight9_68827?zone=3
+BP_RespawnAltar_Forest_Village   (zone 3, approx -22239, -4332, -4259)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltar_Forest_Village?zone=3
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltar_Forest_Village?zone=3
+BP_RespawnAltarLight10   (zone 3, approx -20479, -5381, -3821)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight10?zone=3
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight10?zone=3
+
+---- zone 4 ----
+BP_RespawnAltarLight13   (zone 4, approx -35636, -2272, -344)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight13?zone=4
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight13?zone=4
+BP_RespawnAltar_03_E3Demo4_386   (zone 4, approx -35092, 195, -520)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltar_03_E3Demo4_386?zone=4
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltar_03_E3Demo4_386?zone=4
+BP_RespawnAltarLight12_88282   (zone 4, approx -28086, 3228, -2135)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight12_88282?zone=4
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight12_88282?zone=4
+
+---- zone 5 ----
+BP_RespawnAltarLight28   (zone 5, approx -45051, -32203, 768)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight28?zone=5
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight28?zone=5
+BP_RespawnAltarLight27   (zone 5, approx -41916, -37758, -12)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight27?zone=5
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight27?zone=5
+BP_RespawnAltarLight29   (zone 5, approx -40992, -28847, 68)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight29?zone=5
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight29?zone=5
+BP_RespawnAltar_03_E3Demo6   (zone 5, approx -40064, -34129, 762)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltar_03_E3Demo6?zone=5
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltar_03_E3Demo6?zone=5
+
+---- zone 6 ----
+BP_RespawnAltarLight25   (zone 6, approx -48896, -43648, 3)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight25?zone=6
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight25?zone=6
+BP_RespawnAltarLight26   (zone 6, approx -43665, -38948, 89)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight26?zone=6
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight26?zone=6
+BP_RespawnAltar_03_E3Demo2_282   (zone 6, approx -40525, -42916, -7)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltar_03_E3Demo2_282?zone=6
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltar_03_E3Demo2_282?zone=6
+
+---- zone 7 ----
+BP_RespawnAltarLight22_152956   (zone 7, approx -55214, -31764, 2540)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight22_152956?zone=7
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight22_152956?zone=7
+BP_RespawnAltarLight24   (zone 7, approx -49579, -39629, -1292)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight24?zone=7
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight24?zone=7
+BP_RespawnAltar_03_E3Demo5   (zone 7, approx -49189, -36640, -642)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltar_03_E3Demo5?zone=7
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltar_03_E3Demo5?zone=7
+BP_RespawnAltarLight23   (zone 7, approx -48020, -31457, 706)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight23?zone=7
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight23?zone=7
+
+---- zone 9 ----
+BP_RespawnAltarLight18   (zone 9, approx -64661, -20717, 2241)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight18?zone=9
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight18?zone=9
+BP_RespawnAltarLight20   (zone 9 subzone 2, approx -59807, -4732, 2465)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight20?zone=9
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight20?zone=9
+BP_RespawnAltar_03_E3Demo7   (zone 9, approx -53683, -11790, 2280)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltar_03_E3Demo7?zone=9
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltar_03_E3Demo7?zone=9
+BP_RespawnAltarLight17   (zone 9, approx -51298, -15110, 2330)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight17?zone=9
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight17?zone=9
+BP_RespawnAltarLight16   (zone 9 subzone 1, approx -48526, -14185, 2290)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight16?zone=9
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight16?zone=9
+
+---- zone 10 ----
+BP_RespawnAltarLight32   (zone 10, approx -60213, -9138, 20481)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight32?zone=10
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight32?zone=10
+BP_RespawnAltar_03_E3Demo8   (zone 10, approx -50518, -5323, 23317)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltar_03_E3Demo8?zone=10
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltar_03_E3Demo8?zone=10
+
+---- zone 11 ----
+BP_RespawnAltarLight15   (zone 11, approx -42300, -14981, 2210)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight15?zone=11
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight15?zone=11
+BP_RespawnAltarLight14_99220   (zone 11, approx -39780, -5425, 423)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight14_99220?zone=11
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight14_99220?zone=11
+
+---- zone 12 ----
+BP_RespawnAltarLight19   (zone 12, approx -60339, -20236, 2198)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight19?zone=12
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight19?zone=12
+BP_RespawnAltarLight21_147156   (zone 12, approx -58984, -28345, 2041)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight21_147156?zone=12
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight21_147156?zone=12
+
+---- zone 13 ----
+BP_RespawnAltarLight30   (zone 13, approx -62315, -1214, 2465)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight30?zone=13
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight30?zone=13
+BP_RespawnAltarLight31   (zone 13, approx -53867, -142, 7735)
+  Host console : Open /Game/Maps/MainMap/MainMap_Main?listen?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight31?zone=13
+  ip.txt line 2: ?CheckPoint=/Game/Maps/MainMap/MainMap_Main.MainMap_Main:PersistentLevel.BP_RespawnAltarLight31?zone=13
+

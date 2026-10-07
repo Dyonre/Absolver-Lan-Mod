@@ -1,0 +1,43 @@
+label	class	zone	subzone	x	y	z	root
+BP_RespawnAltar_03_E3Demo2_282	BP_RespawnAltar_03_E3Demo_C	6		-40525	-42916	-7	AutoSave
+BP_RespawnAltar_03_E3Demo3	BP_RespawnAltar_03_E3Demo_C			-42901	-23002	-584	AutoSave
+BP_RespawnAltar_03_E3Demo4_386	BP_RespawnAltar_03_E3Demo_C	4		-35092	195	-520	AutoSave
+BP_RespawnAltar_03_E3Demo5	BP_RespawnAltar_03_E3Demo_C	7		-49189	-36640	-642	AutoSave
+BP_RespawnAltar_03_E3Demo6	BP_RespawnAltar_03_E3Demo_C	5		-40064	-34129	762	AutoSave
+BP_RespawnAltar_03_E3Demo7	BP_RespawnAltar_03_E3Demo_C	9		-53683	-11790	2280	AutoSave
+BP_RespawnAltar_03_E3Demo8	BP_RespawnAltar_03_E3Demo_C	10		-50518	-5323	23317	AutoSave
+BP_RespawnAltar_Forest_Swamp	BP_RespawnAltar_03_E3Demo_C	2		-18016	-11770	-5183	AutoSave
+BP_RespawnAltar_Forest_Swamp2	BP_RespawnAltar_03_E3Demo_C	1		-31214	-13158	-3601	AutoSave
+BP_RespawnAltar_Forest_Village	BP_RespawnAltar_03_E3Demo_C	3		-22239	-4332	-4259	AutoSave
+BP_RespawnAltarLight10	BP_RespawnAltarLight_C	3		-20479	-5381	-3821	AutoSave
+BP_RespawnAltarLight11	BP_RespawnAltarLight_C	3		-25518	3477	-3875	AutoSave
+BP_RespawnAltarLight12_88282	BP_RespawnAltarLight_C	4		-28086	3228	-2135	AutoSave
+BP_RespawnAltarLight13	BP_RespawnAltarLight_C	4		-35636	-2272	-344	AutoSave
+BP_RespawnAltarLight14_99220	BP_RespawnAltarLight_C	11		-39780	-5425	423	AutoSave
+BP_RespawnAltarLight15	BP_RespawnAltarLight_C	11		-42300	-14981	2210	AutoSave
+BP_RespawnAltarLight16	BP_RespawnAltarLight_C	9	1	-48526	-14185	2290	AutoSave
+BP_RespawnAltarLight17	BP_RespawnAltarLight_C	9		-51298	-15110	2330	AutoSave
+BP_RespawnAltarLight18	BP_RespawnAltarLight_C	9		-64661	-20717	2241	AutoSave
+BP_RespawnAltarLight19	BP_RespawnAltarLight_C	12		-60339	-20236	2198	AutoSave
+BP_RespawnAltarLight20	BP_RespawnAltarLight_C	9	2	-59807	-4732	2465	AutoSave
+BP_RespawnAltarLight21_147156	BP_RespawnAltarLight_C	12		-58984	-28345	2041	AutoSave
+BP_RespawnAltarLight22_152956	BP_RespawnAltarLight_C	7		-55214	-31764	2540	AutoSave
+BP_RespawnAltarLight23	BP_RespawnAltarLight_C	7		-48020	-31457	706	AutoSave
+BP_RespawnAltarLight24	BP_RespawnAltarLight_C	7		-49579	-39629	-1292	AutoSave
+BP_RespawnAltarLight25	BP_RespawnAltarLight_C	6		-48896	-43648	3	AutoSave
+BP_RespawnAltarLight26	BP_RespawnAltarLight_C	6		-43665	-38948	89	AutoSave
+BP_RespawnAltarLight27	BP_RespawnAltarLight_C	5		-41916	-37758	-12	AutoSave
+BP_RespawnAltarLight28	BP_RespawnAltarLight_C	5		-45051	-32203	768	AutoSave
+BP_RespawnAltarLight29	BP_RespawnAltarLight_C	5		-40992	-28847	68	AutoSave
+BP_RespawnAltarLight2_14019	BP_RespawnAltarLight_C			-42776	-25993	-246	AutoSave
+BP_RespawnAltarLight30	BP_RespawnAltarLight_C	13		-62315	-1214	2465	AutoSave
+BP_RespawnAltarLight31	BP_RespawnAltarLight_C	13		-53867	-142	7735	AutoSave
+BP_RespawnAltarLight32	BP_RespawnAltarLight_C	10		-60213	-9138	20481	AutoSave
+BP_RespawnAltarLight3_17740	BP_RespawnAltarLight_C			-47400	-20473	1195	AutoSave
+BP_RespawnAltarLight4_29084	BP_RespawnAltarLight_C	1		-35935	-15698	-3051	AutoSave
+BP_RespawnAltarLight5_35478	BP_RespawnAltarLight_C	1		-28476	-18124	-4127	AutoSave
+BP_RespawnAltarLight6	BP_RespawnAltarLight_C	1		-28101	-11529	-3891	AutoSave
+BP_RespawnAltarLight7_43952	BP_RespawnAltarLight_C	2		-27447	-16379	-4892	AutoSave
+BP_RespawnAltarLight8	BP_RespawnAltarLight_C	2		-17624	-9379	-5115	AutoSave
+BP_RespawnAltarLight9_68827	BP_RespawnAltarLight_C	3		-24353	-6821	-4347	AutoSave
+BP_RespawnAltarLight_90	BP_RespawnAltarLight_C			-36690	-19111	-1235	AutoSave

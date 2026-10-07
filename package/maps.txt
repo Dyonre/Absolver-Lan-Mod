@@ -1,0 +1,62 @@
+LanNative map travel test list (Absolver 1.31 b1.25_575)
+=========================================================
+
+These are root cooked maps found in the installed game's package list. They are safe names to try
+with the native console while playing offline/LAN only. They are not proof that every map has its
+intended game mode, spawns, or multiplayer rules when opened directly.
+
+Host only: open one command below, then have clients use F7 to rejoin. Do not use the sub-level,
+lighting, collision, sound, or PVE room paths: those are streamed parts, not standalone worlds.
+
+Main world
+----------
+Open /Game/Maps/MainMap/MainMap_Main?listen
+Open /Game/Maps/Tutorial/Tutorial_Main?listen
+Open /Game/Maps/StartMap/StartMap?listen
+
+Development / training roots (discovered in the shipped map packages; map load only)
+-------------------------------------------------------------------------------
+Open /Game/Maps/TrainingMap/Training?listen
+Open /Game/Maps/Zoos/Zoo_Training?listen
+Open /Game/Maps/MainMap/MainMap_CrossArena?listen
+
+PVE roots (map load only; game-mode setup has not been verified)
+-----------------------------------------------------------
+Open /Game/Maps/MainMap_GameModes/PVE/PVE_Mine?listen
+Open /Game/Maps/MainMap_GameModes/PVE/PVE_Mine_Trailer?listen
+Open /Game/Maps/MainMap_GameModes/PVE/Trailer/TRAILER_PVE_Mine_T1?listen
+Open /Game/Maps/MainMap_GameModes/PVE/Trailer/TRAILER_PVE_Mine_T2?listen
+
+1v1 roots. The M3.3 logs showed that a plain <map>?listen already loads the real 1v1 game mode (1V1_GameMode_C), so ?game= is optional.
+   (The game's own form is <map>?game=<class path>?listen: 1v1 = /Game/Blueprints/GameModes/1V1/1V1_GameMode.1V1_GameMode_C,
+   3v3 = /Game/Blueprints/GameModes/Domination/BP_Domination_GM.BP_Domination_GM_C.)
+   The game then sent offline players straight back to the main map. M3.5's PvP guard (LanNative\pvpfix.txt, on by default) stops that.
+   The joiner puts the word  none  on line 2 of ip.txt and presses F7 (no co-op CheckPoint/zone for a PvP world).
+--------------------------------------------------------------------
+Open /Game/Maps/MainMap_GameModes/1v1/OPTI_GM_1v1_City_Coliseum?listen
+Open /Game/Maps/MainMap_GameModes/1v1/OPTI_GM_1v1_City_Coliseum_Night?listen
+Open /Game/Maps/MainMap_GameModes/1v1/Opti_GM_1v1_City_Cross?listen
+Open /Game/Maps/MainMap_GameModes/1v1/Opti_GM_1v1_City_Cross_Night?listen
+Open /Game/Maps/MainMap_GameModes/1v1/Opti_GM_1v1_City_ShipYard?listen
+Open /Game/Maps/MainMap_GameModes/1v1/Opti_GM_1v1_City_ShipYard_Night?listen
+Open /Game/Maps/MainMap_GameModes/1v1/Opti_GM_1v1_City_ShipYard_Snow?listen
+Open /Game/Maps/MainMap_GameModes/1v1/OPTI_GM_1v1_Forest_BirdHouse?listen
+Open /Game/Maps/MainMap_GameModes/1v1/OPTI_GM_1v1_Forest_BirdHouse_Night?listen
+Open /Game/Maps/MainMap_GameModes/1v1/OPTI_GM_1v1_Forest_BirdHouse_Snow?listen
+Open /Game/Maps/MainMap_GameModes/1v1/OPTI_GM_1v1_Forest_Chapel?listen
+Open /Game/Maps/MainMap_GameModes/1v1/OPTI_GM_1v1_Forest_Chapel_Night?listen
+Open /Game/Maps/MainMap_GameModes/1v1/OPTI_GM_1v1_Forest_clearing?listen
+Open /Game/Maps/MainMap_GameModes/1v1/OPTI_GM_1v1_Forest_clearing_Night?listen
+Open /Game/Maps/MainMap_GameModes/1v1/OPTI_GM_1v1_Tower_Entrance?listen
+Open /Game/Maps/MainMap_GameModes/1v1/OPTI_GM_1v1_Tower_Entrance_Night?listen
+Open /Game/Maps/MainMap_GameModes/1v1/Opti_GM_1v1_Tower_Higher?listen
+Open /Game/Maps/MainMap_GameModes/1v1/Opti_GM_1v1_Tower_Higher_Night?listen
+Open /Game/Maps/MainMap_GameModes/1v1/OPTI_GM_1v1_Tower_Library?listen
+
+3v3 roots (map load only; PvP game-mode URL research is still required)
+--------------------------------------------------------------------
+Open /Game/Maps/MainMap_GameModes/3v3/OPTI_GM_3v3_City_SloppedRuins_Domination_1?listen
+Open /Game/Maps/MainMap_GameModes/3v3/OPTI_GM_3v3_Temple_Lower_Domination_1?listen
+Open /Game/Maps/MainMap_GameModes/3v3/OPTI_GM_3v3_Forest_Village_Domination_1?listen
+Open /Game/Maps/MainMap_GameModes/3v3/GM_3v3_Domination_Ranked_1?listen
+Open /Game/Maps/MainMap_GameModes/3v3/GM_3v3_Domination_Garden_1?listen

@@ -1,0 +1,11 @@
+LanNative M4.3.1 test (about 15 minutes). Close the game on BOTH PCs, run Install.bat on BOTH (it replaces the old npcs.txt with the grouped one; the old one is kept as npcs.txt.old).
+Launch option -NoEAC must be set. Rename the old lannative.log first. Check the first log line says "LanNative M4.3.1 loaded", then "menu: 280 NPC types in 11 groups" and "host address: original command line saved" (the host address choice works from this build on).
+
+What is new: NPC groups + minibosses/bosses, NPC kills no longer score in duels, the leave-and-rejoin clone is removed.
+
+1. NPC groups. HOST in the open world: F1 > Spawn NPC... > pick a group > Enter on a type. Try one of each: Open world (Trickster), MiniBoss (Path MiniBoss), Boss: Kuretz (Lv1 Kuretz Phase1), Boss: Cargal & Kilnor, Boss: Risryn, PvE Bosses (T1 Boss P1).
+   For each, the log shows "character class resolved" or "NOT FOUND - using the generic AI character", then "npc: spawned ...". Tell me which ones look and fight right, which stand still, which look wrong (a boss class on a phase archetype may behave oddly; delete the 4th column in npcs.txt to use the generic character).
+2. Duel score. Host a 1v1 (F1 > Maps), join, spawn an NPC, kill it with either player. The match score must stay 0-0 (log: "pvp score: ignored kill #N ... an NPC died"). A real player-vs-player kill must still score.
+3. Leave and rejoin clone. Joiner F6 twice (leave), host F6 (re-host in the open world), joiner F7 (rejoin). No second copy of the joiner's character; log on the joiner: "removed clone pawn ... (Role=Authority, our controller or none)". Repeat 2-3 times.
+4. Remove all NPCs, then travel / quit: no crash.
+If anything fails send both lannative.log files.

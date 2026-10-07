@@ -1,0 +1,13 @@
+# build output
+*.obj
+*.res
+*.lib
+*.exp
+*.pdb
+*.dll
+*.exe
+*.zip
+*.rar
+# local logs
+lannative.log
+telemetry_*.csv

@@ -1,0 +1,284 @@
+# npcs-list-version: 2
+# NPC types for the F1 menu (Spawn NPC...), made from the game's own DB/AI folder by tools/lannative/gen_npcs.py.
+# Line format, TAB separated: group, label, archetype asset path, [character Blueprint class path].
+# The class column (bosses, minibosses) makes the NPC use that character Blueprint; delete it to use the generic AI character. Add your own lines the same way.
+Open world	Trickster	/Game/DB/AI/NPCs/Trickster/Trickster.Trickster
+Open world	Absorb v1	/Game/DB/AI/NPCs/Absorb/Absorb_v1.Absorb_v1
+Open world	Agile v1	/Game/DB/AI/NPCs/Agile/Agile_v1.Agile_v1
+Open world	Agile v2	/Game/DB/AI/NPCs/Agile/Agile_v2.Agile_v2
+Open world	Avoid v1	/Game/DB/AI/NPCs/Avoid/Avoid_v1.Avoid_v1
+Open world	City Agile v1	/Game/DB/AI/NPCs/Agile/City_Agile_v1.City_Agile_v1
+Open world	City Avoid v2	/Game/DB/AI/NPCs/Avoid/City_Avoid_v2.City_Avoid_v2
+Open world	City Cadencer v1	/Game/DB/AI/NPCs/Cadencer/City_Cadencer_v1.City_Cadencer_v1
+Open world	City Cadencer v2	/Game/DB/AI/NPCs/Cadencer/City_Cadencer_v2.City_Cadencer_v2
+Open world	City Grunt v1	/Game/DB/AI/NPCs/Grunt/City_Grunt_v1.City_Grunt_v1
+Open world	City Harasser v1	/Game/DB/AI/NPCs/Harasser/City_Harasser_v1.City_Harasser_v1
+Open world	City Jumper v1	/Game/DB/AI/NPCs/Jumper/City_Jumper_v1.City_Jumper_v1
+Open world	City Jumper v2	/Game/DB/AI/NPCs/Jumper/City_Jumper_v2.City_Jumper_v2
+Open world	City LegSlow v1	/Game/DB/AI/NPCs/LegSlow/City_LegSlow_v1.City_LegSlow_v1
+Open world	City Spinner v1	/Game/DB/AI/NPCs/Spinner/City_Spinner_v1.City_Spinner_v1
+Open world	City Spinner v2	/Game/DB/AI/NPCs/Spinner/City_Spinner_v2.City_Spinner_v2
+Open world	City Weaponized	/Game/DB/AI/NPCs/City_Weaponized/City_Weaponized.City_Weaponized
+Open world	Evil v1	/Game/DB/AI/NPCs/Evil/Evil_v1.Evil_v1
+Open world	Forest Absorb v1	/Game/DB/AI/NPCs/Absorb/Forest_Absorb_v1.Forest_Absorb_v1
+Open world	Forest Absorb v2	/Game/DB/AI/NPCs/Absorb/Forest_Absorb_v2.Forest_Absorb_v2
+Open world	Forest Agile v1	/Game/DB/AI/NPCs/Agile/Forest_Agile_v1.Forest_Agile_v1
+Open world	Forest Agile v2	/Game/DB/AI/NPCs/Agile/Forest_Agile_v2.Forest_Agile_v2
+Open world	Forest AI Balanced	/Game/DB/AI/NPCs/Forest_AI_Balanced.Forest_AI_Balanced
+Open world	Forest AI TankGuardian1	/Game/DB/AI/NPCs/Forest_AI_TankGuardian1.Forest_AI_TankGuardian1
+Open world	Forest AI TankGuardian2	/Game/DB/AI/NPCs/Forest_AI_TankGuardian2.Forest_AI_TankGuardian2
+Open world	Forest Avoid v1	/Game/DB/AI/NPCs/Avoid/Forest_Avoid_v1.Forest_Avoid_v1
+Open world	Forest Avoid v2	/Game/DB/AI/NPCs/Avoid/Forest_Avoid_v2.Forest_Avoid_v2
+Open world	Forest Grunt v1	/Game/DB/AI/NPCs/Grunt/Forest_Grunt_v1.Forest_Grunt_v1
+Open world	Forest Grunt v2	/Game/DB/AI/NPCs/Grunt/Forest_Grunt_v2.Forest_Grunt_v2
+Open world	Forest Parry v1	/Game/DB/AI/NPCs/Parry/Forest_Parry_v1.Forest_Parry_v1
+Open world	Forest Parry v2	/Game/DB/AI/NPCs/Parry/Forest_Parry_v2.Forest_Parry_v2
+Open world	Forest Slow v1	/Game/DB/AI/NPCs/Slow/Forest_Slow_v1.Forest_Slow_v1
+Open world	Forest Slow v2	/Game/DB/AI/NPCs/Slow/Forest_Slow_v2.Forest_Slow_v2
+Open world	Forest Spartan v1	/Game/DB/AI/NPCs/Spartan/Forest_Spartan_v1.Forest_Spartan_v1
+Open world	Forest Spartan v2	/Game/DB/AI/NPCs/Spartan/Forest_Spartan_v2.Forest_Spartan_v2
+Open world	Forest Weaponized	/Game/DB/AI/NPCs/Forest_Weaponized/Forest_Weaponized.Forest_Weaponized
+Open world	Grunt v1	/Game/DB/AI/NPCs/Grunt/Grunt_v1.Grunt_v1
+Open world	Grunt v2	/Game/DB/AI/NPCs/Grunt/Grunt_v2.Grunt_v2
+Open world	Grunt v3	/Game/DB/AI/NPCs/Grunt/Grunt_v3.Grunt_v3
+Open world	Guard v1	/Game/DB/AI/NPCs/Guard/Guard_v1.Guard_v1
+Open world	lower Weaponized	/Game/DB/AI/NPCs/Lower_Weaponized/lower_Weaponized.lower_Weaponized
+Open world	Parry v1	/Game/DB/AI/NPCs/Parry/Parry_v1.Parry_v1
+Open world	Sammo v1	/Game/DB/AI/NPCs/Sammo/Sammo_v1.Sammo_v1
+Open world	Slow v1	/Game/DB/AI/NPCs/Slow/Slow_v1.Slow_v1
+Open world	Stock Weaponized	/Game/DB/AI/NPCs/Stock_Weaponized/Stock_Weaponized.Stock_Weaponized
+Open world	Tower Absorb v1	/Game/DB/AI/NPCs/Absorb/Tower_Absorb_v1.Tower_Absorb_v1
+Open world	Tower Absorb v2	/Game/DB/AI/NPCs/Absorb/Tower_Absorb_v2.Tower_Absorb_v2
+Open world	Tower Distancer v1	/Game/DB/AI/NPCs/Distancer/Tower_Distancer_v1.Tower_Distancer_v1
+Open world	Tower Distancer v2	/Game/DB/AI/NPCs/Distancer/Tower_Distancer_v2.Tower_Distancer_v2
+Open world	Tower Grunt v1	/Game/DB/AI/NPCs/Grunt/Tower_Grunt_v1.Tower_Grunt_v1
+Open world	Tower Miner v1	/Game/DB/AI/NPCs/Miner/Tower_Miner_v1.Tower_Miner_v1
+Open world	Tower Miner v2	/Game/DB/AI/NPCs/Miner/Tower_Miner_v2.Tower_Miner_v2
+Open world	Tower Pusher v1	/Game/DB/AI/NPCs/Pusher/Tower_Pusher_v1.Tower_Pusher_v1
+MiniBoss	Coliseum MiniBoss	/Game/DB/AI/NPCs/City_Coliseum_MiniBoss/Coliseum_MiniBoss.Coliseum_MiniBoss	/Game/Blueprints/AI/BP_AICharacter_MiniBoss.BP_AICharacter_MiniBoss_C
+MiniBoss	Coliseum MiniBoss v2	/Game/DB/AI/NPCs/City_Coliseum_MiniBoss/Coliseum_MiniBoss_v2.Coliseum_MiniBoss_v2	/Game/Blueprints/AI/BP_AICharacter_MiniBoss.BP_AICharacter_MiniBoss_C
+MiniBoss	Drunken MiniBoss	/Game/DB/AI/NPCs/MiniBoss_Drunken/Drunken_MiniBoss.Drunken_MiniBoss	/Game/Blueprints/AI/BP_AICharacter_MiniBoss.BP_AICharacter_MiniBoss_C
+MiniBoss	Lower MiniBoss	/Game/DB/AI/NPCs/Tower_Lower_MiniBoss/Lower_MiniBoss.Lower_MiniBoss	/Game/Blueprints/AI/BP_AICharacter_MiniBoss.BP_AICharacter_MiniBoss_C
+MiniBoss	Path MiniBoss	/Game/DB/AI/NPCs/Forest_Path_MiniBoss/Path_MiniBoss.Path_MiniBoss	/Game/Blueprints/AI/BP_AICharacter_MiniBoss.BP_AICharacter_MiniBoss_C
+MiniBoss	Path MiniBoss v2	/Game/DB/AI/NPCs/Forest_Path_MiniBoss/Path_MiniBoss_v2.Path_MiniBoss_v2	/Game/Blueprints/AI/BP_AICharacter_MiniBoss.BP_AICharacter_MiniBoss_C
+MiniBoss	Pier MiniBoss	/Game/DB/AI/NPCs/City_Pier_MiniBoss/Pier_MiniBoss.Pier_MiniBoss	/Game/Blueprints/AI/BP_AICharacter_MiniBoss.BP_AICharacter_MiniBoss_C
+MiniBoss	Pier MiniBoss v2	/Game/DB/AI/NPCs/City_Pier_MiniBoss/Pier_MiniBoss_v2.Pier_MiniBoss_v2	/Game/Blueprints/AI/BP_AICharacter_MiniBoss.BP_AICharacter_MiniBoss_C
+MiniBoss	Swamp MiniBoss	/Game/DB/AI/NPCs/Forest_Swamp_MiniBoss/Swamp_MiniBoss.Swamp_MiniBoss	/Game/Blueprints/AI/BP_AICharacter_MiniBoss.BP_AICharacter_MiniBoss_C
+MiniBoss	Swamp MiniBoss v2	/Game/DB/AI/NPCs/Forest_Swamp_MiniBoss/Swamp_MiniBoss_v2.Swamp_MiniBoss_v2	/Game/Blueprints/AI/BP_AICharacter_MiniBoss.BP_AICharacter_MiniBoss_C
+MiniBoss	Village MiniBoss	/Game/DB/AI/NPCs/Forest_Village_MiniBoss/Village_MiniBoss.Village_MiniBoss	/Game/Blueprints/AI/BP_AICharacter_MiniBoss.BP_AICharacter_MiniBoss_C
+MiniBoss	Village MiniBoss v2	/Game/DB/AI/NPCs/Forest_Village_MiniBoss/Village_MiniBoss_v2.Village_MiniBoss_v2	/Game/Blueprints/AI/BP_AICharacter_MiniBoss.BP_AICharacter_MiniBoss_C
+Boss: Cargal & Kilnor	Lv1 Cargal Phase1	/Game/DB/AI/BOSSES/CargalKilnor/Level1/Lvl1_Cargal_Phase1.Lvl1_Cargal_Phase1	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv1 Cargal Phase2	/Game/DB/AI/BOSSES/CargalKilnor/Level1/Lvl1_Cargal_Phase2.Lvl1_Cargal_Phase2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv1 Cargal Phase3	/Game/DB/AI/BOSSES/CargalKilnor/Level1/Lvl1_Cargal_Phase3.Lvl1_Cargal_Phase3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv1 Cargal Phase4	/Game/DB/AI/BOSSES/CargalKilnor/Level1/Lvl1_Cargal_Phase4.Lvl1_Cargal_Phase4	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv1 Cargal Phase5	/Game/DB/AI/BOSSES/CargalKilnor/Level1/Lvl1_Cargal_Phase5.Lvl1_Cargal_Phase5	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv1 Cargal Phase Defense	/Game/DB/AI/BOSSES/CargalKilnor/Level1/Lvl1_Cargal_Phase_Defense.Lvl1_Cargal_Phase_Defense	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv1 Kilnor Phase1	/Game/DB/AI/BOSSES/CargalKilnor/Level1/Lvl1_Kilnor_Phase1.Lvl1_Kilnor_Phase1	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv1 Kilnor Phase2	/Game/DB/AI/BOSSES/CargalKilnor/Level1/Lvl1_Kilnor_Phase2.Lvl1_Kilnor_Phase2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv1 Kilnor Phase3	/Game/DB/AI/BOSSES/CargalKilnor/Level1/Lvl1_Kilnor_Phase3.Lvl1_Kilnor_Phase3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv1 Kilnor Phase4	/Game/DB/AI/BOSSES/CargalKilnor/Level1/Lvl1_Kilnor_Phase4.Lvl1_Kilnor_Phase4	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv1 Kilnor Phase5	/Game/DB/AI/BOSSES/CargalKilnor/Level1/Lvl1_Kilnor_Phase5.Lvl1_Kilnor_Phase5	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv1 Kilnor Phase Defense	/Game/DB/AI/BOSSES/CargalKilnor/Level1/Lvl1_Kilnor_Phase_Defense.Lvl1_Kilnor_Phase_Defense	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv2 Cargal Phase1	/Game/DB/AI/BOSSES/CargalKilnor/Level2/Lvl2_Cargal_Phase1.Lvl2_Cargal_Phase1	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv2 Cargal Phase2	/Game/DB/AI/BOSSES/CargalKilnor/Level2/Lvl2_Cargal_Phase2.Lvl2_Cargal_Phase2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv2 Cargal Phase3	/Game/DB/AI/BOSSES/CargalKilnor/Level2/Lvl2_Cargal_Phase3.Lvl2_Cargal_Phase3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv2 Cargal Phase4	/Game/DB/AI/BOSSES/CargalKilnor/Level2/Lvl2_Cargal_Phase4.Lvl2_Cargal_Phase4	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv2 Cargal Phase5	/Game/DB/AI/BOSSES/CargalKilnor/Level2/Lvl2_Cargal_Phase5.Lvl2_Cargal_Phase5	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv2 Cargal Phase Defense	/Game/DB/AI/BOSSES/CargalKilnor/Level2/Lvl2_Cargal_Phase_Defense.Lvl2_Cargal_Phase_Defense	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv2 Kilnor Phase1	/Game/DB/AI/BOSSES/CargalKilnor/Level2/Lvl2_Kilnor_Phase1.Lvl2_Kilnor_Phase1	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv2 Kilnor Phase2	/Game/DB/AI/BOSSES/CargalKilnor/Level2/Lvl2_Kilnor_Phase2.Lvl2_Kilnor_Phase2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv2 Kilnor Phase3	/Game/DB/AI/BOSSES/CargalKilnor/Level2/Lvl2_Kilnor_Phase3.Lvl2_Kilnor_Phase3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv2 Kilnor Phase4	/Game/DB/AI/BOSSES/CargalKilnor/Level2/Lvl2_Kilnor_Phase4.Lvl2_Kilnor_Phase4	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv2 Kilnor Phase5	/Game/DB/AI/BOSSES/CargalKilnor/Level2/Lvl2_Kilnor_Phase5.Lvl2_Kilnor_Phase5	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv2 Kilnor Phase Defense	/Game/DB/AI/BOSSES/CargalKilnor/Level2/Lvl2_Kilnor_Phase_Defense.Lvl2_Kilnor_Phase_Defense	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv3 Cargal Phase1	/Game/DB/AI/BOSSES/CargalKilnor/Level3/Lvl3_Cargal_Phase1.Lvl3_Cargal_Phase1	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv3 Cargal Phase2	/Game/DB/AI/BOSSES/CargalKilnor/Level3/Lvl3_Cargal_Phase2.Lvl3_Cargal_Phase2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv3 Cargal Phase3	/Game/DB/AI/BOSSES/CargalKilnor/Level3/Lvl3_Cargal_Phase3.Lvl3_Cargal_Phase3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv3 Cargal Phase4	/Game/DB/AI/BOSSES/CargalKilnor/Level3/Lvl3_Cargal_Phase4.Lvl3_Cargal_Phase4	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv3 Cargal Phase5	/Game/DB/AI/BOSSES/CargalKilnor/Level3/Lvl3_Cargal_Phase5.Lvl3_Cargal_Phase5	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv3 Cargal Phase Defense	/Game/DB/AI/BOSSES/CargalKilnor/Level3/Lvl3_Cargal_Phase_Defense.Lvl3_Cargal_Phase_Defense	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv3 Kilnor Phase1	/Game/DB/AI/BOSSES/CargalKilnor/Level3/Lvl3_Kilnor_Phase1.Lvl3_Kilnor_Phase1	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv3 Kilnor Phase2	/Game/DB/AI/BOSSES/CargalKilnor/Level3/Lvl3_Kilnor_Phase2.Lvl3_Kilnor_Phase2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv3 Kilnor Phase3	/Game/DB/AI/BOSSES/CargalKilnor/Level3/Lvl3_Kilnor_Phase3.Lvl3_Kilnor_Phase3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv3 Kilnor Phase4	/Game/DB/AI/BOSSES/CargalKilnor/Level3/Lvl3_Kilnor_Phase4.Lvl3_Kilnor_Phase4	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv3 Kilnor Phase5	/Game/DB/AI/BOSSES/CargalKilnor/Level3/Lvl3_Kilnor_Phase5.Lvl3_Kilnor_Phase5	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv3 Kilnor Phase Defense	/Game/DB/AI/BOSSES/CargalKilnor/Level3/Lvl3_Kilnor_Phase_Defense.Lvl3_Kilnor_Phase_Defense	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv4 Cargal Phase1	/Game/DB/AI/BOSSES/CargalKilnor/Level4/Lvl4_Cargal_Phase1.Lvl4_Cargal_Phase1	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv4 Cargal Phase2	/Game/DB/AI/BOSSES/CargalKilnor/Level4/Lvl4_Cargal_Phase2.Lvl4_Cargal_Phase2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv4 Cargal Phase3	/Game/DB/AI/BOSSES/CargalKilnor/Level4/Lvl4_Cargal_Phase3.Lvl4_Cargal_Phase3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv4 Cargal Phase4	/Game/DB/AI/BOSSES/CargalKilnor/Level4/Lvl4_Cargal_Phase4.Lvl4_Cargal_Phase4	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv4 Cargal Phase5	/Game/DB/AI/BOSSES/CargalKilnor/Level4/Lvl4_Cargal_Phase5.Lvl4_Cargal_Phase5	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv4 Cargal Phase Defense	/Game/DB/AI/BOSSES/CargalKilnor/Level4/Lvl4_Cargal_Phase_Defense.Lvl4_Cargal_Phase_Defense	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv4 Kilnor Phase1	/Game/DB/AI/BOSSES/CargalKilnor/Level4/Lvl4_Kilnor_Phase1.Lvl4_Kilnor_Phase1	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv4 Kilnor Phase2	/Game/DB/AI/BOSSES/CargalKilnor/Level4/Lvl4_Kilnor_Phase2.Lvl4_Kilnor_Phase2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv4 Kilnor Phase3	/Game/DB/AI/BOSSES/CargalKilnor/Level4/Lvl4_Kilnor_Phase3.Lvl4_Kilnor_Phase3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv4 Kilnor Phase4	/Game/DB/AI/BOSSES/CargalKilnor/Level4/Lvl4_Kilnor_Phase4.Lvl4_Kilnor_Phase4	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv4 Kilnor Phase5	/Game/DB/AI/BOSSES/CargalKilnor/Level4/Lvl4_Kilnor_Phase5.Lvl4_Kilnor_Phase5	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Cargal & Kilnor	Lv4 Kilnor Phase Defense	/Game/DB/AI/BOSSES/CargalKilnor/Level4/Lvl4_Kilnor_Phase_Defense.Lvl4_Kilnor_Phase_Defense	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_CargalKilnor.BP_AICharacter_Boss_CargalKilnor_C
+Boss: Kuretz	Lv1 Kuretz Phase1	/Game/DB/AI/BOSSES/Kuretz/Level1/Lvl1_Kuretz_Phase1.Lvl1_Kuretz_Phase1	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Kuretz.BP_AICharacter_Boss_Kuretz_C
+Boss: Kuretz	Lv1 Kuretz Phase2	/Game/DB/AI/BOSSES/Kuretz/Level1/Lvl1_Kuretz_Phase2.Lvl1_Kuretz_Phase2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Kuretz.BP_AICharacter_Boss_Kuretz_C
+Boss: Kuretz	Lv1 Kuretz Phase2 Add	/Game/DB/AI/BOSSES/Kuretz/Level1/Lvl1_Kuretz_Phase2_Add.Lvl1_Kuretz_Phase2_Add	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Kuretz.BP_AICharacter_Boss_Kuretz_C
+Boss: Kuretz	Lv1 Kuretz Phase3	/Game/DB/AI/BOSSES/Kuretz/Level1/Lvl1_Kuretz_Phase3.Lvl1_Kuretz_Phase3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Kuretz.BP_AICharacter_Boss_Kuretz_C
+Boss: Kuretz	Lv1 Kuretz Phase4	/Game/DB/AI/BOSSES/Kuretz/Level1/Lvl1_Kuretz_Phase4.Lvl1_Kuretz_Phase4	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Kuretz.BP_AICharacter_Boss_Kuretz_C
+Boss: Kuretz	Lv2 Kuretz Phase1	/Game/DB/AI/BOSSES/Kuretz/Level2/Lvl2_Kuretz_Phase1.Lvl2_Kuretz_Phase1	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Kuretz.BP_AICharacter_Boss_Kuretz_C
+Boss: Kuretz	Lv2 Kuretz Phase2	/Game/DB/AI/BOSSES/Kuretz/Level2/Lvl2_Kuretz_Phase2.Lvl2_Kuretz_Phase2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Kuretz.BP_AICharacter_Boss_Kuretz_C
+Boss: Kuretz	Lv2 Kuretz Phase3	/Game/DB/AI/BOSSES/Kuretz/Level2/Lvl2_Kuretz_Phase3.Lvl2_Kuretz_Phase3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Kuretz.BP_AICharacter_Boss_Kuretz_C
+Boss: Kuretz	Lv2 Kuretz Phase4	/Game/DB/AI/BOSSES/Kuretz/Level2/Lvl2_Kuretz_Phase4.Lvl2_Kuretz_Phase4	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Kuretz.BP_AICharacter_Boss_Kuretz_C
+Boss: Kuretz	Lv3 Kuretz Phase1	/Game/DB/AI/BOSSES/Kuretz/Level3/Lvl3_Kuretz_Phase1.Lvl3_Kuretz_Phase1	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Kuretz.BP_AICharacter_Boss_Kuretz_C
+Boss: Kuretz	Lv3 Kuretz Phase2	/Game/DB/AI/BOSSES/Kuretz/Level3/Lvl3_Kuretz_Phase2.Lvl3_Kuretz_Phase2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Kuretz.BP_AICharacter_Boss_Kuretz_C
+Boss: Kuretz	Lv3 Kuretz Phase3	/Game/DB/AI/BOSSES/Kuretz/Level3/Lvl3_Kuretz_Phase3.Lvl3_Kuretz_Phase3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Kuretz.BP_AICharacter_Boss_Kuretz_C
+Boss: Kuretz	Lv3 Kuretz Phase4	/Game/DB/AI/BOSSES/Kuretz/Level3/Lvl3_Kuretz_Phase4.Lvl3_Kuretz_Phase4	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Kuretz.BP_AICharacter_Boss_Kuretz_C
+Boss: Kuretz	Lv4 Kuretz Phase1	/Game/DB/AI/BOSSES/Kuretz/Level4/Lvl4_Kuretz_Phase1.Lvl4_Kuretz_Phase1	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Kuretz.BP_AICharacter_Boss_Kuretz_C
+Boss: Kuretz	Lv4 Kuretz Phase2	/Game/DB/AI/BOSSES/Kuretz/Level4/Lvl4_Kuretz_Phase2.Lvl4_Kuretz_Phase2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Kuretz.BP_AICharacter_Boss_Kuretz_C
+Boss: Kuretz	Lv4 Kuretz Phase3	/Game/DB/AI/BOSSES/Kuretz/Level4/Lvl4_Kuretz_Phase3.Lvl4_Kuretz_Phase3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Kuretz.BP_AICharacter_Boss_Kuretz_C
+Boss: Kuretz	Lv4 Kuretz Phase4	/Game/DB/AI/BOSSES/Kuretz/Level4/Lvl4_Kuretz_Phase4.Lvl4_Kuretz_Phase4	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Kuretz.BP_AICharacter_Boss_Kuretz_C
+Boss: Risryn	Lv1 Risryn LastPhase	/Game/DB/AI/BOSSES/Shiraz/Level1/Lvl1_Shiraz_LastPhase.Lvl1_Shiraz_LastPhase	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv1 Risryn Phase1 Forsaken	/Game/DB/AI/BOSSES/Shiraz/Level1/Lvl1_Shiraz_Phase1_Forsaken.Lvl1_Shiraz_Phase1_Forsaken	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv1 Risryn Phase1 Windfall	/Game/DB/AI/BOSSES/Shiraz/Level1/Lvl1_Shiraz_Phase1_Windfall.Lvl1_Shiraz_Phase1_Windfall	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv1 Risryn Phase2 Forsaken	/Game/DB/AI/BOSSES/Shiraz/Level1/Lvl1_Shiraz_Phase2_Forsaken.Lvl1_Shiraz_Phase2_Forsaken	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv1 Risryn Phase2 Windfall	/Game/DB/AI/BOSSES/Shiraz/Level1/Lvl1_Shiraz_Phase2_Windfall.Lvl1_Shiraz_Phase2_Windfall	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv1 Risryn Phase3 Forsaken	/Game/DB/AI/BOSSES/Shiraz/Level1/Lvl1_Shiraz_Phase3_Forsaken.Lvl1_Shiraz_Phase3_Forsaken	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv1 Risryn Phase3 Windfall	/Game/DB/AI/BOSSES/Shiraz/Level1/Lvl1_Shiraz_Phase3_Windfall.Lvl1_Shiraz_Phase3_Windfall	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv1 Risryn Phase4 Forsaken	/Game/DB/AI/BOSSES/Shiraz/Level1/Lvl1_Shiraz_Phase4_Forsaken.Lvl1_Shiraz_Phase4_Forsaken	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv1 Risryn Phase4 Windfall	/Game/DB/AI/BOSSES/Shiraz/Level1/Lvl1_Shiraz_Phase4_Windfall.Lvl1_Shiraz_Phase4_Windfall	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv1 Risryn Phase5 Forsaken	/Game/DB/AI/BOSSES/Shiraz/Level1/Lvl1_Shiraz_Phase5_Forsaken.Lvl1_Shiraz_Phase5_Forsaken	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv1 Risryn Phase5 Windfall	/Game/DB/AI/BOSSES/Shiraz/Level1/Lvl1_Shiraz_Phase5_Windfall.Lvl1_Shiraz_Phase5_Windfall	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv1 Risryn PhaseObserve	/Game/DB/AI/BOSSES/Shiraz/Level1/Lvl1_Shiraz_PhaseObserve.Lvl1_Shiraz_PhaseObserve	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv2 Risryn LastPhase	/Game/DB/AI/BOSSES/Shiraz/Level2/Lvl2_Shiraz_LastPhase.Lvl2_Shiraz_LastPhase	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv2 Risryn Phase1 Forsaken	/Game/DB/AI/BOSSES/Shiraz/Level2/Lvl2_Shiraz_Phase1_Forsaken.Lvl2_Shiraz_Phase1_Forsaken	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv2 Risryn Phase1 Windfall	/Game/DB/AI/BOSSES/Shiraz/Level2/Lvl2_Shiraz_Phase1_Windfall.Lvl2_Shiraz_Phase1_Windfall	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv2 Risryn Phase2 Forsaken	/Game/DB/AI/BOSSES/Shiraz/Level2/Lvl2_Shiraz_Phase2_Forsaken.Lvl2_Shiraz_Phase2_Forsaken	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv2 Risryn Phase2 Windfall	/Game/DB/AI/BOSSES/Shiraz/Level2/Lvl2_Shiraz_Phase2_Windfall.Lvl2_Shiraz_Phase2_Windfall	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv2 Risryn Phase3 Forsaken	/Game/DB/AI/BOSSES/Shiraz/Level2/Lvl2_Shiraz_Phase3_Forsaken.Lvl2_Shiraz_Phase3_Forsaken	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv2 Risryn Phase3 Windfall	/Game/DB/AI/BOSSES/Shiraz/Level2/Lvl2_Shiraz_Phase3_Windfall.Lvl2_Shiraz_Phase3_Windfall	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv2 Risryn Phase4 Forsaken	/Game/DB/AI/BOSSES/Shiraz/Level2/Lvl2_Shiraz_Phase4_Forsaken.Lvl2_Shiraz_Phase4_Forsaken	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv2 Risryn Phase4 Windfall	/Game/DB/AI/BOSSES/Shiraz/Level2/Lvl2_Shiraz_Phase4_Windfall.Lvl2_Shiraz_Phase4_Windfall	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv2 Risryn Phase5 Forsaken	/Game/DB/AI/BOSSES/Shiraz/Level2/Lvl2_Shiraz_Phase5_Forsaken.Lvl2_Shiraz_Phase5_Forsaken	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv2 Risryn Phase5 Windfall	/Game/DB/AI/BOSSES/Shiraz/Level2/Lvl2_Shiraz_Phase5_Windfall.Lvl2_Shiraz_Phase5_Windfall	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv2 Risryn PhaseObserve	/Game/DB/AI/BOSSES/Shiraz/Level2/Lvl2_Shiraz_PhaseObserve.Lvl2_Shiraz_PhaseObserve	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv3 Risryn LastPhase	/Game/DB/AI/BOSSES/Shiraz/Level3/Lvl3_Shiraz_LastPhase.Lvl3_Shiraz_LastPhase	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv3 Risryn Phase1 Forsaken	/Game/DB/AI/BOSSES/Shiraz/Level3/Lvl3_Shiraz_Phase1_Forsaken.Lvl3_Shiraz_Phase1_Forsaken	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv3 Risryn Phase1 Windfall	/Game/DB/AI/BOSSES/Shiraz/Level3/Lvl3_Shiraz_Phase1_Windfall.Lvl3_Shiraz_Phase1_Windfall	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv3 Risryn Phase2 Forsaken	/Game/DB/AI/BOSSES/Shiraz/Level3/Lvl3_Shiraz_Phase2_Forsaken.Lvl3_Shiraz_Phase2_Forsaken	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv3 Risryn Phase2 Windfall	/Game/DB/AI/BOSSES/Shiraz/Level3/Lvl3_Shiraz_Phase2_Windfall.Lvl3_Shiraz_Phase2_Windfall	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv3 Risryn Phase3 Forsaken	/Game/DB/AI/BOSSES/Shiraz/Level3/Lvl3_Shiraz_Phase3_Forsaken.Lvl3_Shiraz_Phase3_Forsaken	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv3 Risryn Phase3 Windfall	/Game/DB/AI/BOSSES/Shiraz/Level3/Lvl3_Shiraz_Phase3_Windfall.Lvl3_Shiraz_Phase3_Windfall	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv3 Risryn Phase4 Forsaken	/Game/DB/AI/BOSSES/Shiraz/Level3/Lvl3_Shiraz_Phase4_Forsaken.Lvl3_Shiraz_Phase4_Forsaken	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv3 Risryn Phase4 Windfall	/Game/DB/AI/BOSSES/Shiraz/Level3/Lvl3_Shiraz_Phase4_Windfall.Lvl3_Shiraz_Phase4_Windfall	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv3 Risryn Phase5 Forsaken	/Game/DB/AI/BOSSES/Shiraz/Level3/Lvl3_Shiraz_Phase5_Forsaken.Lvl3_Shiraz_Phase5_Forsaken	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv3 Risryn Phase5 Windfall	/Game/DB/AI/BOSSES/Shiraz/Level3/Lvl3_Shiraz_Phase5_Windfall.Lvl3_Shiraz_Phase5_Windfall	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv3 Risryn PhaseObserve	/Game/DB/AI/BOSSES/Shiraz/Level3/Lvl3_Shiraz_PhaseObserve.Lvl3_Shiraz_PhaseObserve	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv4 Risryn Phase1 Forsaken	/Game/DB/AI/BOSSES/Shiraz/Level4/Lvl4_Shiraz_Phase1_Forsaken.Lvl4_Shiraz_Phase1_Forsaken	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv4 Risryn Phase1 Windfall	/Game/DB/AI/BOSSES/Shiraz/Level4/Lvl4_Shiraz_Phase1_Windfall.Lvl4_Shiraz_Phase1_Windfall	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv4 Risryn Phase2 Forsaken	/Game/DB/AI/BOSSES/Shiraz/Level4/Lvl4_Shiraz_Phase2_Forsaken.Lvl4_Shiraz_Phase2_Forsaken	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv4 Risryn Phase2 Windfall	/Game/DB/AI/BOSSES/Shiraz/Level4/Lvl4_Shiraz_Phase2_Windfall.Lvl4_Shiraz_Phase2_Windfall	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv4 Risryn Phase3 Forsaken	/Game/DB/AI/BOSSES/Shiraz/Level4/Lvl4_Shiraz_Phase3_Forsaken.Lvl4_Shiraz_Phase3_Forsaken	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv4 Risryn Phase3 Windfall	/Game/DB/AI/BOSSES/Shiraz/Level4/Lvl4_Shiraz_Phase3_Windfall.Lvl4_Shiraz_Phase3_Windfall	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv4 Risryn Phase4 Forsaken	/Game/DB/AI/BOSSES/Shiraz/Level4/Lvl4_Shiraz_Phase4_Forsaken.Lvl4_Shiraz_Phase4_Forsaken	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv4 Risryn Phase4 Windfall	/Game/DB/AI/BOSSES/Shiraz/Level4/Lvl4_Shiraz_Phase4_Windfall.Lvl4_Shiraz_Phase4_Windfall	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv4 Risryn Phase5 Forsaken	/Game/DB/AI/BOSSES/Shiraz/Level4/Lvl4_Shiraz_Phase5_Forsaken.Lvl4_Shiraz_Phase5_Forsaken	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv4 Risryn Phase5 Windfall	/Game/DB/AI/BOSSES/Shiraz/Level4/Lvl4_Shiraz_Phase5_Windfall.Lvl4_Shiraz_Phase5_Windfall	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+Boss: Risryn	Lv4 Risryn PhaseObserve	/Game/DB/AI/BOSSES/Shiraz/Level4/Lvl4_Shiraz_PhaseObserve.Lvl4_Shiraz_PhaseObserve	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_Risryn.BP_AICharacter_Boss_Risryn_C
+PvE Theme 1	T1 Advanced 1	/Game/DB/AI/NPCs/PVE/Theme_1/Advanced/Advanced1/T1_Advanced_1.T1_Advanced_1
+PvE Theme 1	T1 Advanced 2	/Game/DB/AI/NPCs/PVE/Theme_1/Advanced/Advanced2/T1_Advanced_2.T1_Advanced_2
+PvE Theme 1	T1 Advanced 3	/Game/DB/AI/NPCs/PVE/Theme_1/Advanced/Advanced3/T1_Advanced_3.T1_Advanced_3
+PvE Theme 1	T1 Basic 1	/Game/DB/AI/NPCs/PVE/Theme_1/Basic/Basic1/T1_Basic_1.T1_Basic_1
+PvE Theme 1	T1 Basic 2	/Game/DB/AI/NPCs/PVE/Theme_1/Basic/Basic2/T1_Basic_2.T1_Basic_2
+PvE Theme 1	T1 Basic 3	/Game/DB/AI/NPCs/PVE/Theme_1/Basic/Basic3/T1_Basic_3.T1_Basic_3
+PvE Theme 1	T1 Basic 5	/Game/DB/AI/NPCs/PVE/Theme_1/Basic/Basic5/T1_Basic_5.T1_Basic_5
+PvE Theme 1	T1 Hard 1	/Game/DB/AI/NPCs/PVE/Theme_1/hard/Hard1/T1_Hard_1.T1_Hard_1
+PvE Theme 1	T1 Hard 2	/Game/DB/AI/NPCs/PVE/Theme_1/hard/Hard2/T1_Hard_2.T1_Hard_2
+PvE Theme 1	T1 Marked 1	/Game/DB/AI/NPCs/PVE/Theme_1/Marked/Marked_1/T1_Marked_1.T1_Marked_1
+PvE Theme 1	T1 Marked 2	/Game/DB/AI/NPCs/PVE/Theme_1/Marked/Marked_2/T1_Marked_2.T1_Marked_2
+PvE Theme 2	T2 Advanced 1	/Game/DB/AI/NPCs/PVE/Theme_2/Advanced/Advanced1/T2_Advanced_1.T2_Advanced_1
+PvE Theme 2	T2 Advanced 2	/Game/DB/AI/NPCs/PVE/Theme_2/Advanced/Advanced2/T2_Advanced_2.T2_Advanced_2
+PvE Theme 2	T2 Advanced 3	/Game/DB/AI/NPCs/PVE/Theme_2/Advanced/Advanced3/T2_Advanced_3.T2_Advanced_3
+PvE Theme 2	T2 Advanced 4	/Game/DB/AI/NPCs/PVE/Theme_2/Advanced/Advanced4/T2_Advanced_4.T2_Advanced_4
+PvE Theme 2	T2 Basic 1	/Game/DB/AI/NPCs/PVE/Theme_2/Basic/Basic1/T2_Basic_1.T2_Basic_1
+PvE Theme 2	T2 Basic 2	/Game/DB/AI/NPCs/PVE/Theme_2/Basic/basic2/T2_Basic_2.T2_Basic_2
+PvE Theme 2	T2 Basic 3	/Game/DB/AI/NPCs/PVE/Theme_2/Basic/Basic3/T2_Basic_3.T2_Basic_3
+PvE Theme 2	T2 Hard 1	/Game/DB/AI/NPCs/PVE/Theme_2/Hard/Hard1/T2_Hard_1.T2_Hard_1
+PvE Theme 2	T2 Hard 2	/Game/DB/AI/NPCs/PVE/Theme_2/Hard/Hard2/T2_Hard_2.T2_Hard_2
+PvE Theme 2	T2 Marked Parry V1	/Game/DB/AI/NPCs/PVE/Theme_2/Marked/T2_Marked_Parry_V1.T2_Marked_Parry_V1
+PvE Theme 2	T2 Marked V1	/Game/DB/AI/NPCs/PVE/Theme_2/Marked/T2_Marked_V1.T2_Marked_V1
+PvE Theme 3	T3 Advanced 1	/Game/DB/AI/NPCs/PVE/Theme_3/Advanced/Advanced1/T3_Advanced_1.T3_Advanced_1
+PvE Theme 3	T3 Advanced 2	/Game/DB/AI/NPCs/PVE/Theme_3/Advanced/Advanced2/T3_Advanced_2.T3_Advanced_2
+PvE Theme 3	T3 Basic 1	/Game/DB/AI/NPCs/PVE/Theme_3/Basic/Basic1/T3_Basic_1.T3_Basic_1
+PvE Theme 3	T3 Basic 2	/Game/DB/AI/NPCs/PVE/Theme_3/Basic/Basic2/T3_Basic_2.T3_Basic_2
+PvE Theme 3	T3 Hard 1	/Game/DB/AI/NPCs/PVE/Theme_3/Hard/Hard1/T3_Hard_1.T3_Hard_1
+PvE Theme 3	T3 Hard 2	/Game/DB/AI/NPCs/PVE/Theme_3/Hard/Hard2/T3_Hard_2.T3_Hard_2
+PvE Theme 3	T3 Marked 1	/Game/DB/AI/NPCs/PVE/Theme_3/Marked/Marked1/T3_Marked_1.T3_Marked_1
+PvE Theme 3	T3 Marked 2	/Game/DB/AI/NPCs/PVE/Theme_3/Marked/Marked2/T3_Marked_2.T3_Marked_2
+PvE Bosses	T1 Boss P1	/Game/DB/AI/NPCs/PVE/Theme_1/Boss/T1_Boss_P1.T1_Boss_P1	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T1.BP_AICharacter_Boss_T1_C
+PvE Bosses	T1 Boss P1 v2	/Game/DB/AI/NPCs/PVE/Theme_1/Boss/2Players/T1_Boss_P1_v2.T1_Boss_P1_v2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T1.BP_AICharacter_Boss_T1_C
+PvE Bosses	T1 Boss P1 v3	/Game/DB/AI/NPCs/PVE/Theme_1/Boss/3Players/T1_Boss_P1_v3.T1_Boss_P1_v3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T1.BP_AICharacter_Boss_T1_C
+PvE Bosses	T1 Boss P2	/Game/DB/AI/NPCs/PVE/Theme_1/Boss/T1_Boss_P2.T1_Boss_P2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T1.BP_AICharacter_Boss_T1_C
+PvE Bosses	T1 Boss P2 v2	/Game/DB/AI/NPCs/PVE/Theme_1/Boss/2Players/T1_Boss_P2_v2.T1_Boss_P2_v2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T1.BP_AICharacter_Boss_T1_C
+PvE Bosses	T1 Boss P2 v3	/Game/DB/AI/NPCs/PVE/Theme_1/Boss/3Players/T1_Boss_P2_v3.T1_Boss_P2_v3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T1.BP_AICharacter_Boss_T1_C
+PvE Bosses	T1 Boss P3	/Game/DB/AI/NPCs/PVE/Theme_1/Boss/T1_Boss_P3.T1_Boss_P3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T1.BP_AICharacter_Boss_T1_C
+PvE Bosses	T1 Boss P3 v2	/Game/DB/AI/NPCs/PVE/Theme_1/Boss/2Players/T1_Boss_P3_v2.T1_Boss_P3_v2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T1.BP_AICharacter_Boss_T1_C
+PvE Bosses	T1 Boss P3 v3	/Game/DB/AI/NPCs/PVE/Theme_1/Boss/3Players/T1_Boss_P3_v3.T1_Boss_P3_v3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T1.BP_AICharacter_Boss_T1_C
+PvE Bosses	T1 Boss P4	/Game/DB/AI/NPCs/PVE/Theme_1/Boss/T1_Boss_P4.T1_Boss_P4	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T1.BP_AICharacter_Boss_T1_C
+PvE Bosses	T1 Boss P4 v2	/Game/DB/AI/NPCs/PVE/Theme_1/Boss/2Players/T1_Boss_P4_v2.T1_Boss_P4_v2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T1.BP_AICharacter_Boss_T1_C
+PvE Bosses	T1 Boss P4 v3	/Game/DB/AI/NPCs/PVE/Theme_1/Boss/3Players/T1_Boss_P4_v3.T1_Boss_P4_v3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T1.BP_AICharacter_Boss_T1_C
+PvE Bosses	T2 Boss P1	/Game/DB/AI/NPCs/PVE/Theme_2/Boss/T2_Boss_P1.T2_Boss_P1	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T2.BP_AICharacter_Boss_T2_C
+PvE Bosses	T2 Boss P1 v2	/Game/DB/AI/NPCs/PVE/Theme_2/Boss/2Players/T2_Boss_P1_v2.T2_Boss_P1_v2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T2.BP_AICharacter_Boss_T2_C
+PvE Bosses	T2 Boss P1 v3	/Game/DB/AI/NPCs/PVE/Theme_2/Boss/3Players/T2_Boss_P1_v3.T2_Boss_P1_v3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T2.BP_AICharacter_Boss_T2_C
+PvE Bosses	T2 Boss P2	/Game/DB/AI/NPCs/PVE/Theme_2/Boss/T2_Boss_P2.T2_Boss_P2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T2.BP_AICharacter_Boss_T2_C
+PvE Bosses	T2 Boss P2 v2	/Game/DB/AI/NPCs/PVE/Theme_2/Boss/2Players/T2_Boss_P2_v2.T2_Boss_P2_v2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T2.BP_AICharacter_Boss_T2_C
+PvE Bosses	T2 Boss P2 v3	/Game/DB/AI/NPCs/PVE/Theme_2/Boss/3Players/T2_Boss_P2_v3.T2_Boss_P2_v3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T2.BP_AICharacter_Boss_T2_C
+PvE Bosses	T2 Boss P3	/Game/DB/AI/NPCs/PVE/Theme_2/Boss/T2_Boss_P3.T2_Boss_P3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T2.BP_AICharacter_Boss_T2_C
+PvE Bosses	T2 Boss P3 v2	/Game/DB/AI/NPCs/PVE/Theme_2/Boss/2Players/T2_Boss_P3_v2.T2_Boss_P3_v2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T2.BP_AICharacter_Boss_T2_C
+PvE Bosses	T2 Boss P3 v3	/Game/DB/AI/NPCs/PVE/Theme_2/Boss/3Players/T2_Boss_P3_v3.T2_Boss_P3_v3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T2.BP_AICharacter_Boss_T2_C
+PvE Bosses	T3 Boss Forsaken	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/T3_Boss_Forsaken.T3_Boss_Forsaken	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE Bosses	T3 Boss Forsaken Fake	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/T3_Boss_Forsaken_Fake.T3_Boss_Forsaken_Fake	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE Bosses	T3 Boss Forsaken v2	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/2Players/T3_Boss_Forsaken_v2.T3_Boss_Forsaken_v2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE Bosses	T3 Boss Forsaken v3	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/3Players/T3_Boss_Forsaken_v3.T3_Boss_Forsaken_v3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE Bosses	T3 Boss Invisible	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/T3_Boss_Invisible.T3_Boss_Invisible	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE Bosses	T3 Boss Invisible2	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/T3_Boss_Invisible2.T3_Boss_Invisible2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE Bosses	T3 Boss Invisible2 v2	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/2Players/T3_Boss_Invisible2_v2.T3_Boss_Invisible2_v2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE Bosses	T3 Boss Invisible2 v3	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/3Players/T3_Boss_Invisible2_v3.T3_Boss_Invisible2_v3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE Bosses	T3 Boss Invisible v2	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/2Players/T3_Boss_Invisible_v2.T3_Boss_Invisible_v2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE Bosses	T3 Boss Invisible v3	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/3Players/T3_Boss_Invisible_v3.T3_Boss_Invisible_v3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE Bosses	T3 Boss Jeet	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/T3_Boss_Jeet.T3_Boss_Jeet	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE Bosses	T3 Boss Jeet Fake	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/T3_Boss_Jeet_Fake.T3_Boss_Jeet_Fake	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE Bosses	T3 Boss Jeet v2	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/2Players/T3_Boss_Jeet_v2.T3_Boss_Jeet_v2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE Bosses	T3 Boss Jeet v3	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/3Players/T3_Boss_Jeet_v3.T3_Boss_Jeet_v3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE Bosses	T3 Boss Kahlt	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/T3_Boss_Kahlt.T3_Boss_Kahlt	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE Bosses	T3 Boss Kahlt Fake	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/T3_Boss_Kahlt_Fake.T3_Boss_Kahlt_Fake	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE Bosses	T3 Boss Kahlt v2	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/2Players/T3_Boss_Kahlt_v2.T3_Boss_Kahlt_v2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE Bosses	T3 Boss Kahlt v3	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/3Players/T3_Boss_Kahlt_v3.T3_Boss_Kahlt_v3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE Bosses	T3 Boss Stagger	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/T3_Boss_Stagger.T3_Boss_Stagger	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE Bosses	T3 Boss Stagger Fake	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/T3_Boss_Stagger_Fake.T3_Boss_Stagger_Fake	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE Bosses	T3 Boss Stagger v2	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/2Players/T3_Boss_Stagger_v2.T3_Boss_Stagger_v2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE Bosses	T3 Boss Stagger v3	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/3Players/T3_Boss_Stagger_v3.T3_Boss_Stagger_v3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE Bosses	T3 Boss Windfall	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/T3_Boss_Windfall.T3_Boss_Windfall	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE Bosses	T3 Boss Windfall Fake	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/T3_Boss_Windfall_Fake.T3_Boss_Windfall_Fake	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE Bosses	T3 Boss Windfall v2	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/2Players/T3_Boss_Windfall_v2.T3_Boss_Windfall_v2	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE Bosses	T3 Boss Windfall v3	/Game/DB/AI/NPCs/PVE/Theme_3/Boss/3Players/T3_Boss_Windfall_v3.T3_Boss_Windfall_v3	/Game/Blueprints/AI/Boss/BP_AICharacter_Boss_T3.BP_AICharacter_Boss_T3_C
+PvE waves & support	NPC Exhaust V1	/Game/DB/AI/NPCs/PVE/Supports/NPC_Exhaust_V1.NPC_Exhaust_V1
+PvE waves & support	NPC Gravity V1	/Game/DB/AI/NPCs/PVE/Supports/NPC_Gravity_V1.NPC_Gravity_V1
+PvE waves & support	NPC Silence V1	/Game/DB/AI/NPCs/PVE/Supports/NPC_Silence_V1.NPC_Silence_V1
+PvE waves & support	NPC Statue V1	/Game/DB/AI/NPCs/PVE/StatuesArchetypes/NPC_Statue_V1.NPC_Statue_V1
+PvE waves & support	NPC Statue V2	/Game/DB/AI/NPCs/PVE/StatuesArchetypes/NPC_Statue_V2.NPC_Statue_V2
+PvE waves & support	NPC Statue V3	/Game/DB/AI/NPCs/PVE/StatuesArchetypes/NPC_Statue_V3.NPC_Statue_V3
+PvE waves & support	NPC Wave V1	/Game/DB/AI/NPCs/PVE/Waves/NPC_Wave_V1.NPC_Wave_V1
+PvE waves & support	NPC Wave V2	/Game/DB/AI/NPCs/PVE/Waves/NPC_Wave_V2.NPC_Wave_V2
+PvE waves & support	NPC Wave V3	/Game/DB/AI/NPCs/PVE/Waves/NPC_Wave_V3.NPC_Wave_V3
+PvE waves & support	T1 AI Nothing	/Game/DB/AI/NPCs/PVE/AINothing/T1_AI_Nothing.T1_AI_Nothing
+PvE waves & support	T2 AI Nothing	/Game/DB/AI/NPCs/PVE/AINothing/T2_AI_Nothing.T2_AI_Nothing
+PvE waves & support	T2 NPC Wave V2	/Game/DB/AI/NPCs/PVE/Waves/T2_NPC_Wave_V2.T2_NPC_Wave_V2
+PvE waves & support	T3 NPC Wave V2	/Game/DB/AI/NPCs/PVE/Waves/T3_NPC_Wave_V2.T3_NPC_Wave_V2
+Tutorial / test	AI Classic Easy	/Game/DB/AI/NPCs/Tutorial/MiniBoss/AI_Classic_Easy.AI_Classic_Easy
+Tutorial / test	AI Classic Hard	/Game/DB/AI/Bots/AI_Classic_Hard.AI_Classic_Hard
+Tutorial / test	E3Demo AI FakePVP1	/Game/DB/AI/E3DEMO/E3Demo_AI_FakePVP1.E3Demo_AI_FakePVP1
+Tutorial / test	E3Demo AI FakePVP2	/Game/DB/AI/E3DEMO/E3Demo_AI_FakePVP2.E3Demo_AI_FakePVP2
+Tutorial / test	Mentor	/Game/DB/AI/Tests/Tutorial/Mentor.Mentor
+Tutorial / test	Playtest AI AttackSword	/Game/DB/AI/Tests/Playtest_AI_AttackSword.Playtest_AI_AttackSword
+Tutorial / test	Review3103 AiTest SwordEquipped	/Game/DB/AI/Tests/zooJules/Review3103_AiTest_SwordEquipped.Review3103_AiTest_SwordEquipped
+Tutorial / test	Training dummy (invincible, does not fight)	/Game/DB/AI/TrainingAI.TrainingAI
+Tutorial / test	Tuto AI AllSequences	/Game/DB/AI/NPCs/Tutorial/Tuto_AI_AllSequences/Tuto_AI_AllSequences.Tuto_AI_AllSequences
+Tutorial / test	Tuto AI Dodge SeqA	/Game/DB/AI/NPCs/Tutorial/Tuto_AI_AllSequences/Tuto_AI_Dodge_SeqA.Tuto_AI_Dodge_SeqA
+Tutorial / test	Tuto AI Guard	/Game/DB/AI/NPCs/Tutorial/Tuto_AI_AllSequences/Tuto_AI_Guard.Tuto_AI_Guard
+Tutorial / test	Tuto AI Nothing	/Game/DB/AI/NPCs/Tutorial/Tuto_AI_Nothing/Tuto_AI_Nothing.Tuto_AI_Nothing
+Tutorial / test	Tuto AI SeqB	/Game/DB/AI/NPCs/Tutorial/Tuto_AI_AllSequences/Tuto_AI_SeqB.Tuto_AI_SeqB

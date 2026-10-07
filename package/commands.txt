@@ -1,0 +1,113 @@
+Absolver native console commands
+================================
+
+Source: the shipped game's EngineSettings ConsoleSettings autocomplete list.
+These are native Unreal/Absolver console commands; LanNative does not add commands. Availability can still vary in this shipping build.
+Use only while playing offline / LAN with -NoEAC. Command names are case-insensitive.
+
+QUICK START
+-----------
+Open the console with Tilde (~). The game configuration also lists the ² key for some keyboard layouts.
+Type part of a command to show native predictions. Tab completes/cycles them; Up/Down selects one. Ctrl is not required.
+The built-in console does not support mouse-click selection.
+
+  Stat FPS                    Toggle the FPS counter.
+  Open <host-ip>              Join a LAN host, for example: Open 192.168.1.50
+  Shot                        Take a screenshot.
+
+LAN / MAP TRAVEL
+----------------
+  Open <map-or-address>       Open a map or connect to a LAN address; does not keep prior URL options.
+  Travel <map>                Travel while retaining prior URL options.
+  ServerTravel <map>          Host travels and brings connected clients.
+  RestartLevel                Restart the current level.
+
+PERFORMANCE DISPLAY
+-------------------
+  Stat FPS                    FPS counter.
+  Stat UNIT                   Hardware unit frame-time display.
+  Stat UnitGraph              Simple frame-time graph.
+  Stat GAME                   Game performance statistics.
+  Stat NET                    Network statistics.
+  Stat Hitches                On-screen hitch history.
+  Stat CPULoad                CPU utilization.
+  Stat GPU                    GPU frame statistics.
+  Stat D3D11RHI               Direct3D 11 statistics.
+  Stat MEMORY                 Memory statistics.
+  Stat LEVELS                 Level-streaming information.
+  Stat STREAMING              Basic texture-streaming statistics.
+  Stat STREAMINGDETAILS       Detailed texture-streaming statistics.
+  Stat PHYSICS                Physics performance statistics.
+  Stat ANIM                   Animation performance statistics.
+  Stat AUDIO                  Audio performance statistics.
+  Stat SOUNDS                 Active sound cues and waves.
+  Stat COLLISION              Collision statistics.
+  Stat PARTICLES              Particle statistics.
+  Stat SCRIPT                 Script statistics.
+  Stat LIST                   List available stat groups and sets.
+
+CAPTURE / REPORTS
+-----------------
+  StartFPSChart               Start an FPS chart; finish with StopFPSChart.
+  StopFPSChart                Finish the FPS chart; output is under Saved/Profiling/FPSChartStats.
+  Stat StartFile              Start a statistics capture.
+  Stat StopFile               Finish the statistics capture.
+  MemReport [-Full] [-Log]    Write a memory report.
+  ProfileGPU                  Profile one rendered frame.
+  Shot                        Take a screenshot.
+
+DEBUG DISPLAY
+-------------
+  ShowDebug None              Turn off ShowDebug output.
+  ShowDebug Reset             Reset ShowDebug output.
+  ShowDebug NET               Network debug display.
+  ShowDebug PHYSICS           Physics debug display.
+  ShowDebug AI                AI debug display.
+  ShowDebug CAMERA            Camera debug display.
+  ShowDebug WEAPON            Weapon debug display.
+  ShowDebug ANIMATION         Animation debug display.
+  ShowDebug BONES             Bone debug display.
+  ShowDebug INPUT             Input debug display.
+  ShowDebug ATTACKS           Absolver attack debug display.
+  ShowDebug STATEMACHINE      Absolver state-machine debug display.
+  ShowDebug ORDERS            Absolver order debug display.
+  ShowDebug WAVES             Absolver wave debug display.
+  DisplayAll <class> <prop>   Display a property for instances of a class.
+  DisplayAllLocation <class>  Display locations for instances of a class.
+  DisplayAllRotation <class>  Display rotations for instances of a class.
+  DisplayClear                Clear DisplayAll output.
+  FlushPersistentDebugLines   Clear persistent debug lines.
+
+OBJECT / ASSET INSPECTION
+-------------------------
+  Obj List [filters]          List objects. Filters include Class=, Type=, Outer=, Package=, Inside=.
+  Obj Classes                 List loaded classes.
+  Obj Refs Name=<name>        List object referencers.
+  GetAll <class> <property>   Log a property for all instances of a class.
+  GetAllState <class>         Log state names for instances of a class.
+  ListTextures                List loaded textures and memory use.
+  ListStreamingTextures       List streaming-texture information.
+  InvestigateTexture          Show streaming information for a texture.
+  ListSounds                  List loaded sounds and memory use.
+  ListWaves                   List wave instances.
+  ListSoundClasses            List sound classes.
+  ListAudioComponents         List audio components.
+  ListSoundDurations          List sound durations.
+
+AUDIO / SCREEN
+--------------
+  SetBaseSoundMix <name>      Set the base sound mix.
+  DisableLowPassFilter        Disable the low-pass filter.
+  DisableEQFilter             Disable EQ.
+  IsolateDryAudio             Isolate dry audio.
+  IsolateReverb               Isolate reverb.
+  ResetSoundState             Reset sound-state changes.
+  DisableAllScreenMessages    Hide on-screen messages.
+  EnableAllScreenMessages     Show on-screen messages.
+  ToggleAllScreenMessages     Toggle on-screen messages.
+
+CAUTION
+-------
+The shipped autocomplete list also contains Exit, FreezeAt, FreezeRendering, Set, SetNoPEC, EditActor, EditDefault,
+EditObject, module commands, shader-recompile commands, and recording commands. They are native commands, but can exit the
+game, freeze rendering, change objects, or produce large files. They are intentionally omitted from the quick-use list above.
