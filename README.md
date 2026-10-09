@@ -11,6 +11,8 @@ functions by address and does its work on the game thread. There is no UE4SS and
 
 Game build: Absolver 1.31 (b1.25_575). On any other build LanNative refuses to patch anything (it checks the original bytes).
 
+Needs Patched Game to run. INSTALLER DOES NOT INCLUDE THIS
+
 ## Features
 - Host with F6, join with F7 (`ip.txt`), in-game menu on F1
 - Joiner fixes: walking, leftover characters removed (also after leave and rejoin), respawn, leaving players cleaned up
