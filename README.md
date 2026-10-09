@@ -51,7 +51,8 @@ the word `none` on line 2 of `ip.txt`.
 - Host with several network adapters: set `hostip = <host VPN address>` in `config.txt` and restart the game. Set it back to `auto`
   for normal LAN play.
 - Check that everyone has the same LanNative version (first line of `lannative.log`).
-
+- Make sure that both people aren't in the same Lobby when Loading into a duel
+  
 Expect some extra lag over a VPN. LanNative has no login check, so the VPN password is your only protection: use a strong one
 and only invite people you trust.
 
