@@ -18,14 +18,30 @@ static int has_arg(int argc, wchar_t **argv, const wchar_t *flag) {
     return 0;
 }
 
-// Builds the game's command line: quoted exe, -NoEAC (always, once), then the user's args minus Steam's %command% path
-// and minus launcher-only flags. Returns the number of characters written, or -1 if cap is too small.
-static int build_game_cmdline(wchar_t *out, size_t cap, const wchar_t *exe, int argc, wchar_t **argv) {
-    int n = swprintf(out, cap, L"\"%ls\" -NoEAC", exe);
+// How a start goes: ask, modded (game exe + -NoEAC + loader) or vanilla (the original EasyAntiCheat launcher, no loader).
+enum { MODE_ASK = 0, MODE_MODDED = 1, MODE_VANILLA = 2 };
+// -Vanilla / -Modded on the command line win; then Shift held at start asks; then the saved choice ("vanilla" / "modded",
+// first word of LanNative\launch.txt, NULL = no file); anything else asks.
+static int launch_mode(int argc, wchar_t **argv, const char *saved, int shift) {
+    if (has_arg(argc, argv, L"-Vanilla")) return MODE_VANILLA;
+    if (has_arg(argc, argv, L"-Modded")) return MODE_MODDED;
+    if (shift || !saved) return MODE_ASK;
+    if (_strnicmp(saved, "vanilla", 7) == 0) return MODE_VANILLA;
+    if (_strnicmp(saved, "modded", 6) == 0) return MODE_MODDED;
+    return MODE_ASK;
+}
+
+// Builds the command line: quoted exe, -NoEAC once if noeac (modded), then the user's args minus Steam's %command% path,
+// minus launcher-only flags and minus any -NoEAC of their own (a vanilla start must keep EasyAntiCheat on).
+// Returns the number of characters written, or -1 if cap is too small.
+static int build_game_cmdline(wchar_t *out, size_t cap, const wchar_t *exe, int noeac, int argc, wchar_t **argv) {
+    static const wchar_t *const own[] = { L"--setup", L"--migrate", L"-NoEAC", L"-Vanilla", L"-Modded" };
+    int n = swprintf(out, cap, noeac ? L"\"%ls\" -NoEAC" : L"\"%ls\"", exe);
     if (n < 0) return -1;
     for (int i = 1; i < argc; i++) {
         if (i == 1 && is_steam_command_path(argv[i])) continue;
-        if (_wcsicmp(argv[i], L"--setup") == 0 || _wcsicmp(argv[i], L"--migrate") == 0 || _wcsicmp(argv[i], L"-NoEAC") == 0) continue;
+        int skip = 0; for (size_t k = 0; k < sizeof own / sizeof *own; k++) if (_wcsicmp(argv[i], own[k]) == 0) skip = 1;
+        if (skip) continue;
         int w = wcschr(argv[i], L' ') ? swprintf(out + n, cap - n, L" \"%ls\"", argv[i]) : swprintf(out + n, cap - n, L" %ls", argv[i]);
         if (w < 0) return -1;
         n += w;
@@ -33,7 +49,7 @@ static int build_game_cmdline(wchar_t *out, size_t cap, const wchar_t *exe, int 
     return n;
 }
 
-// The game's own paks: pakchunk0/1/2-WindowsNoEditor.pak and .sig. Everything else in Content\Paks is a mod (or leftover) and belongs in Mods\.
+// The game's own paks: pakchunk0/1/2-WindowsNoEditor.pak and .sig. Everything else in Content\Paks is a mod (or leftover); --migrate moves those into Mods\.
 static int is_vanilla_pak_name(const wchar_t *n) {
     if (_wcsnicmp(n, L"pakchunk", 8) != 0 || n[8] < L'0' || n[8] > L'2') return 0;
     return _wcsicmp(n + 9, L"-WindowsNoEditor.pak") == 0 || _wcsicmp(n + 9, L"-WindowsNoEditor.sig") == 0;

@@ -1,16 +1,23 @@
-// AbsolverModLauncher - starts Absolver's game exe directly with -NoEAC so proxy-DLL mods (the loader's version.dll etc.) load.
-// Why: Steam's Play button runs Absolver.exe, the EasyAntiCheat launcher, which refuses modded DLLs. The game exe has its own
-// offline switch (-NoEAC); this program just uses it. It never renames, moves or edits any EAC or game file.
+// AbsolverModLauncher - asks "Modded or Vanilla?" and starts Absolver that way.
+// Modded: starts the game exe directly with -NoEAC so proxy-DLL mods (the loader's version.dll etc.) load. Steam's Play button
+// normally runs Absolver.exe, the EasyAntiCheat launcher, which refuses modded DLLs; the game exe has its own offline switch (-NoEAC).
+// Vanilla: renames Binaries\Win64\version.dll to version.dll.off (so the game loads no loader) and runs the original EasyAntiCheat
+// launcher (Absolver.exe.eac, kept by the installer) with EasyAntiCheat on; Modded renames it back. Paks in Content\Paks load in both.
+// The choice can be remembered (LanNative\launch.txt: "vanilla" or "modded"); holding Shift while the game starts asks again.
 // Use: double-click it in the game folder, or Steam > Properties > Launch options:  "<path>\AbsolverModLauncher.exe" %command%
-// Flags: --setup (copy the Steam launch option to the clipboard), --migrate (move non-vanilla paks into Mods\ and exit), -NoMods (passed to the game; the mod loader honours it).
-// It also works installed AS Absolver.exe (what the installer does): Steam's Play button then starts the modded game with no launch option.
+// Flags: -Modded / -Vanilla (skip the question), --setup (copy the Steam launch option to the clipboard),
+// --migrate (move non-vanilla paks from Content\Paks into Mods\ and exit), -NoMods (passed to the game; the mod loader honours it).
+// It also works installed AS Absolver.exe (what the installer does): Steam's Play button then shows the question with no launch option.
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <commctrl.h>
 #include <tlhelp32.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <shellapi.h>
 #include "args.h"
+#pragma comment(lib, "comctl32.lib")   // TaskDialogIndirect needs Common Controls 6, hence the manifest dependency below
+#pragma comment(linker, "\"/manifestdependency:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
 #define APPID "473690"
 #define GAME_EXE L"Absolver-Win64-Shipping.exe"
@@ -33,11 +40,67 @@ static int exists(const wchar_t *p) { return GetFileAttributesW(p) != INVALID_FI
 static int is_game_root(const wchar_t *root) {
     wchar_t p[MAX_PATH]; swprintf(p, MAX_PATH, L"%ls\\%ls\\%ls", root, REL_BIN, GAME_EXE); return exists(p);
 }
-static int steam_running(void) {
+static int proc_running(const wchar_t *exe) {
     HANDLE s = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0); if (s == INVALID_HANDLE_VALUE) return 1;   // cannot tell: assume yes
     PROCESSENTRY32W e = { sizeof e }; int found = 0;
-    for (BOOL ok = Process32FirstW(s, &e); ok; ok = Process32NextW(s, &e)) if (!_wcsicmp(e.szExeFile, L"steam.exe")) { found = 1; break; }
+    for (BOOL ok = Process32FirstW(s, &e); ok; ok = Process32NextW(s, &e)) if (!_wcsicmp(e.szExeFile, exe)) { found = 1; break; }
     CloseHandle(s); return found;
+}
+
+// The question. Returns MODE_MODDED, MODE_VANILLA, or MODE_ASK if the window was closed; *remember = the checkbox.
+static int ask_mode(int *remember) {
+    TASKDIALOG_BUTTON b[] = {
+        { 100 + MODE_MODDED,  L"Modded\nGleam Loader and the mods in the Mods folder. Offline and private LAN only." },
+        { 100 + MODE_VANILLA, L"Vanilla\nThe unmodified game with EasyAntiCheat, as if the loader were not installed. Online play works." },
+    };
+    TASKDIALOGCONFIG c = { sizeof c };
+    c.dwFlags = TDF_USE_COMMAND_LINKS | TDF_ALLOW_DIALOG_CANCELLATION;
+    c.pszWindowTitle = L"Absolver";
+    c.pszMainInstruction = L"How do you want to start Absolver?";
+    c.pButtons = b; c.cButtons = 2; c.nDefaultButton = 100 + MODE_MODDED;   // ids 1/2 are IDOK/IDCANCEL: closing the window must not pick a mode
+    c.pszVerificationText = L"Remember my choice (hold Shift while starting the game to see this again)";
+    c.pszFooter = L"Paks in Absolver\\Content\\Paks load either way.";
+    int pressed = 0; BOOL ver = FALSE;
+    HRESULT hr = TaskDialogIndirect(&c, &pressed, NULL, &ver);
+    if (FAILED(hr)) { logf_(L"prompt: TaskDialogIndirect failed (0x%08lX)", (unsigned long)hr); return MODE_ASK; }
+    *remember = ver;
+    return (pressed == 100 + MODE_MODDED || pressed == 100 + MODE_VANILLA) ? pressed - 100 : MODE_ASK;
+}
+
+// Vanilla start: no loader DLL, then the original EasyAntiCheat launcher with the user's args (never -NoEAC). Waits for the game so
+// Steam sees one session (the EAC launcher itself exits once the game is up).
+static int start_vanilla(const wchar_t *root, const wchar_t *bin, const wchar_t *self, int argc, wchar_t **argv) {
+    wchar_t eac[MAX_PATH], dll[MAX_PATH], off[MAX_PATH], cl[4096];
+    swprintf(eac, MAX_PATH, L"%ls\\Absolver.exe.eac", root);                 // the installer keeps the original here
+    if (!exists(eac)) {                                                       // launch-option setup: Absolver.exe is still the original
+        swprintf(eac, MAX_PATH, L"%ls\\Absolver.exe", root);
+        if (!exists(eac) || !_wcsicmp(eac, self)) {
+            fail(L"Vanilla needs the game's original Absolver.exe (the installer keeps it as Absolver.exe.eac) and it is missing.\n\n"
+                 L"In Steam: right-click Absolver > Properties > Installed Files > Verify integrity of game files, then run the Gleam Loader installer again.");
+            return 7;
+        }
+    }
+    swprintf(dll, MAX_PATH, L"%ls\\version.dll", bin); swprintf(off, MAX_PATH, L"%ls\\version.dll.off", bin);
+    if (exists(dll)) {
+        if (!MoveFileExW(dll, off, MOVEFILE_REPLACE_EXISTING)) {
+            wchar_t m[300]; swprintf(m, 300, L"Could not rename version.dll to version.dll.off (Windows error %lu), so the game was not started.", GetLastError()); fail(m); return 8;
+        }
+        logf_(L"vanilla: version.dll -> version.dll.off (no loader this start)");
+    } else logf_(L"vanilla: no version.dll in Binaries\\Win64");
+    if (build_game_cmdline(cl, 4096, eac, 0, argc, argv) < 0) { fail(L"Command line too long."); return 5; }
+    logf_(L"starting the EasyAntiCheat launcher: %ls", cl);
+    STARTUPINFOW si = { sizeof si }; PROCESS_INFORMATION pi;
+    if (!CreateProcessW(eac, cl, NULL, NULL, FALSE, 0, NULL, root, &si, &pi)) {
+        wchar_t m[200]; swprintf(m, 200, L"Could not start the EasyAntiCheat launcher (Windows error %lu).", GetLastError()); fail(m); return 6;
+    }
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    DWORD code = 0; GetExitCodeProcess(pi.hProcess, &code); CloseHandle(pi.hProcess); CloseHandle(pi.hThread);
+    logf_(L"EasyAntiCheat launcher exited: code 0x%08lX", code);
+    DWORD t0 = GetTickCount(); int seen = 0;
+    while (proc_running(GAME_EXE)) { seen = 1; Sleep(2000); }               // the game runs under EAC: polled by name, not by handle
+    if (seen) logf_(L"game exited after %lu s", (GetTickCount() - t0) / 1000);
+    else logf_(L"no %ls was running after the EasyAntiCheat launcher exited", GAME_EXE);
+    return 0;
 }
 // Fallback when the launcher is not inside the game folder: SteamPath + libraryfolders.vdf ("path" entries).
 static int find_in_steam(wchar_t *root) {
@@ -77,7 +140,7 @@ static const char MODS_README[] =
     "(a .sig file is not needed; the loader creates one next to the pak).\r\n\r\n"
     "Load order is Mods\\loadorder.txt, which the loader creates and keeps up to date. The LAST line wins when two mods change the same file.\r\n"
     "Put a - in front of a name to switch that mod off. LanNative\\mods.txt (written every start) lists conflicts between your mods.\r\n\r\n"
-    "Only the game's own pakchunk0/1/2 files stay in Absolver\\Content\\Paks; the launcher moves other paks here automatically.\r\n"
+    "Paks in Absolver\\Content\\Paks still load, also in Vanilla starts. AbsolverModLauncher.exe --migrate moves them here.\r\n"
     "Start the game with -NoMods to run without any of them.\r\n";
 static void ensure_mods_dir(const wchar_t *root) {
     wchar_t mods[MAX_PATH], readme[MAX_PATH];
@@ -135,9 +198,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, LPWSTR cmd, int show) {
     swprintf(g_log, MAX_PATH, L"%ls\\launcher.log", logdir);
     logf_(L"start: self=%ls root=%ls args=%d", self, root, argc - 1);
     ensure_mods_dir(root);
-    int migrated = migrate_foreign_paks(root);
-    if (has_arg(argc, argv, L"--migrate")) {       // tidy up and exit without starting the game
-        logf_(L"migrate: done, %d pak(s) moved", migrated); return 0;
+    if (has_arg(argc, argv, L"--migrate")) {       // tidy up and exit without starting the game (never automatic: Vanilla starts load Content\Paks)
+        logf_(L"migrate: done, %d pak(s) moved", migrate_foreign_paks(root)); return 0;
     }
 
     if (has_arg(argc, argv, L"--setup")) {
@@ -145,22 +207,45 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, LPWSTR cmd, int show) {
         copy_to_clipboard(opt);
         logf_(L"setup: launch option copied: %ls", opt);
         wchar_t msg[MAX_PATH + 400];
-        swprintf(msg, MAX_PATH + 400, L"The Steam launch option was copied to the clipboard:\n\n%ls\n\nIn Steam: right-click Absolver > Properties > General > Launch Options > paste.\nThen the normal Play button starts the modded game.\nTo play online again, clear that box.", opt);
+        swprintf(msg, MAX_PATH + 400, L"The Steam launch option was copied to the clipboard:\n\n%ls\n\nIn Steam: right-click Absolver > Properties > General > Launch Options > paste.\nThen the normal Play button asks whether to start Modded or Vanilla.\nTo remove the launcher, clear that box.", opt);
         MessageBoxW(NULL, msg, L"Absolver Mod Launcher - setup", MB_OK | MB_ICONINFORMATION);
         return 0;
     }
 
-    if (!steam_running()) { fail(L"Steam is not running. Start Steam first, then run this launcher again."); return 3; }
+    if (!proc_running(L"steam.exe")) { fail(L"Steam is not running. Start Steam first, then run this launcher again."); return 3; }
+
+    wchar_t choice[MAX_PATH]; swprintf(choice, MAX_PATH, L"%ls\\launch.txt", logdir);
+    char saved[32] = ""; int have = 0;
+    FILE *cf = _wfopen(choice, L"rb"); if (cf) { have = 1; saved[fread(saved, 1, sizeof saved - 1, cf)] = 0; fclose(cf); saved[strcspn(saved, "\r\n")] = 0; }
+    int shift = GetAsyncKeyState(VK_SHIFT) < 0;
+    int mode = launch_mode(argc, argv, have ? saved : NULL, shift);
+    logf_(L"mode: %ls (launch.txt %hs, Shift %ls)", mode == MODE_VANILLA ? L"vanilla" : mode == MODE_MODDED ? L"modded" : L"ask",
+          have ? saved : "absent", shift ? L"held" : L"up");
+    if (mode == MODE_ASK) {
+        int remember = 0; mode = ask_mode(&remember);
+        if (mode == MODE_ASK) { logf_(L"prompt closed without a choice: not starting the game"); return 0; }
+        logf_(L"prompt: %ls%ls", mode == MODE_VANILLA ? L"vanilla" : L"modded", remember ? L" (remembered in LanNative\\launch.txt)" : L"");
+        if (remember) {
+            FILE *wf = _wfopen(choice, L"wb");
+            if (wf) { fputs(mode == MODE_VANILLA ? "vanilla\r\n" : "modded\r\n", wf); fclose(wf); } else logf_(L"could not write %ls", choice);
+        }
+    }
+    if (mode == MODE_VANILLA) return start_vanilla(root, bin, self, argc, argv);
+
     if (!exists(appid)) {   // without it the game exe hands off to Steam, which starts the EAC launcher
         HANDLE h = CreateFileW(appid, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
         if (h == INVALID_HANDLE_VALUE) { fail(L"Could not create steam_appid.txt in the game's Binaries\\Win64 folder (is the game folder read-only?)."); return 4; }
         DWORD w; WriteFile(h, APPID, (DWORD)strlen(APPID), &w, NULL); CloseHandle(h); logf_(L"created steam_appid.txt");
     }
-    wchar_t dll[MAX_PATH]; swprintf(dll, MAX_PATH, L"%ls\\version.dll", bin);
+    wchar_t dll[MAX_PATH], off[MAX_PATH]; swprintf(dll, MAX_PATH, L"%ls\\version.dll", bin); swprintf(off, MAX_PATH, L"%ls\\version.dll.off", bin);
+    if (!exists(dll) && exists(off)) {             // a Vanilla start parked the loader: bring it back
+        if (MoveFileExW(off, dll, 0)) logf_(L"modded: version.dll.off -> version.dll");
+        else logf_(L"modded: could not rename version.dll.off back (error %lu)", GetLastError());
+    }
     logf_(L"version.dll (LanNative proxy) %ls", exists(dll) ? L"present" : L"NOT present - the game will start without mods");
 
     wchar_t cl[4096];
-    if (build_game_cmdline(cl, 4096, exe, argc, argv) < 0) { fail(L"Command line too long."); return 5; }
+    if (build_game_cmdline(cl, 4096, exe, 1, argc, argv) < 0) { fail(L"Command line too long."); return 5; }
     logf_(L"starting: %ls", cl);
     STARTUPINFOW si = { sizeof si }; PROCESS_INFORMATION pi;
     if (!CreateProcessW(exe, cl, NULL, NULL, FALSE, 0, NULL, bin, &si, &pi)) {
