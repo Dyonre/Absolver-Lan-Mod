@@ -3,14 +3,14 @@
 
    1. Copies version.dll (the loader) next to Absolver-Win64-Shipping.exe. It refuses to overwrite a version.dll that is not ours.
    2. Copies AbsolverModLauncher.exe into the game folder.
-   3. Keeps the game's original Absolver.exe as Absolver.exe.eac and puts the launcher in its place, so Steam's Play button starts the game
-      without EasyAntiCheat. Offline and private LAN play only.
+   3. Keeps the game's original Absolver.exe as Absolver.exe.eac and puts the launcher in its place, so Steam's Play button asks
+      Modded (no EasyAntiCheat, offline and private LAN only) or Vanilla (the original launcher with EasyAntiCheat, no loader).
    4. Creates the Mods folder.
    5. Asks GitHub once which Absolver LAN Mod release is the newest and says so if this package is older. It never downloads anything.
       -NoUpdateCheck skips it (the loader itself never goes online).
 
- It never edits or removes EasyAntiCheat files and never touches saves. It does not move your paks, but the launcher, each time it starts,
- moves every extra .pak (and its .sig) directly in Content\Paks into its own folder under Mods. If a step fails, the steps already done are undone.
+ It never edits or removes EasyAntiCheat files, never moves your paks and never touches saves. A Vanilla start renames version.dll to
+ version.dll.off and a Modded start renames it back; Uninstall removes either. If a step fails, the steps already done are undone.
  Steam's "Verify integrity of game files" restores the original Absolver.exe; run this installer again afterwards.
  A log of every step is written to install.log next to this script.
 
@@ -117,6 +117,12 @@ function Run {
         if (Test-Path -LiteralPath $dll) {
             if (Is-OurLoader $dll) { Remove-Item -LiteralPath $dll -Force; Say 'Removed version.dll.' } else { Say 'version.dll here is not ours: left alone.' }
         }
+        $off = "$dll.off"   # parked by a Vanilla start
+        if (Test-Path -LiteralPath $off) {
+            if (Is-OurLoader $off) { Remove-Item -LiteralPath $off -Force; Say 'Removed version.dll.off.' }
+            elseif (-not (Test-Path -LiteralPath $dll)) { Move-Item -LiteralPath $off -Destination $dll; Say 'version.dll.off is not ours: renamed back to version.dll.' }
+            else { Say 'version.dll.off is not ours: left alone.' }
+        }
         if (Test-Path -LiteralPath $launcherCopy) { Remove-Item -LiteralPath $launcherCopy -Force; Say 'Removed AbsolverModLauncher.exe.' }
         Say 'Your Mods folder was left in place.'
         return
@@ -184,7 +190,7 @@ function Run {
             }
             Move-Item -LiteralPath $newExe -Destination $exe
             $undo.Push({ if ((Test-Path -LiteralPath $exe) -and (Is-OurLauncher $exe)) { Remove-Item -LiteralPath $exe -Force } }.GetNewClosure())
-            Say 'Play button: Steam''s Play now starts the modded game. Clear any Absolver launch option you set earlier.'
+            Say 'Play button: Steam''s Play now asks Modded or Vanilla. Clear any Absolver launch option you set earlier.'
         }
         if (-not (Is-OurLauncher $exe)) { throw 'Absolver.exe is not the launcher after the swap.' }
     }
@@ -209,7 +215,7 @@ function Run {
             foreach ($p in $extra) { Say ('  ' + $p.FullName) }
         }
     }
-    Say 'Done. Start the game from Steam as usual. Run Uninstall.bat to go back to the stock game.'
+    Say 'Done. Start the game from Steam as usual and pick Modded or Vanilla. Run Uninstall.bat to remove the loader.'
 }
 
 try { Run }
