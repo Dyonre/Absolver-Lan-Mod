@@ -1,11 +1,11 @@
 // weapons.h - pure logic of the "weapons" content kind. No OS / engine calls, so it can be tested offline.
 // A weapon KIND is a weapon type on one of the three compiled base families (there is no real 4th family). It ties decks, animations and moves together:
 //   Mods\<mod>\content\weapons\<file>.json   { "weapons": [ {
-//     "id": "Staff", "label": "Staff",                        label = UI identity of the kind's own menu entries (deck row, Attacks page entry)
+//     "id": "MyWeapon", "label": "My Weapon",              label = UI identity of the kind's own menu entries (deck row, Attacks page entry)
 //     "base_family": "Sword",                                 BareHands | Sword | WarGloves: the family the kind lives on (its items must be of it)
-//     "icon_file": "staff_family.png" | "icon": "/Game/..."   family icon of the kind's own menu entries (optional)
+//     "icon_file": "weapon_family.png" | "icon": "/Game/..."  family icon of the kind's own menu entries (optional)
 //     "deck": { "first_slot": 5, "count": 4, ... },           the kind's deck range in the base family's list (decklayout.h dl_parse_range)
-//     "anim_set": "Staff", "anim_style": 7, "deflect_style": 6,    animations while drawn (animsets.inc / animstyle.inc)
+//     "anim_set": "MyWeapon", "anim_style": 7, "deflect_style": 6, animations while drawn (animsets.inc / animstyle.inc)
 //     "moves": ["367", ...], "moves_exclusive": true,        attack rows of the kind (runtime rows from the mod's rows.json, "learn": "always")
 //     "damage": { "special_ratio": 0 },                       share of "special" (CUT) damage, the rest is base (BLUNT): the gear row's m_fAttackSpecialRatio(+Dirty/Gold)
 //     "grip": { "socket": "RightHandSocket", "capsule": { "half_height": 94.6, "radius": 5, "offset": 0.9 } },   hit capsule = gear row values; socket logged only

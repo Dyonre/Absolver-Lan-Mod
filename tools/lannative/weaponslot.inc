@@ -1,6 +1,6 @@
 // weaponslot.inc - "own weapon slot" for a weapon item of the content registry (included by content.inc after the CItem type).
 // The weapon family enum is compiled (BareHands / Sword / WarGloves), so a weapon kind stays in its base family (e.g. Sword) and gets, through these fields:
-//   "deck":  { "first_slot": 5, "count": 4, "label": "Staff", "layout": {...}, "layouts": [null, {...}, ...] }   (decklayout.h dl_parse_range; legacy { "slot": "4" } = one deck)
+//   "deck":  { "first_slot": 5, "count": 4, "label": "Weapon", "layout": {...}, "layouts": [null, {...}, ...] }   (decklayout.h dl_parse_range; legacy { "slot": "4" } = one deck)
 //            the item's own decks "5".."8" in the family's deck list (entries 5-8; entries before first_slot are filled with copies of deck 1 so the
 //            vanilla 4 boxes never show an item deck), created at run time if missing and seeded once (layouts[k], null = "layout", else "seed").
 //            Equip: the item deck used last (kind state "deck", default the first) is loaded, the family deck in use remembered (family state);
@@ -12,7 +12,7 @@
 //   "anim_style": 7               WHILE THE ITEM IS DRAWN (in hand: on_handled_weapon) the local player's animation lookups use that style index of the
 //                                 style-indexed tables (animstyle.inc, anim_style_set); the fighting style itself (stats, ability, save, menus) never changes.
 //                                 Sheathed / disarmed / another weapon in hand: the player's own animations.
-//   "anim_set": "Staff"           the same, but the index is the runtime anim set of that id (kind "anim_sets", animsets.inc); "anim_style" is then only the
+//   "anim_set": "MyWeapon"        the same, but the index is the runtime anim set of that id (kind "anim_sets", animsets.inc); "anim_style" is then only the
 //                                 fallback when the set is unavailable (config anim_sets = off). Any index past 5 is refused unless the tables hold it.
 //   "deflect_style": 6            optional, with anim_style: while drawn, a dwmapi.dll proxy mod (e.g. a deflect keyed on a style id) is told this style.
 //   "style": 7                    DEPRECATED: read as "anim_style" (logged).

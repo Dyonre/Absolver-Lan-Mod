@@ -77,7 +77,7 @@ static int dl_parse(const JDoc *d, int obj, DlLayout *L, char *err, int cap) {
     return 0;
 }
 // ----- the item's deck range (item field "deck", weaponslot.inc): which named decks of the family list belong to the item and what seeds them.
-//   new:    "deck": { "first_slot": 5, "count": 4, "label": "Staff", "layout": {...}, "layouts": [null, {...}, {...}, {...}] }  -> decks "5".."8" (list entries 5-8)
+//   new:    "deck": { "first_slot": 5, "count": 4, "label": "Weapon", "layout": {...}, "layouts": [null, {...}, {...}, {...}] }  -> decks "5".."8" (list entries 5-8)
 //   legacy: "deck": { "slot": "4", "layout": {...} }                                                                            -> one deck named "4"
 //   neither slot nor first_slot: first_slot 5, count 1. "layouts"[k] seeds deck k of the range; null / missing entries use "layout" (or "seed" when there is no layout).
 #define DL_MAX_DECKS 8
@@ -107,7 +107,7 @@ static int dl_parse_range(const JDoc *d, int deck, DlRange *R, char *err, int ca
         for (int k = 0; k < R->count; k++) snprintf(R->names[k], 16, "%d", R->first + k);
     }
     if (lb >= 0 && (d->n[lb].t != J_STR || !d->n[lb].str)) DR_FAIL("deck.label must be a string");
-    snprintf(R->label, sizeof R->label, "%s", lb >= 0 && d->n[lb].str[0] ? d->n[lb].str : "Staff");
+    snprintf(R->label, sizeof R->label, "%s", lb >= 0 && d->n[lb].str[0] ? d->n[lb].str : "Weapon");
     int ly = jfind(d, deck, "layout"), lys = jfind(d, deck, "layouts"); DlLayout base; int has_base = 0; memset(&base, 0, sizeof base);
     if (ly >= 0) { if (dl_parse(d, ly, &base, le, sizeof le)) DR_FAIL("deck.layout: %s", le); has_base = 1; }
     if (lys >= 0) {

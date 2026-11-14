@@ -1,6 +1,6 @@
 // animsets.inc - kind "anim_sets": an animation set lives at its own index of the 66 style-indexed tables (animsets.h, the pure
 // part: path table, allocator, padding, validator). Included by content.inc after the "styles" kind.
-//   content\anim_sets\*.json: { "anim_sets": [ { "id": "Staff", "index": "auto" | 6, "fallback_style": 0,
+//   content\anim_sets\*.json: { "anim_sets": [ { "id": "MyWeapon", "index": "auto" | 6, "fallback_style": 0,
 //                                                "slots": [ { "table": "HittedDB.m_Anims", "arr": 0 | "*", "at": ["*", 1, 0, 1], "anim": "/Game/.../Clip.Clip" }, ... ] } ] }
 //   "index": "auto" = hidden set (never selectable, never saved: the next free index past every real style); a number = a real style that already has its
 //   m_FightingStyles entry. "fallback_style" (0..5) = the stock style whose block the set's index starts as. "at" = one index per inner dimension of a style
