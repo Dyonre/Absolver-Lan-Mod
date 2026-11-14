@@ -238,6 +238,18 @@ static void plugin_register_builtin(void) {
     Plugin *pl = &g_plugins[g_plugins_n]; memset(pl, 0, sizeof *pl); strcpy(pl->name, "Content"); pl->builtin = 1; g_plugins_n++;
     logf_("mods: content registry active (%d content file(s)); built-in kinds items, styles", content_file_count());
 }
+// A plugin.dll must be a 64-bit Windows DLL. Anything else is refused before LoadLibrary: with an error mode that allows
+// dialogs, Windows answers a bad image (e.g. a text file named plugin.dll) with an error box that stops the game's start.
+static int plug_is_dll64(const wchar_t *path) {
+    HANDLE h = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    if (h == INVALID_HANDLE_VALUE) return 0;
+    unsigned char b[4096]; DWORD n = 0; BOOL ok = ReadFile(h, b, sizeof b, &n, NULL); CloseHandle(h);
+    if (!ok || n < 0x40 || b[0] != 'M' || b[1] != 'Z') return 0;
+    DWORD pe = *(DWORD *)(b + 0x3C);                                        // e_lfanew; the PE header must sit in the first 4 KB
+    if (pe > n - 24 || memcmp(b + pe, "PE\0\0", 4)) return 0;
+    WORD machine = *(WORD *)(b + pe + 4), chars = *(WORD *)(b + pe + 22);
+    return machine == IMAGE_FILE_MACHINE_AMD64 && (chars & IMAGE_FILE_DLL) != 0;
+}
 // load and start every registered plugin (after the pak mount, still before the game's first tick)
 static void plugins_load_all(void) {
     if (!g_plugins_n) return;
@@ -245,9 +257,12 @@ static void plugins_load_all(void) {
     for (int i = 0; i < g_plugins_n; i++) {
         Plugin *pl = &g_plugins[i];
         if (pl->builtin) { plug_fill_api(pl); pl->loaded = 1; __try { content_init(&pl->api); } __except (EXCEPTION_EXECUTE_HANDLER) { plug_fault(i, "content_init", GetExceptionCode()); pl->faults = 3; } continue; }
+        if (!plug_is_dll64(pl->dll)) { logf_("plugin %s: plugin.dll is not a 64-bit Windows DLL - not loaded", pl->name); pl->faults = 3; continue; }
         wchar_t dd[MAX_PATH]; wcscpy(dd, pl->dll); wchar_t *sl = wcsrchr(dd, L'\\'); if (sl) *sl = 0; SetDllDirectoryW(dd);
-        pl->module = LoadLibraryExW(pl->dll, NULL, LOAD_WITH_ALTERED_SEARCH_PATH); SetDllDirectoryW(NULL);
-        if (!pl->module) { logf_("plugin %s: LoadLibrary failed (error %lu)", pl->name, GetLastError()); pl->faults = 3; continue; }
+        DWORD em = 0; SetThreadErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX, &em);   // a load error never opens a dialog
+        pl->module = LoadLibraryExW(pl->dll, NULL, LOAD_WITH_ALTERED_SEARCH_PATH); DWORD le = GetLastError();
+        SetThreadErrorMode(em, NULL); SetDllDirectoryW(NULL);
+        if (!pl->module) { logf_("plugin %s: LoadLibrary failed (error %lu)", pl->name, le); pl->faults = 3; continue; }
         AbsPluginLoad_t load = (AbsPluginLoad_t)GetProcAddress(pl->module, "AbsPlugin_Load");
         if (!load) { logf_("plugin %s: no AbsPlugin_Load export - not a plugin", pl->name); pl->faults = 3; continue; }
         pl->unload = (AbsPluginUnload_t)GetProcAddress(pl->module, "AbsPlugin_Unload"); plug_fill_api(pl);

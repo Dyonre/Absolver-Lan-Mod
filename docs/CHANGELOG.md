@@ -36,6 +36,7 @@ The LAN mod (LanNative 4.3.1) grew into a full mod loader and script extender. I
   * Two mods whose `after` entries form a loop both load, with a warning, instead of both being skipped.
   * A mod that requires a mod skipped by a cycle is reported as such, not as part of the cycle.
   * Lists longer than 8 entries are cut with a warning.
+* A `plugin.dll` that is not a 64-bit Windows DLL is refused with a log line, and a failed plugin load never opens a Windows error box (a broken `plugin.dll` could stop the game's start).
 * Plugin API 2.22: `for_each_property` lists a class's or struct's properties.
 * The overlay no longer stacks a second Present hook on top of another module's patch.
 * Weapon kinds without their own deck label use "Weapon".
