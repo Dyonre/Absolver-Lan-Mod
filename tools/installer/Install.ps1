@@ -1,12 +1,12 @@
 <#
- Gleam Loader installer. Everything it does is undone by Uninstall.bat.
+ Absolver LAN Mod installer (Gleam Loader). Everything it does is undone by Uninstall.bat.
 
    1. Copies version.dll (the loader) next to Absolver-Win64-Shipping.exe. It refuses to overwrite a version.dll that is not ours.
    2. Copies AbsolverModLauncher.exe into the game folder.
    3. Keeps the game's original Absolver.exe as Absolver.exe.eac and puts the launcher in its place, so Steam's Play button starts the game
       without EasyAntiCheat. Offline and private LAN play only.
    4. Creates the Mods folder.
-   5. Asks GitHub once which Gleam Loader release is the newest and says so if this package is older. It never downloads anything.
+   5. Asks GitHub once which Absolver LAN Mod release is the newest and says so if this package is older. It never downloads anything.
       -NoUpdateCheck skips it (the loader itself never goes online).
 
  It never edits or removes EasyAntiCheat files and never touches saves. It does not move your paks, but the launcher, each time it starts,
@@ -72,12 +72,12 @@ function Check-Latest([string]$have) {
     if ($NoUpdateCheck) { Say 'Update check skipped (-NoUpdateCheck).'; return }
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-        $r = Invoke-RestMethod -Uri 'https://api.github.com/repos/Dyonre/GleamLoader/releases/latest' -TimeoutSec 5 -Headers @{ 'User-Agent' = 'GleamLoader-installer' }
+        $r = Invoke-RestMethod -Uri 'https://api.github.com/repos/Dyonre/Absolver-Lan-Mod/releases/latest' -TimeoutSec 5 -Headers @{ 'User-Agent' = 'AbsolverLanMod-installer' }
         $latest = ([string]$r.tag_name).TrimStart('v')
-        if (-not $have) { Say "Newest Gleam Loader release: $latest ($($r.html_url))"; return }
-        if ([version]$latest -gt [version]$have) { Say "A newer Gleam Loader is available: $latest (this package is $have). Download it from $($r.html_url)" }
+        if (-not $have) { Say "Newest Absolver LAN Mod release: $latest ($($r.html_url))"; return }
+        if ([version]$latest -gt [version]$have) { Say "A newer Absolver LAN Mod is available: $latest (this package is $have). Download it from $($r.html_url)" }
         elseif ([version]$latest -lt [version]$have) { Say "This package ($have) is newer than the latest published release ($latest)." }
-        else { Say "This is the newest Gleam Loader release ($have)." }
+        else { Say "This is the newest Absolver LAN Mod release ($have)." }
     } catch { Say "Could not check for a newer release (offline or GitHub unreachable). Installing anyway." }
 }
 
@@ -126,10 +126,10 @@ function Run {
         if (-not (Test-Path -LiteralPath (Join-Path $here $f))) { throw "$f is missing next to the installer." }
     }
     $pkgVer = Loader-Version (Join-Path $here 'version.dll')
-    Say ('This package: Gleam Loader {0}' -f $(if ($pkgVer) { $pkgVer } else { '(no version information)' }))
+    Say ('This package: Absolver LAN Mod {0}' -f $(if ($pkgVer) { $pkgVer } else { '(no version information)' }))
     if ((Test-Path -LiteralPath $dll) -and (Is-OurLoader $dll)) {
         $curVer = Loader-Version $dll
-        Say ('Installed now: Gleam Loader {0}' -f $(if ($curVer) { $curVer } else { '0.2.1 or older' }))
+        Say ('Installed now: Absolver LAN Mod {0}' -f $(if ($curVer) { $curVer } else { '(an older build without version information)' }))
     }
     Check-Latest $pkgVer
     if ((Test-Path -LiteralPath $dll) -and -not (Is-OurLoader $dll)) {
