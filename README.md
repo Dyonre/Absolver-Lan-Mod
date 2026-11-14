@@ -56,7 +56,7 @@ Start with [docs/MODDING-GUIDE.md](docs/MODDING-GUIDE.md).
 
 ## Where things are
 
-* `docs/` - guides: `MODDING-GUIDE.md` (data mods), `sdk/README.md` (scaffolds and plugins), `sdk/LUA.md` (Lua), `PLUGIN-API.md` (C API), `HOSTING.md` (LAN)
+* `docs/` - guides: `MODDING-GUIDE.md` (data mods), `sdk/README.md` (scaffolds and plugins), `sdk/LUA.md` (Lua), `PLUGIN-API.md` (C API), `HOSTING.md` (LAN), `CHANGELOG.md` (what changed in each release)
 * `examples/` - small working mods and plugins to copy from
 * `tools/` - loader source, launcher, installer, scaffolding and packaging scripts
 
