@@ -385,6 +385,8 @@ The first lines (`>>`) are actions: Enter on them runs them. The first one is th
 | an entry deleted from disk | stays in the game until a restart; reported |
 | a mod added after the game started | not noticed (restart); a mod that had no `content` folder when the game started has no content registry yet |
 
+**Switching and ordering mods (ImGui page).** Each row of the Mods table has a checkbox (on / off), `^` / `v` to move the mod one place earlier or later (a later mod wins when two mods change the same thing), a conflict count (hover for details) and, if the mod has settings (section 9b), a **Settings** button. Every change is written to `Mods\loadorder.txt` at once; the previous file is kept as `Mods\loadorder.txt.bak`. Switching on a mod that holds only `rows.json` and `content\` files takes effect immediately; everything else (switching off, reordering, mods with a pak, plugin, Lua script or `requires`) shows `on after restart` / `off after restart`, and **Restart game now** quits the game cleanly so you can start it again.
+
 ---
 
 ## 9. `mod.json` and the LAN check
@@ -410,6 +412,7 @@ The loader reads these keys (all optional; a mod without `mod.json` uses its fol
 | `after` | `["Other"]`: load after Other if Other is present (no error if it is not) |
 | `supersedes` | `["zzzOldMoves.pak"]`: pak names of OTHER mods that this mod replaces (it must ship its own pak); they are not mounted. Section 14 |
 | `affects_gameplay` | set to `false` for a mod that only changes how things look (texture and skin packs) |
+| `settings` | values the player can change on the Mods page; section 9b |
 | `name`, `author`, `description` | for humans |
 
 The load order is: `requires` and `after` first (a mod always loads after what it needs), then `loadorder.txt` (last line wins), which new folders join alphabetically at the end. It is printed once at boot in `lannative.log` (`mods: load order ...`); skipped mods appear as `mods: SKIPPED <mod>: <reason>`, in `LanNative\mods.txt` and as a red line on screen for 90 seconds. Plugins and content use the same order.
@@ -417,6 +420,30 @@ The load order is: `requires` and `after` first (a mod always loads after what i
 When you host or join a LAN game, both PCs compare their **gameplay mods** (every mod except those marked `affects_gameplay: false`): the same mods, in the same order, with the same file contents (a fingerprint over pak contents and `rows.json` contents). If they differ, both players see a red warning listing who has what. Fights between different versions of a move are not meaningful. The setting `modmismatch = warn | block | off` in `LanNative\config.txt` chooses between only warning (default), refusing the join, or no check.
 
 A mod that adds items or changes moves must **not** be marked cosmetic.
+
+### 9b. Mod settings
+
+A `settings` list in `mod.json` gives the mod a form on the Mods page. Values are saved to `Mods\<mod>\plugin.cfg` as `key = value` lines.
+
+```json
+"settings": [
+  { "key": "speed", "type": "float",  "default": 1.0, "min": 0.5, "max": 3, "label": "Speed", "help": "Playback speed." },
+  { "key": "count", "type": "int",    "default": 3, "min": 1, "max": 9 },
+  { "key": "mode",  "type": "choice", "choices": ["easy", "hard"], "default": "easy" },
+  { "key": "loud",  "type": "bool",   "default": false },
+  { "key": "name",  "type": "text",   "default": "" }
+]
+```
+
+| Field | Meaning |
+|---|---|
+| `key` | letters, digits, `_`, `-`, `.` (up to 47); the name in `plugin.cfg` |
+| `type` | `bool` (stored as `1` / `0`), `int`, `float`, `choice` (needs `choices`, up to 16) or `text` (one line, up to 127 characters) |
+| `default` | used while `plugin.cfg` has no line for the key; must be valid itself (left out: `0`, the minimum, or the first choice) |
+| `min`, `max` | limits for `int` and `float` |
+| `label`, `help` | text shown in the form (the label defaults to the key) |
+
+All values are checked before anything is written: if one is invalid, nothing is saved and the form says why. Only changed keys are rewritten; comments and other lines of `plugin.cfg` stay. A plugin reads the values with `config_get`; it can export `void gleam_settings_changed(const AbsApi *api)` to be told when new values were saved, otherwise the form says the change applies after a restart. An invalid entry in the list is skipped and logged.
 
 ---
 

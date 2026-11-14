@@ -204,6 +204,7 @@ A cooked icon (a `Texture2D` in a pak) works the same through `icon`; prefer it 
 
 ## Mods page, menu items and hot reload (API 2.7)
 * `int add_menu_item(self, label, cb(user), user)`: a line on the F1 menu's **Mods** page (open it with **F2**), shown as `<your mod>: <label>`; `cb` is called on the game thread when the player selects it, inside your guard. 0 = ok, 1 = table full (64 items) / bad arguments.
+* **Mod settings.** A `settings` list in `mod.json` (`docs/MODDING-GUIDE.md` section 9b) gives your mod a form on the Mods page that writes `Mods\<your mod>\plugin.cfg`; read the values with `config_get`. Optional export `__declspec(dllexport) void gleam_settings_changed(const AbsApi *api)`: called on the game thread right after new values were saved, inside your guard; read them again there. Without it the form says the change applies after a restart.
 * `int reload_content(self)`: hot reload of `Mods\*\content` and `rows.json`; the same as the first line of the Mods page and a `LanNative\reload.txt` file (read once a second and deleted; the result goes to `LanNative\reload_result.txt`). Returns the number of changed or new content entries, -1 if nothing could be reloaded (also in safe mode). Game thread. What can and cannot be reloaded: `docs/MODDING-GUIDE.md` section 8b. For your own content kind: `apply` is called again for a changed or new entry, so write it idempotent.
 
 ## Powers (API 2.9)
