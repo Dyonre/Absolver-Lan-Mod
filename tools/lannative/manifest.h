@@ -2,7 +2,8 @@
 #define LANNATIVE_MANIFEST_H
 // Mod manifest (mod.json) and dependency / load-order resolution. Pure code.
 //   { "id": "MyStyle", "name": "My Style", "version": "0.1.0", "api": 2, "requires": [ { "id": "ItemLoader", "min": "0.1.0" } ], "after": ["Other"], "incompatible_with": ["X"], "affects_gameplay": true }
-// "requires" / "after" entries may also be plain strings. A mod without mod.json (or without "id") gets its folder name as id.
+// "requires" entries may also be plain strings; a list key given as one value ("requires": "Lib") is a one-element list.
+// A mod without mod.json (or without "id") gets its folder name as id.
 // Resolution: mods that are off, need a newer API, share an id with an earlier mod, declare incompatible_with a mod that is on, or lack a required (enabled, itself not skipped, new enough) mod are SKIPPED with a reason;
 // the rest are ordered topologically (requires + after), ties broken by the incoming order (= loadorder.txt, which the loader keeps alphabetical for new folders).
 #include <string.h>
@@ -39,6 +40,9 @@ static int ver_cmp(const char *a, const char *b) {
     return 0;
 }
 static const char *mf_str(const JDoc *d, int obj, const char *key) { int c = jfind(d, obj, key); return c >= 0 && (d->n[c].t == J_STR || d->n[c].t == J_NUM) ? d->n[c].str : NULL; }
+// entries of a list key c: the elements of an array, or the value itself (a single value is a one-element list; null = empty)
+static int mf_first(const JDoc *d, int c) { return c < 0 || d->n[c].t == J_NULL ? -1 : d->n[c].t == J_ARR ? d->n[c].first : c; }
+static int mf_next(const JDoc *d, int c, int e) { return e == c ? -1 : d->n[e].next; }
 // 0 = ok (m filled; unknown keys are fine). On a parse problem returns -1, err says why, and m holds the folder defaults so the mod still loads as if it had no manifest.
 static int manifest_parse(const char *json, const char *folder, Manifest *m, char *err, size_t cap) {
     manifest_default(m, folder); if (err && cap) err[0] = 0; if (!json) return 0;
@@ -52,19 +56,19 @@ static int manifest_parse(const char *json, const char *folder, Manifest *m, cha
     if ((s = mf_str(&d, 0, "api"))) m->api = atoi(s);
     int c = jfind(&d, 0, "affects_gameplay"); if (c >= 0 && d.n[c].t == J_BOOL && d.n[c].str && !strcmp(d.n[c].str, "False")) m->affects_gameplay = 0;
     c = jfind(&d, 0, "requires");
-    if (c >= 0 && d.n[c].t == J_ARR) for (int e = d.n[c].first; e >= 0 && m->nreq < MF_LIST_MAX; e = d.n[e].next) {
+    for (int e = mf_first(&d, c); e >= 0 && m->nreq < MF_LIST_MAX; e = mf_next(&d, c, e)) {
         const char *id = d.n[e].t == J_STR ? d.n[e].str : d.n[e].t == J_OBJ ? mf_str(&d, e, "id") : NULL, *mn = d.n[e].t == J_OBJ ? mf_str(&d, e, "min") : NULL;
         if (!id || !mf_id_ok(id)) { if (err && !err[0]) snprintf(err, cap, "mod.json: a 'requires' entry without a valid id was ignored"); rc = -1; continue; }
         snprintf(m->req[m->nreq].id, MOD_NAME_MAX, "%s", id); snprintf(m->req[m->nreq].min, sizeof m->req[0].min, "%s", mn ? mn : ""); m->nreq++;
     }
     c = jfind(&d, 0, "after");
-    if (c >= 0 && d.n[c].t == J_ARR) for (int e = d.n[c].first; e >= 0 && m->nafter < MF_LIST_MAX; e = d.n[e].next)
+    for (int e = mf_first(&d, c); e >= 0 && m->nafter < MF_LIST_MAX; e = mf_next(&d, c, e))
         if (d.n[e].t == J_STR && mf_id_ok(d.n[e].str)) snprintf(m->after[m->nafter++], MOD_NAME_MAX, "%s", d.n[e].str);
     c = jfind(&d, 0, "incompatible_with");
-    if (c >= 0 && d.n[c].t == J_ARR) for (int e = d.n[c].first; e >= 0 && m->ninc < MF_LIST_MAX; e = d.n[e].next)
+    for (int e = mf_first(&d, c); e >= 0 && m->ninc < MF_LIST_MAX; e = mf_next(&d, c, e))
         if (d.n[e].t == J_STR && mf_id_ok(d.n[e].str)) snprintf(m->inc[m->ninc++], MOD_NAME_MAX, "%s", d.n[e].str);
     c = jfind(&d, 0, "supersedes");
-    if (c >= 0 && d.n[c].t == J_ARR) for (int e = d.n[c].first; e >= 0 && m->nsup < MF_LIST_MAX; e = d.n[e].next)
+    for (int e = mf_first(&d, c); e >= 0 && m->nsup < MF_LIST_MAX; e = mf_next(&d, c, e))
         if (d.n[e].t == J_STR && d.n[e].str[0] && strlen(d.n[e].str) < MOD_NAME_MAX && !strpbrk(d.n[e].str, "/\\")) snprintf(m->sup[m->nsup++], MOD_NAME_MAX, "%s", d.n[e].str);
     jdoc_free(&d); return rc;
 }

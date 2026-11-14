@@ -408,10 +408,10 @@ The loader reads these keys (all optional; a mod without `mod.json` uses its fol
 | `id` | stable name: letters, digits, `_`, `-`, `.`. Used by `requires` / `after`, in `/Game/Mods/<id>/...` object paths and in logs. Default: the folder name. Two mods with the same id: the later one is skipped |
 | `version` | dotted number (`0.1.0`), compared by `requires.min` |
 | `api` | the lowest mod API version the mod needs (currently 2); a loader with an older API skips the mod and says so |
-| `requires` | `[ { "id": "Lib", "min": "1.0" } ]` (or just `"Lib"`): if that mod is missing, off, skipped or too old, this mod (pak, rows, content and plugin) is skipped and the reason is logged and shown on screen. Mods that require each other in a cycle are all skipped and listed as such. |
-| `after` | `["Other"]`: load after Other if Other is present (no error if it is not) |
-| `incompatible_with` | `["Other"]`: while Other is on, this mod is skipped with a reason (if both list each other, the later one in the load order) |
-| `supersedes` | `["zzzOldMoves.pak"]`: pak names of OTHER mods that this mod replaces (it must ship its own pak); they are not mounted. Section 14 |
+| `requires` | `[ { "id": "Lib", "min": "1.0" } ]` (an entry may be just `"Lib"`, and a single entry may be given without the list: `"requires": "Lib"`): if that mod is missing, off, skipped or too old, this mod (pak, rows, content and plugin) is skipped and the reason is logged and shown on screen. Mods that require each other in a cycle are all skipped and listed as such. |
+| `after` | `["Other"]` (or `"Other"`): load after Other if Other is present (no error if it is not) |
+| `incompatible_with` | `["Other"]` (or `"Other"`): while Other is on, this mod is skipped with a reason (if both list each other, the later one in the load order) |
+| `supersedes` | `["zzzOldMoves.pak"]` (or one name as a string): pak names of OTHER mods that this mod replaces (it must ship its own pak); they are not mounted. Section 14 |
 | `affects_gameplay` | set to `false` for a mod that only changes how things look (texture and skin packs) |
 | `settings` | values the player can change on the Mods page; section 9b |
 | `name`, `author`, `description` | for humans |
