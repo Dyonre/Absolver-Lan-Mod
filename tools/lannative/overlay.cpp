@@ -456,6 +456,16 @@ static HRESULT STDMETHODCALLTYPE hk_resize(IDXGISwapChain *sc, UINT n, UINT w, U
 static void patch(void **vt, int i, void *fn, void **orig) {
     DWORD old; VirtualProtect(&vt[i], sizeof(void *), PAGE_EXECUTE_READWRITE, &old); *orig = vt[i]; vt[i] = fn; VirtualProtect(&vt[i], sizeof(void *), old, &old);
 }
+// A swap chain slot that points outside dxgi.dll / d3d11.dll was already patched by another module (for example a plugin with its own Present hook).
+// Stacking a second patch on top of it can crash the game (stack overflow in the Steam overlay), so the loader keeps its text menus instead.
+// A dxgi.dll proxy in the game folder (ReShade and similar) counts as dxgi.dll. Writes the module's file name to `who`; 1 = foreign.
+static int slot_foreign(void *fn, char *who, int cap) {
+    HMODULE m = NULL; char path[MAX_PATH] = "";
+    if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)fn, &m) || !m) { snprintf(who, cap, "no module (%p)", fn); return 1; }
+    GetModuleFileNameA(m, path, sizeof path); const char *b = strrchr(path, '\\'); b = b ? b + 1 : path;
+    snprintf(who, cap, "%s", b);
+    return _stricmp(b, "dxgi.dll") != 0 && _stricmp(b, "d3d11.dll") != 0;
+}
 
 // Runs once, on whichever thread asks first (ov_request waits for it): the lock, the state, and the hook on the swap chain.
 static BOOL CALLBACK install_once(PINIT_ONCE, PVOID, PVOID *) {
@@ -470,7 +480,11 @@ static BOOL CALLBACK install_once(PINIT_ONCE, PVOID, PVOID *) {
     IDXGISwapChain *sc = NULL; ID3D11Device *dv = NULL; ID3D11DeviceContext *cx = NULL; D3D_FEATURE_LEVEL fl;
     HRESULT hr = create(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, 0, NULL, 0, D3D11_SDK_VERSION, &sd, &sc, &dv, &fl, &cx);
     if (FAILED(hr)) hr = create(NULL, D3D_DRIVER_TYPE_WARP, NULL, 0, NULL, 0, D3D11_SDK_VERSION, &sd, &sc, &dv, &fl, &cx);
-    if (SUCCEEDED(hr) && sc) {
+    char who8[MAX_PATH] = "", who13[MAX_PATH] = "";
+    if (SUCCEEDED(hr) && sc && (slot_foreign((*(void ***)sc)[8], who8, sizeof who8) | slot_foreign((*(void ***)sc)[13], who13, sizeof who13))) {
+        LOG("overlay: the swap chain's Present / ResizeBuffers are already patched by another module (%s / %s) - not stacking a second hook; overlay off, text menu stays", who8, who13);
+        InterlockedExchange(&g_state, OV_DEAD);
+    } else if (SUCCEEDED(hr) && sc) {
         void **vt = *(void ***)sc; patch(vt, 8, (void *)hk_present, (void **)&o_present); patch(vt, 13, (void *)hk_resize, (void **)&o_resize);
         LOG("overlay: Present / ResizeBuffers hooked (swap chain vtable %p)", (void *)vt);
     } else { LOG("overlay: probe device FAILED (0x%08lX) - overlay off, text menu stays", (unsigned long)hr); InterlockedExchange(&g_state, OV_DEAD); }
