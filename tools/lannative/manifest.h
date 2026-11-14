@@ -4,8 +4,9 @@
 //   { "id": "MyStyle", "name": "My Style", "version": "0.1.0", "api": 2, "requires": [ { "id": "ItemLoader", "min": "0.1.0" } ], "after": ["Other"], "incompatible_with": ["X"], "affects_gameplay": true }
 // "requires" entries may also be plain strings; a list key given as one value ("requires": "Lib") is a one-element list. Each list keeps MF_LIST_MAX entries (more: a warning).
 // A mod without mod.json (or without "id") gets its folder name as id.
-// Resolution: mods that are off, need a newer API, share an id with an earlier mod, declare incompatible_with a mod that is on, or lack a required (enabled, itself not skipped, new enough) mod are SKIPPED with a reason;
-// the rest are ordered topologically (requires + after), ties broken by the incoming order (= loadorder.txt, which the loader keeps alphabetical for new folders).
+// Resolution: mods that are off, need a newer API, share an id with an earlier mod, declare incompatible_with a mod that ends up on, lack a required (enabled, itself not skipped,
+// new enough) mod, or are part of a requires cycle are SKIPPED with a reason; the rest are ordered topologically (requires + after), ties broken by the incoming order
+// (= loadorder.txt, which the loader keeps alphabetical for new folders).
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -88,6 +89,22 @@ static int manifest_parse(const char *json, const char *folder, Manifest *m, cha
 enum { MF_OK = 0, MF_OFF = 1, MF_SKIPPED = 2 };
 typedef struct { int status[MODS_MAX]; char reason[MODS_MAX][180]; int order[MODS_MAX]; int norder; } MfResult;
 static int mf_find_id(const Manifest *mf, int n, const char *id) { for (int i = 0; i < n; i++) if (!_stricmp(mf[i].id, id)) return i; return -1; }
+static int mf_lists_inc(const Manifest *m, const char *id) { for (int q = 0; q < m->ninc; q++) if (!_stricmp(m->inc[q], id)) return 1; return 0; }
+// edges between mods by index (-1 = not installed, -2 = the mod itself): what i requires, what i loads after, and the incompatible_with entries that count for i
+typedef struct { int nreq[MODS_MAX], req[MODS_MAX][MF_LIST_MAX], naft[MODS_MAX], aft[MODS_MAX][MF_LIST_MAX], ninc[MODS_MAX], inc[MODS_MAX][MF_LIST_MAX]; } MfGraph;
+// can `from` reach `to` through mods with open[] set, along requires edges (plus after or incompatible_with edges when asked)?
+static int mf_reach(const MfGraph *g, const unsigned char *open, int from, int to, int use_aft, int use_inc) {
+    unsigned char seen[MODS_MAX] = {0}; int st[MODS_MAX], sp = 0; st[sp++] = from; seen[from] = 1;
+    while (sp) {
+        int v = st[--sp];
+        for (int t = 0; t < 3; t++) {
+            if ((t == 1 && !use_aft) || (t == 2 && !use_inc)) continue;
+            int cnt = t == 0 ? g->nreq[v] : t == 1 ? g->naft[v] : g->ninc[v]; const int *e = t == 0 ? g->req[v] : t == 1 ? g->aft[v] : g->inc[v];
+            for (int k = 0; k < cnt; k++) { int j = e[k]; if (j < 0 || !open[j]) continue; if (j == to) return 1; if (!seen[j]) { seen[j] = 1; st[sp++] = j; } }
+        }
+    }
+    return 0;
+}
 // mf[i] / enabled[i] in incoming order. our_api = the loader's API version. After the call out->order lists the indices to load, in load order.
 static void mf_resolve(const Manifest *mf, const int *enabled, int n, int our_api, MfResult *out) {
     memset(out, 0, sizeof *out); if (n > MODS_MAX) n = MODS_MAX;
@@ -97,39 +114,61 @@ static void mf_resolve(const Manifest *mf, const int *enabled, int n, int our_ap
         if (mf[i].api > our_api) { out->status[i] = MF_SKIPPED; snprintf(out->reason[i], sizeof out->reason[i], "needs mod API %d, this loader has %d", mf[i].api, our_api); continue; }
         for (int j = 0; j < i; j++) if (out->status[j] == MF_OK && !_stricmp(mf[j].id, mf[i].id)) { out->status[i] = MF_SKIPPED; snprintf(out->reason[i], sizeof out->reason[i], "id '%s' is already used by the mod in folder #%d", mf[i].id, j + 1); break; }
     }
-    // incompatible_with: the mod that declares it is skipped; when both declare each other, the later one in the incoming order.
-    // One pass in incoming order: a mod skipped here may already have caused an earlier mod to be skipped (chains of incompatibilities are not re-checked).
+    static MfGraph g; unsigned char open[MODS_MAX] = {0}, on[MODS_MAX] = {0};
     for (int i = 0; i < n; i++) {
-        for (int k = 0; k < mf[i].ninc && out->status[i] == MF_OK; k++) {
-            int j = mf_find_id(mf, n, mf[i].inc[k]);
-            if (j < 0 || j == i || out->status[j] != MF_OK) continue;
-            int mutual = 0; for (int q = 0; q < mf[j].ninc; q++) if (!_stricmp(mf[j].inc[q], mf[i].id)) mutual = 1;
-            if (mutual && j > i) continue;                                 // j is skipped in its own turn
-            out->status[i] = MF_SKIPPED; snprintf(out->reason[i], sizeof out->reason[i], "its mod.json says it is incompatible with %.60s, which is on", mf[j].id);
+        g.nreq[i] = g.naft[i] = g.ninc[i] = 0;
+        for (int r = 0; r < mf[i].nreq; r++) { int j = mf_find_id(mf, n, mf[i].req[r].id); g.req[i][g.nreq[i]++] = j == i ? -2 : j; }
+        for (int r = 0; r < mf[i].nafter; r++) { int j = mf_find_id(mf, n, mf[i].after[r]); g.aft[i][g.naft[i]++] = j == i ? -2 : j; }
+        for (int r = 0; r < mf[i].ninc; r++) {                              // both list each other: only the later mod in the incoming order counts the pair (it is the one skipped)
+            int j = mf_find_id(mf, n, mf[i].inc[r]); if (j > i && mf_lists_inc(&mf[j], mf[i].id)) j = -1;
+            g.inc[i][g.ninc[i]++] = j == i ? -2 : j;
         }
+        open[i] = out->status[i] == MF_OK;
     }
-    for (int changed = 1; changed;) {                                       // dependants of skipped mods are skipped too
-        changed = 0;
+    // Decide every open mod: ON once everything it requires is ON and no mod it is incompatible with can still end up ON; SKIPPED once something it requires
+    // is missing / off / skipped / too old, or a mod it is incompatible with is ON. So only mods that end up ON exclude others.
+    for (;;) {
+        int changed = 0;
         for (int i = 0; i < n; i++) {
-            if (out->status[i] != MF_OK) continue;
-            for (int r = 0; r < mf[i].nreq && out->status[i] == MF_OK; r++) {
-                int j = mf_find_id(mf, n, mf[i].req[r].id); const char *why = NULL; char buf[180];
+            if (!open[i]) continue;
+            int wait = 0, bad = -1; const char *why = NULL; char buf[180];
+            for (int r = 0; r < mf[i].nreq && !why; r++) {
+                int j = g.req[i][r]; if (j == -2) continue;
+                bad = r;
                 if (j < 0) why = "is not installed";
-                else if (j == i) continue;
                 else if (out->status[j] == MF_OFF) why = "is switched off";
                 else if (out->status[j] == MF_SKIPPED) why = "was skipped itself";
                 else if (mf[i].req[r].min[0] && ver_cmp(mf[j].version, mf[i].req[r].min) < 0) { snprintf(buf, sizeof buf, "needs version %s or newer (found %s)", mf[i].req[r].min, mf[j].version); why = buf; }
-                if (why) { out->status[i] = MF_SKIPPED; snprintf(out->reason[i], sizeof out->reason[i], "requires %.60s which %s", mf[i].req[r].id, why); changed = 1; }
+                else if (!on[j]) wait = 1;
             }
+            if (why) { open[i] = 0; out->status[i] = MF_SKIPPED; snprintf(out->reason[i], sizeof out->reason[i], "requires %.60s which %s", mf[i].req[bad].id, why); changed = 1; continue; }
+            int hit = -1;
+            for (int k = 0; k < g.ninc[i] && hit < 0; k++) { int j = g.inc[i][k]; if (j < 0 || out->status[j] != MF_OK) continue; if (on[j]) hit = j; else wait = 1; }
+            if (hit >= 0) { open[i] = 0; out->status[i] = MF_SKIPPED; snprintf(out->reason[i], sizeof out->reason[i], "its mod.json says it is incompatible with %.60s, which is on", mf[hit].id); changed = 1; continue; }
+            if (!wait) { open[i] = 0; on[i] = 1; changed = 1; }
         }
+        if (changed) continue;
+        int left = 0; for (int i = 0; i < n; i++) left += open[i]; if (!left) break;
+        // Stuck: every open mod waits for another open one. Members of a requires cycle are skipped; mods that only require a member get "requires X which was skipped itself" next round.
+        unsigned char cyc[MODS_MAX] = {0}; int ncyc = 0;
+        for (int i = 0; i < n; i++) if (open[i] && mf_reach(&g, open, i, i, 0, 0)) { cyc[i] = 1; ncyc++; }
+        for (int i = 0; i < n; i++) if (cyc[i]) { open[i] = 0; out->status[i] = MF_SKIPPED; snprintf(out->reason[i], sizeof out->reason[i], "dependency cycle (its requires lead back to it)"); }
+        if (ncyc) continue;
+        // No requires cycle: incompatible_with entries form a loop (A excludes B excludes C excludes A). Skip the latest mod in such a loop.
+        int pick = -1, pj = -1;
+        for (int i = n - 1; i >= 0 && pick < 0; i--) if (open[i]) for (int k = 0; k < g.ninc[i] && pick < 0; k++) { int j = g.inc[i][k]; if (j >= 0 && open[j] && mf_reach(&g, open, j, i, 0, 1)) { pick = i; pj = j; } }
+        if (pick < 0) for (int i = n - 1; i >= 0 && pick < 0; i--) if (open[i]) pick = i;   // not reachable by construction; guarantees progress
+        open[pick] = 0; out->status[pick] = MF_SKIPPED;
+        snprintf(out->reason[pick], sizeof out->reason[pick], "its mod.json says it is incompatible with %.60s (incompatible_with entries form a loop; the later mod is skipped)", pj >= 0 ? mf[pj].id : "another mod");
     }
+    // Order the ON mods: Kahn, always the lowest incoming index among the ready mods.
     int placed[MODS_MAX] = {0}, left = 0; for (int i = 0; i < n; i++) if (out->status[i] == MF_OK) left++;
-    while (left) {                                                          // Kahn, always the lowest incoming index among the ready mods
+    while (left) {
         int pick = -1;
         for (int i = 0; i < n && pick < 0; i++) {
             if (out->status[i] != MF_OK || placed[i]) continue; int ready = 1;
-            for (int r = 0; r < mf[i].nreq && ready; r++) { int j = mf_find_id(mf, n, mf[i].req[r].id); if (j >= 0 && j != i && out->status[j] == MF_OK && !placed[j]) ready = 0; }
-            for (int r = 0; r < mf[i].nafter && ready; r++) { int j = mf_find_id(mf, n, mf[i].after[r]); if (j >= 0 && j != i && out->status[j] == MF_OK && !placed[j]) ready = 0; }
+            for (int r = 0; r < g.nreq[i] && ready; r++) { int j = g.req[i][r]; if (j >= 0 && out->status[j] == MF_OK && !placed[j]) ready = 0; }
+            for (int r = 0; r < g.naft[i] && ready; r++) { int j = g.aft[i][r]; if (j >= 0 && out->status[j] == MF_OK && !placed[j]) ready = 0; }
             if (ready) pick = i;
         }
         if (pick < 0) { for (int i = 0; i < n; i++) if (out->status[i] == MF_OK && !placed[i]) { out->status[i] = MF_SKIPPED; snprintf(out->reason[i], sizeof out->reason[i], "dependency cycle (requires / after)"); } break; }
