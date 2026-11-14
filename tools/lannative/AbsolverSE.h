@@ -34,6 +34,7 @@ typedef struct AbsApi AbsApi;
 struct AbsHitPre;              /* v2.19, defined after AbsApi */
 struct AbsDefenseInfo;         /* v2.20, defined after AbsApi */
 struct AbsOverlayInfo;         /* v2.21, defined after AbsApi */
+struct AbsPropInfo;            /* v2.22, defined after AbsApi */
 
 /* on_hit outcome */
 enum { ABS_HIT = 0, ABS_HIT_GUARDED = 1, ABS_HIT_GUARD_BROKEN = 2, ABS_HIT_ABSORBED = 3, ABS_HIT_PARRIED = 4, ABS_HIT_DODGED = 5, ABS_HIT_NO_EFFECT = 6 };
@@ -327,7 +328,22 @@ struct AbsApi {
     int   (*overlay_unregister)(const AbsApi *self, void (*draw)(void *user), void *user); /* 0 = removed (may still run once in the frame in progress), 1 = not found */
     int   (*overlay_set_mode)(const AbsApi *self, unsigned flags);                         /* your input needs, ABS_OV_*; 0 = nothing. Modes are per plugin and ORed with the other plugins'; frames run while any mode is set or a loader menu is open. 0 = ok, 1 = bad arguments, 2 = unavailable */
     int   (*overlay_raw_mouse)(const AbsApi *self, int *dx, int *dy);                      /* any thread: raw mouse movement collected since the last call while a plugin has ABS_OV_RAWMOUSE (the accumulator is shared: use it from one plugin at a time). 0 = ok (zeros when nobody has the mode), 1 = bad arguments / unavailable */
+    /* ---- v2.22: property listing. Reads class data only; use it on the game thread or in a draw callback. The strings in AbsPropInfo live only during the callback. */
+    int   (*for_each_property)(const AbsApi *self, void *cls, int (*cb)(const struct AbsPropInfo *p, void *user), void *user);   /* every property of a class or struct type (object_class(obj), find_class(...), or AbsPropInfo.struct_type to list a struct's members): the type's own properties first, then its parents'. cb returns nonzero to stop. Returns the number visited, -1 on bad arguments */
 };
+
+/* for_each_property: one property. Read / write it by name with get_property_text / set_property_text ("name[N]" for array_dim > 1). */
+typedef struct AbsPropInfo {
+    const char *name;          /* "Intensity", "m_fHealth" */
+    const char *type;          /* engine type text: "Float", "Int", "Bool", "Byte", "Enum<ELightUnits>", "Name", "Str", "Text", "Struct<LinearColor>", "Object<StaticMesh>", "Array<Float>" ... */
+    void *prop;                /* the property object */
+    void *owner;               /* the class or struct type that declares it (a parent of cls for inherited properties) */
+    void *struct_type;         /* the struct type of a "Struct<...>" property (pass it to for_each_property for its members); NULL otherwise */
+    int offset;                /* byte offset of the value inside the object or struct */
+    int array_dim;             /* 1, or the element count of a static array */
+    int elem_size;             /* bytes per element */
+    uint64_t flags;            /* engine property flags: 0x1 editable, 0x4 visible to Blueprints, 0x10 read-only in Blueprints, 0x2000 transient, 0x20000 edit-const */
+} AbsPropInfo;
 
 /* on_hit_pre: one call per impact on a character, BEFORE the game resolves it (guard / absorb are not known yet). The scales start from damage_mod (victim *_taken x attacker *_dealt). */
 typedef struct AbsHitPre {

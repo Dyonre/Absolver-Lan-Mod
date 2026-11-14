@@ -7,7 +7,7 @@ version header comment ("---- v2.4 (...)") the field sits under; fields before t
 A comment on the line(s) just above a field is used when the field has no trailing comment.
 Also tables AbsHitInfo / AbsCharInfo members and the ABS_HIT_* enum. Exit code 1 if nothing parsed (header format changed).
 """
-import argparse, re, sys, datetime
+import argparse, re, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -121,10 +121,10 @@ def main():
         return 1
     fns = [r for r in rows if r['kind'] == 'fn']
     o = ['# AbsolverSE API reference\n',
-         'GENERATED from `tools/lannative/AbsolverSE.h` by `python tools/sdk/gen_api_reference.py` - do not edit by hand, re-run it after the header changes.  \n'
+         'Generated from `tools/lannative/AbsolverSE.h` (`python tools/sdk/gen_api_reference.py`). This page may lag the header: the header is the source of truth.  \n'
          f'`ABS_API_VERSION` = {ver.group(1) if ver else "?"}; {len(fns)} functions. Every function takes `self` (the `const AbsApi *` you were given) as its first argument. '
          'Fields are only ever appended: check `api->size >= offsetof(AbsApi, <field>) + sizeof(void *)` before using a field newer than the version you built against.  \n'
-         'Task-oriented guide: `docs/sdk/README.md`. Behaviour details, verification status and traps: `docs/PLUGIN-API.md`.\n',
+         'Task-oriented guide: `docs/sdk/README.md`. Behaviour details: `docs/PLUGIN-API.md`.\n',
          '## Header fields\n\n| Name | Type | Description |\n|---|---|---|']
     for r in rows:
         if r['kind'] == 'field':
@@ -138,6 +138,8 @@ def main():
             o.append(f'\n### Since {last}\n\n| Name | Signature | Description |\n|---|---|---|')
         o.append(f"| `{r['name']}` | `{clean(r['ret'] + ' ' + r['name'] + '(' + r['params'] + ')')}` | {clean(r['desc'])} |")
     o.append('\n## Structs\n')
+    o.append('`AbsHitPre` (`on_hit_pre`, 2.19), `AbsDefenseInfo` with the `ABS_DEF_*` types (`on_defense`, 2.20), `AbsOverlayInfo` with the `ABS_OV_*` modes (`overlay_*`, 2.21) '
+             'and `AbsPropInfo` (`for_each_property`, 2.22) are documented in the header.\n')
     for sn in ('AbsHitInfo', 'AbsCharInfo'):
         mem = parse_plain_struct(text, sn)
         if mem:
@@ -151,7 +153,6 @@ def main():
         for nm, v in re.findall(r'(ABS_HIT\w*)\s*=\s*(\d+)', em.group(1)):
             o.append(f'| `{nm}` | {v} |')
         o.append('')
-    o.append(f'_Generated {datetime.date.today().isoformat()} from {len(rows)} members._\n')
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     Path(a.out).write_text('\n'.join(o), encoding='utf-8', newline='\n')
     print(f'wrote {a.out}: {len(fns)} functions, {len(rows) - len(fns)} header fields')

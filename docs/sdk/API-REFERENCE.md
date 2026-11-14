@@ -1,7 +1,7 @@
 # AbsolverSE API reference
 
 Generated from `tools/lannative/AbsolverSE.h` (`python tools/sdk/gen_api_reference.py`). This page may lag the header: the header is the source of truth.  
-`ABS_API_VERSION` = 2; 140 functions. Every function takes `self` (the `const AbsApi *` you were given) as its first argument. Fields are only ever appended: check `api->size >= offsetof(AbsApi, <field>) + sizeof(void *)` before using a field newer than the version you built against.  
+`ABS_API_VERSION` = 2; 146 functions. Every function takes `self` (the `const AbsApi *` you were given) as its first argument. Fields are only ever appended: check `api->size >= offsetof(AbsApi, <field>) + sizeof(void *)` before using a field newer than the version you built against.  
 Task-oriented guide: `docs/sdk/README.md`. Behaviour details: `docs/PLUGIN-API.md`.
 
 ## Header fields
@@ -140,7 +140,7 @@ Since = the header block the field was added in (2.0 = the original v2 set, 2.1 
 | Name | Signature | Description |
 |---|---|---|
 | `add_menu_item` | `int add_menu_item(const AbsApi *self, const char *label, void (*cb)(void *user), void *user)` | an entry on the F1 menu's "Mods" page (labelled "<your mod>: <label>"); cb runs on the game thread when the player selects it; 0 = ok, 1 = table full / bad arguments |
-| `reload_content` | `int reload_content(const AbsApi *self)` | hot reload: re-read Mods/<mod>/content (items, styles, plugin kinds) and rows.json and apply what changed without a restart (what cannot be reloaded is logged); returns the number of changed or new content entries, or -1 if nothing could be reloaded. Game thread. Same as creating LanNative/reload.txt or the first line of the F2 Mods page |
+| `reload_content` | `int reload_content(const AbsApi *self)` | hot reload: re-read Mods/<mod>/content (items, styles, plugin kinds) and rows.json and apply what changed without a restart (what cannot be reloaded is logged); returns the number of changed or new content entries, or -1 if nothing could be reloaded. Game thread. Same as a LanNative/reload.txt file and the first line of the F2 Mods page |
 
 ### Since 2.8
 
@@ -148,7 +148,7 @@ Since = the header block the field was added in (2.0 = the original v2 set, 2.1 
 |---|---|---|
 | `test_dodge` | `int test_dodge(const AbsApi *self, void *character, const float dir[3])` | the character starts a dodge towards the WORLD direction dir (x, y; z ignored; for example away from the opponent) through AFightingCharacter::PlayDodgeOrder; a dodge that is active when an attack connects ends in on_hit outcome ABS_HIT_DODGED. 1 = launched |
 | `test_ai` | `int test_ai(const AbsApi *self, void *character, int enabled)` | stop (0) / restart (1) the character's behaviour tree (AIController::BrainComponent StopLogic / RestartLogic): a stopped NPC stands still and only does what test_attack / test_guard / test_dodge tell it; 1 = ok |
-| `test_hittable` | `int test_hittable(const AbsApi *self, void *character, int on)` | an AI character can only be hit while its AI is running: on = 1 sets the character's hittable flag so a stopped NPC or the practice dummy takes driven attacks, 0 clears it; returns the resulting value or -1 |
+| `test_hittable` | `int test_hittable(const AbsApi *self, void *character, int on)` | an AI character can only be hit while its AI is running (the CanBeHitted lambda that AAISpawner::SpawnAI installs reads UAIComponent+0x140): on = 1 sets that flag so a stopped NPC or the practice dummy takes driven attacks, 0 clears it; the flag is verified against the lambda's bytes first; returns the resulting value or -1 |
 | `test_get_forward` | `int test_get_forward(const AbsApi *self, void *actor, float out[3])` | unit vector the actor's root component faces (for the player: where the camera looks; teleporting does not turn the player, the controller does); 1 = ok |
 
 ### Since 2.9
@@ -186,12 +186,12 @@ Since = the header block the field was added in (2.0 = the original v2 set, 2.1 
 |---|---|---|
 | `travel` | `int travel(const AbsApi *self, const char *map_or_url)` | console "open <map>?listen" ("/Game/Maps/.../Name[.Name]" gets ?listen unless it has options; "open ..." text is sent as is). The world changes a moment later (on_world_loaded). 1 = issued. For a lone player in a 1v1 arena call solo_duel(1) first |
 | `console_cmd` | `int console_cmd(const AbsApi *self, const char *cmd)` | KismetSystemLibrary::ExecuteConsoleCommand with the local player controller; 1 = issued |
-| `solo_duel` | `int solo_duel(const AbsApi *self, int on)` | LanNative's soloduel switch: 1 = a hosted 1v1 starts with only the local player (m_iNumTeams 2 -> 1), 0 = stock, -1 = just read; returns the state. Takes effect for the NEXT travel |
+| `solo_duel` | `int solo_duel(const AbsApi *self, int on)` | the loader's solo-duel switch: 1 = a hosted 1v1 starts with only the local player (m_iNumTeams 2 -> 1), 0 = stock, -1 = just read; returns the state. Takes effect for the NEXT travel |
 | `match_info` | `int match_info(const AbsApi *self, struct AbsMatchInfo *out)` | fill *out (set out->size first); 1 = a game state exists, 0 = none (open world: state "") |
 | `on_match_state` | `int on_match_state(const AbsApi *self, void (*cb)(const char *old_state, const char *new_state, void *user), void *user)` | GameState MatchState changed (polled 10x per second by the loader); old_state "" on the first sight of a world |
 | `on_round_end` | `int on_round_end(const AbsApi *self, void (*cb)(const struct AbsMatchInfo *info, int winner_team, void *user), void *user)` | a team score went up (a round was decided), polled 10x per second; winner_team = the team whose score rose. Not fired when scores are reset |
 | `set_mode_prop` | `int set_mode_prop(const AbsApi *self, const char *name, const char *text)` | engine-text property write on the live game mode AND game state (those that have it), e.g. ("m_iNbWinningRounds","5"); returns a bit mask 1 = game mode, 2 = game state, 0 = neither/refused. Do it right after on_world_loaded, before the match starts |
-| `show_banner` | `int show_banner(const AbsApi *self, const char *utf8, float seconds)` | centred message on the HUD for `seconds` (queued, max 8); 1 = queued. Uses a stock text widget (see docs/PLUGIN-API.md) |
+| `show_banner` | `int show_banner(const AbsApi *self, const char *utf8, float seconds)` | centred message on the HUD for `seconds` (queued, max 8); 1 = queued. Uses a stock text widget (see docs) |
 | `hud_score` | `int hud_score(const AbsApi *self, const char *utf8)` | persistent score line at the top of the screen; NULL or "" removes it; 1 = ok |
 
 ### Since 2.13
@@ -207,7 +207,7 @@ Since = the header block the field was added in (2.0 = the original v2 set, 2.1 
 |---|---|---|
 | `npc_spawn` | `void * npc_spawn(const AbsApi *self, const char *archetype, const float loc[3], const float *yaw_deg, const char *class_path)` | spawn an NPC AT loc (NULL = 350 uu in front of the local character): `archetype` = an ArchetypeAsset path ("/Game/DB/AI/NPCs/Trickster/Trickster.Trickster", or a mod copy "/Game/Mods/<mod>/<id>.<id>") or the plain id of an npcs content entry (then its faction / aggro / reactions apply). The spawner actor is placed at loc BEFORE the spawn and the pawn is never teleported afterwards (a teleported AI NPC never moves again). class_path NULL / "" = the game's generic AI character. Returns the character or NULL |
 | `npc_remove` | `int npc_remove(const AbsApi *self, void *character)` | remove an NPC made by npc_spawn (UnSpawnAi + destroy our spawner), or destroy any other character actor; 1 = ok |
-| `npc_set_target` | `int npc_set_target(const AbsApi *self, void *character, void *target)` | UAIFightingComponent::BPF_ForceEnemy(target): the NPC goes for that actor (the player: get_local_player_controller + K2_GetPawn). NULL clears; 1 = ok |
+| `npc_set_target` | `int npc_set_target(const AbsApi *self, void *character, void *target)` | UAIFightingComponent::BPF_ForceEnemy(target): the NPC goes for that actor (the player: get_local_player_controller + K2_GetPawn). NULL clears (untested); 1 = ok |
 | `npc_set_faction` | `int npc_set_faction(const AbsApi *self, void *character, int faction)` | AFightingCharacter::ServerSetFaction(0..5) (written directly if that does not take); returns the faction read back or -1 |
 | `faction_can_target` | `int faction_can_target(const AbsApi *self, int attacker_faction, int target_faction, int set)` | UFactionsManager target table (6 x 6): set -1 = read only, 0 / 1 = write; returns the value now in the table or -1 |
 | `npc_archetype` | `void * npc_archetype(const AbsApi *self, void *character)` | the ArchetypeAsset the character runs (m_ArchetypeDescription.m_Archetype) or NULL |
@@ -273,9 +273,15 @@ Since = the header block the field was added in (2.0 = the original v2 set, 2.1 
 | `overlay_set_mode` | `int overlay_set_mode(const AbsApi *self, unsigned flags)` | your input needs, ABS_OV_*; 0 = nothing. Modes are per plugin and ORed with the other plugins'; frames run while any mode is set or a loader menu is open. 0 = ok, 1 = bad arguments, 2 = unavailable |
 | `overlay_raw_mouse` | `int overlay_raw_mouse(const AbsApi *self, int *dx, int *dy)` | any thread: raw mouse movement collected since the last call while a plugin has ABS_OV_RAWMOUSE (the accumulator is shared: use it from one plugin at a time). 0 = ok (zeros when nobody has the mode), 1 = bad arguments / unavailable |
 
+### Since 2.22
+
+| Name | Signature | Description |
+|---|---|---|
+| `for_each_property` | `int for_each_property(const AbsApi *self, void *cls, int (*cb)(const struct AbsPropInfo *p, void *user), void *user)` | every property of a class or struct type (object_class(obj), find_class(...), or AbsPropInfo.struct_type to list a struct's members): the type's own properties first, then its parents'. cb returns nonzero to stop. Returns the number visited, -1 on bad arguments |
+
 ## Structs
 
-`AbsHitPre` (`on_hit_pre`, 2.19), `AbsDefenseInfo` with the `ABS_DEF_*` types (`on_defense`, 2.20) and `AbsOverlayInfo` with the `ABS_OV_*` modes (`overlay_*`, 2.21) are documented in the header.
+`AbsHitPre` (`on_hit_pre`, 2.19), `AbsDefenseInfo` with the `ABS_DEF_*` types (`on_defense`, 2.20), `AbsOverlayInfo` with the `ABS_OV_*` modes (`overlay_*`, 2.21) and `AbsPropInfo` (`for_each_property`, 2.22) are documented in the header.
 
 ### `AbsHitInfo`
 

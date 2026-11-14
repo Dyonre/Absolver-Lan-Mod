@@ -895,6 +895,23 @@ static void hp_fill_api(AbsApi *a);                                             
 static void ov_fill_api(AbsApi *a);                                                                       // overlayapi.inc (included by content.inc)
 static void de_fill_api(AbsApi *a);                                                                       // defense_ev.inc (included by content.inc)
 #include "mapscript.inc"
+// for_each_property: walks UStruct Children (+0x38, UField Next +0x28) of the type and each parent (Super +0x30). Bounded against corrupt chains.
+static int api_p_for_each_property(const AbsApi *self, void *cls, int (*cb)(const AbsPropInfo *p, void *user), void *user) {
+    (void)self; if (!se_valid_ptr(cls) || !cb) return -1;
+    int n = 0, depth = 0;
+    for (uint8_t *s = (uint8_t *)cls; se_valid_ptr(s) && depth < 32; s = *(uint8_t **)(s + 0x30), depth++) {
+        int guard = 0;
+        for (uint8_t *f = *(uint8_t **)(s + 0x38); se_valid_ptr(f) && guard < 4096; f = *(uint8_t **)(f + 0x28), guard++) {
+            if (!field_is_property(f)) continue;
+            char nm[128], ty[192]; fname_text(*(FNameRaw *)(f + 0x18), nm, sizeof nm); se_prop_type(f, ty, sizeof ty, 0);
+            AbsPropInfo p; memset(&p, 0, sizeof p);
+            p.name = nm; p.type = ty; p.prop = f; p.owner = s; p.offset = *(int *)(f + 0x44); p.array_dim = *(int *)(f + 0x30); p.elem_size = *(int *)(f + 0x34); p.flags = *(uint64_t *)(f + 0x38);
+            if (!strcmp(prop_kind(f), "Struct") && se_valid_ptr(*(void **)(f + 0x70))) p.struct_type = *(void **)(f + 0x70);
+            n++; if (cb(&p, user)) return n;
+        }
+    }
+    return n;
+}
 // ----- wiring
 static void se_fill_api(AbsApi *a) {
     a->create_texture = api_p_create_texture; a->texture_from_file = api_p_texture_from_file;
@@ -912,6 +929,7 @@ static void se_fill_api(AbsApi *a) {
     a->inventory_equip_slot = api_p_inventory_equip_slot; a->on_power_used = api_p_on_power_used; a->power_use = api_p_power_use;
     a->combo_slot_ensure = api_p_combo_slot_ensure; a->combo_load = api_p_combo_load; a->combo_current = api_p_combo_current; a->set_combat_style = api_p_set_combat_style; a->on_weapon_changed = api_p_on_weapon_changed; a->on_style_changed = api_p_on_style_changed; a->prop_ptr_path = api_p_prop_ptr_path; a->fname_make = api_p_fname_make; a->fname_text = api_p_fname_text;
     md_fill_api(a); ms_fill_api(a); np_fill_api(a); bt_fill_api(a); as_fill_api(a); sc_fill_api(a); hp_fill_api(a); de_fill_api(a); ov_fill_api(a);
+    a->for_each_property = api_p_for_each_property;
 }
 static void se_install(void) {                                    // called once from init(): the ProcessEvent hook is always installed (fast path when nothing is registered)
     g_orig_pe = (PE_t)hook(IDX_PROCESSEVENT, (void *)hk_pe);
