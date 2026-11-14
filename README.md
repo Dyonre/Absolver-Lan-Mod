@@ -52,7 +52,7 @@ Antivirus software may flag `version.dll` because it is an unsigned DLL that pat
 
 ## Making mods
 
-Using an AI assistant? Point it at this repository and see [docs/LLM-GUIDE.md](docs/LLM-GUIDE.md). Otherwise start with [docs/MODDING-GUIDE.md](docs/MODDING-GUIDE.md).
+Start with [docs/MODDING-GUIDE.md](docs/MODDING-GUIDE.md).
 
 ## Where things are
 
