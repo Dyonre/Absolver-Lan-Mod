@@ -172,8 +172,8 @@ static void wp_on_hit(const AbsHitInfo *h, void *u) {
 //                       when the game resets it (draw / re-attach).
 #define WP_ACTOR_MESH 0x600
 // default ON like wp_mirror_fix: each acts only for a weapon KIND (the json opts in: hand_switch, grip.mesh_offset); "<key> = 0" turns it off
-static int wp_cfg(const char *key) { char b[16] = ""; wchar_t src[MAX_PATH]; int set = setting_get(key, L"", 0, b, sizeof b, src), on = set ? atoi(b) != 0 : 1; logf_("weapons: P7 %s = %s (%s)", key, on ? "ON" : "OFF", set ? "loader config" : "default; '= 0' in config.txt turns it off"); return on; }
-static int g_wp7_follow = -1, g_wp7_hand = -1, g_wp7_mesh = -1;
+static int wp_cfg(const char *key) { char b[16] = ""; wchar_t src[MAX_PATH]; int set = setting_get(key, L"", 0, b, sizeof b, src), on = set ? atoi(b) != 0 : 1; logf_("weapons: %s = %s (%s)", key, on ? "ON" : "OFF", set ? "loader config" : "default; '= 0' in config.txt turns it off"); return on; }
+static int g_wpw_follow = -1, g_wpw_hand = -1, g_wpw_mesh = -1;
 static CWeapon *wp_active_w(void) { const char *k = ws_active_kind(); return k ? wp_find(k) : NULL; }
 static uint8_t (*g_o_gwsa)(void *, void *, void *); static long g_wpf_n;
 static uint8_t wp_gwsa_det(void *ch, void *ac, void *row) {
@@ -203,7 +203,7 @@ static int wp_attach(void *ch, void *actor, int left) {
     return ok;
 }
 static void wp_attack_start(void *ch, int id, const char *atk, void *u) {
-    (void)id; (void)u; if (g_wp7_hand != 1 || !ch || ch != cd_local_pawn()) return;
+    (void)id; (void)u; if (g_wpw_hand != 1 || !ch || ch != cd_local_pawn()) return;
     CWeapon *w = wp_active_w(); if (!w || !w->k.hand_switch) return;
     void **act = (void **)((uint8_t *)ch + WP_CHAR_ACTORS); void *actor = NULL; __try { actor = act[1] ? act[1] : act[0]; } __except (EXCEPTION_EXECUTE_HANDLER) { actor = NULL; }
     if (!actor) return;                                                     // sheathed: nothing in hand
@@ -217,7 +217,7 @@ static void wp_attack_start(void *ch, int id, const char *atk, void *u) {
 // OrderAttack::OnStop (0x46EA30) calls AFightingCharacter::BPE_AttackEnded(character) for a real attack end (re-simulated orders return before it): the "swap back at attack end"
 static void wp_attack_ended(void *obj, void *func, void *params, void *u) { (void)func; (void)params; (void)u; if (g_wph_left && obj && obj == cd_local_pawn()) g_wph_end = GetTickCount64(); }
 // 0.1 s: hand switch back after the attack, mesh offset (re)apply
-static void wp_p7_tick(void *u) {
+static void wp_watch_tick(void *u) {
     (void)u; void *ch = cd_local_pawn(); if (!ch) { g_wph_actor = NULL; g_wph_left = 0; return; }
     CWeapon *w = wp_active_w(); void **act = (void **)((uint8_t *)ch + WP_CHAR_ACTORS); void *actor = NULL; __try { actor = act[1] ? act[1] : act[0]; } __except (EXCEPTION_EXECUTE_HANDLER) { actor = NULL; }
     if (actor != g_wph_actor) { g_wph_actor = actor; g_wph_left = 0; }
@@ -233,7 +233,7 @@ static void wp_p7_tick(void *u) {
             if (g_wph_n < 80) logf_("weapons: hand switch: back to the right hand %llu ms after the attack start (playing %d)", held, playing);
         }
     }
-    if (g_wp7_mesh == 1 && w && actor && (w->k.has_mesh_off || w->k.has_mesh_rot)) {
+    if (g_wpw_mesh == 1 && w && actor && (w->k.has_mesh_off || w->k.has_mesh_rot)) {
         void *comp = NULL; __try { comp = *(void **)((uint8_t *)actor + WP_ACTOR_MESH); } __except (EXCEPTION_EXECUTE_HANDLER) { comp = NULL; }
         float *cl = comp ? (float *)CA->prop_ptr(CA, comp, "RelativeLocation") : NULL, *cr = comp ? (float *)CA->prop_ptr(CA, comp, "RelativeRotation") : NULL; if (!cl || !cr) return;
         static void *base_comp; static float bl[3], br[3]; if (comp != base_comp) { base_comp = comp; memcpy(bl, cl, 12); memcpy(br, cr, 12); logf_("weapons: mesh offset: weapon mesh %p stock loc (%.2f %.2f %.2f) rot (%.2f %.2f %.2f)", comp, bl[0], bl[1], bl[2], br[0], br[1], br[2]); }
@@ -251,24 +251,24 @@ static unsigned char wp_hvwa_det(void *ch, void *ac, void *row) {
         if (n <= 6) logf_("weapons: probe HandledVisibleWeaponIsAttacking: %s attack -> %s (weapon strike counted: mirrored true %ld / false %ld, unmirrored true %ld / false %ld)", mir ? "MIRRORED" : "unmirrored", r ? "true" : "FALSE", g_hv_cnt[1][1], g_hv_cnt[1][0], g_hv_cnt[0][1], g_hv_cnt[0][0]); } } } __except (EXCEPTION_EXECUTE_HANDLER) { }
     return r;
 }
-static void wp_p7_hook(void) {
+static void wp_watch_hook(void) {
     static int done; if (done) return; done = 1;
-    g_wp7_follow = wp_cfg("wp_slot_follow"); g_wp7_hand = wp_cfg("wp_hand_switch"); g_wp7_mesh = wp_cfg("wp_mesh_offset");
-    if (g_wp7_follow == 1) { static const uint8_t ex[16] = { 0x48,0x89,0x5C,0x24,0x08,0x48,0x89,0x6C,0x24,0x10,0x48,0x89,0x74,0x24,0x18,0x57 };   // 0x363D00 prologue (4 whole instructions)
+    g_wpw_follow = wp_cfg("wp_slot_follow"); g_wpw_hand = wp_cfg("wp_hand_switch"); g_wpw_mesh = wp_cfg("wp_mesh_offset");
+    if (g_wpw_follow == 1) { static const uint8_t ex[16] = { 0x48,0x89,0x5C,0x24,0x08,0x48,0x89,0x6C,0x24,0x10,0x48,0x89,0x74,0x24,0x18,0x57 };   // 0x363D00 prologue (4 whole instructions)
         g_o_gwsa = (uint8_t (*)(void *, void *, void *))CA->hook_rva(CA, "AFightingCharacter::GetWeaponSlotAttacking(UAttackComponent)", 0x363D00, ex, 16, (void *)wp_gwsa_det);
         logf_("weapons: slot follow hook %p%s", (void *)g_o_gwsa, g_o_gwsa ? "" : " - HOOK FAILED (bytes differ?)"); }
-    { uint32_t ar = CA->find_symbol(CA, "AActor::AttachRootComponentTo"); if (ar == 0x1240610) g_wp_attach_root = (WpAttachRoot_t)(CA->game_base + ar); else if (g_wp7_hand == 1) { g_wp7_hand = 0; logf_("weapons: hand switch OFF: AActor::AttachRootComponentTo is at %#x, expected 0x1240610", ar); } }
+    { uint32_t ar = CA->find_symbol(CA, "AActor::AttachRootComponentTo"); if (ar == 0x1240610) g_wp_attach_root = (WpAttachRoot_t)(CA->game_base + ar); else if (g_wpw_hand == 1) { g_wpw_hand = 0; logf_("weapons: hand switch OFF: AActor::AttachRootComponentTo is at %#x, expected 0x1240610", ar); } }
     { uint32_t rva = CA->find_symbol(CA, "UAttackComponent::IsAttackMirror");               // 0x300E80 in symbols.bin (PDB, 345 bytes); called directly, never patched
-      if (rva == 0x300E80) g_wp_ismir = (WpIsMirror_t)(CA->game_base + rva); else if (g_wp7_hand == 1) { g_wp7_hand = 0; logf_("weapons: hand switch OFF: UAttackComponent::IsAttackMirror is at %#x, expected 0x300E80 (symbols.bin missing / other build)", rva); } }
-    if (g_wp7_hand == 1) logf_("weapons: hand switch on attack start: event %d, attack end (BPE_AttackEnded) %d", CA->on_attack_start(CA, wp_attack_start, NULL), CA->on_call(CA, NULL, "BPE_AttackEnded", NULL, wp_attack_ended, NULL));
+      if (rva == 0x300E80) g_wp_ismir = (WpIsMirror_t)(CA->game_base + rva); else if (g_wpw_hand == 1) { g_wpw_hand = 0; logf_("weapons: hand switch OFF: UAttackComponent::IsAttackMirror is at %#x, expected 0x300E80 (symbols.bin missing / other build)", rva); } }
+    if (g_wpw_hand == 1) logf_("weapons: hand switch on attack start: event %d, attack end (BPE_AttackEnded) %d", CA->on_attack_start(CA, wp_attack_start, NULL), CA->on_call(CA, NULL, "BPE_AttackEnded", NULL, wp_attack_ended, NULL));
     { char b[16] = ""; wchar_t src[MAX_PATH]; if (setting_get("wp_probe_hvwa", L"", 0, b, sizeof b, src) && atoi(b) && g_wp_ismir) { static const uint8_t ex[14] = { 0x40,0x53,0x48,0x83,0xEC,0x20,0x48,0x83,0xB9,0x80,0x1D,0x00,0x00,0x00 };
         g_o_hvwa = (unsigned char (*)(void *, void *, void *))CA->hook_rva(CA, "AFightingCharacter::HandledVisibleWeaponIsAttacking", 0x364E10, ex, 14, (void *)wp_hvwa_det); logf_("weapons: probe HandledVisibleWeaponIsAttacking hook %p", (void *)g_o_hvwa); } }
-    if (g_wp7_hand == 1 || g_wp7_mesh == 1) logf_("weapons: P7 0.1 s watch: timer %d", CA->set_timer_id(CA, 0.1f, 1, wp_p7_tick, NULL));
+    if (g_wpw_hand == 1 || g_wpw_mesh == 1) logf_("weapons: 0.1 s watch: timer %d", CA->set_timer_id(CA, 0.1f, 1, wp_watch_tick, NULL));
 }
 
 static int wp_kind_apply(const char *mod, const char *id, const char *json, void *u) {
     (void)u; WpKind k; char err[200]; if (!wp_parse(json, &k, err, sizeof err)) { logf_("weapons: %s/%s: %s - not applied", mod, id, err); return 0; }
-    wp_sweep_hook(); wp_mirror_hook(); wp_p7_hook();
+    wp_sweep_hook(); wp_mirror_hook(); wp_watch_hook();
     CWeapon *w = wp_find(k.id);
     if (!w) { if (g_wp_n >= WP_MAX) { logf_("weapons: too many weapon kinds (%d), %s ignored", WP_MAX, id); return 0; } w = &g_wp[g_wp_n++]; memset(w, 0, sizeof *w); }
     snprintf(w->mod, sizeof w->mod, "%s", mod); w->k = k; w->gen++; w->icon_path[0] = 0;

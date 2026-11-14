@@ -1,4 +1,4 @@
-// modes.h - pure logic of the modes API (modes.inc): banner queue, round-end detection from team scores, travel URL building. Offline tests: test\modes_test.c
+// modes.h - pure logic of the modes API (modes.inc): banner queue, round-end detection from team scores, travel URL building.
 #ifndef LANNATIVE_MODES_H
 #define LANNATIVE_MODES_H
 #include <string.h>

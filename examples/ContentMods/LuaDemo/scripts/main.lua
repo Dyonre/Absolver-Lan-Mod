@@ -24,6 +24,6 @@ local boots = (tonumber(abs.kv_get("loads")) or 0) + 1
 abs.kv_set("loads", tostring(boots))
 abs.log("luademo: loaded " .. boots .. " time(s) so far")
 
--- a key (P4 keybind registry): players can move it in Mods\LuaHost\keybinds.txt ("LuaDemo.toggle = J"); conflicts are listed in keybinds_report.txt
+-- a key (keybind registry): players can move it in Mods\LuaHost\keybinds.txt ("LuaDemo.toggle = J"); conflicts are listed in keybinds_report.txt
 local key = abs.bind("toggle", "K", function() abs.log("luademo: PASS key toggle pressed") end, "Log a line")
 abs.log("luademo: toggle is on key " .. key)

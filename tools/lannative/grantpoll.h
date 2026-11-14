@@ -1,4 +1,4 @@
-// grantpoll.h - pure state for the content grants (items and powers; content.inc / powers.inc). Offline test: test\grantpoll_test.c.
+// grantpoll.h - pure state for the content grants (items and powers; content.inc / powers.inc).
 // A grant stays pending until the local player's inventory has been reachable with the SAME non-zero item count on two polls in a row (the save's
 // items are in, nothing is still being added) and then either already holds the item or inventory_add returns an index >= 0. The loader polls every
 // GP_POLL_S seconds from every new non-title world while anything is pending; the pending flags are re-armed when a character save loads.

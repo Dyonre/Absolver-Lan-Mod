@@ -190,10 +190,10 @@ static void as_boot(void *u) {
     int missing = as_find_tables(1, g_aso); char err[240];
     if (g_as_mode) {
         if (missing) logf_("animsets: %d table object(s) did not load: ALL sets refused (vanilla animations stay)", missing);
-        else if (!as_layout_ok(g_aso, err, sizeof err)) logf_("animsets: layout check (R2) FAILED, ALL sets refused (another game build?): %s", err);
+        else if (!as_layout_ok(g_aso, err, sizeof err)) logf_("animsets: layout check FAILED, ALL sets refused (another game build?): %s", err);
         else {
             for (int i = 0; i < AS_NTABLES; i++) if (i == 0 || g_aso[i] != g_aso[i - 1]) CA->add_to_root(CA, g_aso[i], 1);   // never unloaded / reloaded: the padding stays
-            logf_("animsets: layout check (R2) ok: 14 properties at their SDK offsets and sizes; the 8 objects are rooted");
+            logf_("animsets: layout check ok: 14 properties at their SDK offsets and sizes; the 8 objects are rooted");
             if (as_run()) for (int i = 0; i < g_asd_n; i++) if (g_asd[i].s.ok) as_read_set(&g_asd[i], g_aso, g_asd[i].s.index, 1, "after wiring", NULL);
             if (!CA->on_world_loaded(CA, as_world, NULL)) logf_("animsets: world-load re-check registered");
         }

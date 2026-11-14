@@ -1,5 +1,5 @@
 // mapscript.h - pure logic of the map script (mapscript.inc): key-frame curves, phase flags and conditions, scene-to-world placement, trigger boxes and edges, timed mesh moves.
-// Offline tests: test\mapscript_test.c. No engine calls in here.
+// No engine calls in here.
 #ifndef LANNATIVE_MAPSCRIPT_H
 #define LANNATIVE_MAPSCRIPT_H
 #include <math.h>

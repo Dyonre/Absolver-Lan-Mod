@@ -1,4 +1,4 @@
-/* npcs.h - pure helpers of the "npcs" content kind and its API (npcs.inc). No game access; offline checks in test/npcs_test.c. */
+/* npcs.h - pure helpers of the "npcs" content kind and its API (npcs.inc). No game access. */
 #ifndef NPCS_H
 #define NPCS_H
 #include <stdio.h>

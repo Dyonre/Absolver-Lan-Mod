@@ -1,4 +1,4 @@
-// stylegate.h - pure decision for a gated "styles" entry (kind "styles", field "gleam_level"). Offline test: test\stylegate_test.c.
+// stylegate.h - pure decision for a gated "styles" entry (kind "styles", field "gleam_level").
 // Faejin is not flagged in the save: the game computes its unlock live from the Gleam level (Progression.m_Rewards[42] = GleamLvl 6, UStatsComponent::BPF_IsProgressionRewardUnlocked
 // compares m_CurrentGobalStats.m_CharacterStats.m_iResourcesLvl). A gated extra style mirrors that: unlocked when the game's own answer is yes (save flag
 // m_FightingStyleProgresses[id] >= 1.0, school style) OR the Gleam level reaches the entry's level. An entry WITHOUT the field is always unlocked.

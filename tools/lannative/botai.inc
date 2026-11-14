@@ -959,7 +959,7 @@ static void bai_tick(float dt, void *u) {
             { static int lab = -1; if (lab < 0) lab = (int)bai_cfg_num("bot_ai_lab_guardhole", 0);   /* test mode: the first bot guards in BackLeft, the second throws row 003 (horizontal, left origin) */
               if (lab) { int victim = b == &g_bai[0]; static double t_atk, t_g, t_h; if (victim) { if (bo_stance(&b->o.me) != 3) bai_stance(b, 3); if (now - t_g > 0.3) { t_g = now; api_p_test_guard(BAI, b->ch, 1); } if (now - t_h > 3) { t_h = now; api_p_test_heal(BAI, b->ch); } }
                 else if (now - t_atk > 2.5 && !bo_attacking(&b->o.me)) { t_atk = now; BotCmd c; memset(&c, 0, sizeof c); c.type = BC_ATTACK; snprintf(c.row, sizeof c.row, "003"); int pf = 0; char rw[24] = ""; int ok = bai_attack(b, &c, 0, &pf, rw);
-                  logf_("bot: LAB-C1 attack 003 launched %d; victim stance %d guarding %.0f locked %d", ok, bo_stance(&g_bai[0].o.me), g_bai[0].o.me.s.v[BO_GUARDING], bai_target_of(g_bai[0].ch) == g_bai[0].op); }
+                  logf_("bot: LAB-GUARDHOLE attack 003 launched %d; victim stance %d guarding %.0f locked %d", ok, bo_stance(&g_bai[0].o.me), g_bai[0].o.me.s.v[BO_GUARDING], bai_target_of(g_bai[0].ch) == g_bai[0].op); }
                 continue; } }
             if (b->cfg.policy == BP_NN) { bai_nn_load(); bai_nn_step(b, now); } else bot_step(&b->cfg, &b->st, &b->o, now, dt, &b->q);
             { static int ct = -1; if (ct < 0) ct = (int)bai_cfg_num("bot_ai_cancel_test", 0); if (ct && bo_attacking(&b->o.me) && b->o.me.frame >= 2.f && b->cx_seq != b->o.me.seq) bai_cancel(b); }   /* test mode: mid-attack feint check (every attack cancelled 2 F in) */

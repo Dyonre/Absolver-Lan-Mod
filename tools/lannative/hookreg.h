@@ -1,5 +1,5 @@
 // hookreg.h - the hook registry: which game functions are patched, by whom, and in what order the detours stack.
-// Pure data logic (no OS calls) so it is testable offline (test\hookreg_test.c). The patching itself lives in plugins.inc / lannative.c.
+// Pure data logic (no OS calls). The patching itself lives in plugins.inc / lannative.c.
 // A patched function looks like:   [jmp [rip+0] -> top detour] ...   top detour -> (its "original") -> ... -> bottom detour -> trampoline -> game code.
 // Registering a new detour on an already hooked function does not patch the game code again: the jmp's target address is rewritten to the new
 // detour and the previous top becomes the new detour's "original" (call-next pointer).

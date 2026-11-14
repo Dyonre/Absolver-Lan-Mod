@@ -1,4 +1,4 @@
-// utf8text.h - UTF-8 <-> UTF-16 for the text that crosses the loader's boundary (rows.json values, property text dumps, FText). Pure C, tested offline (test/utf8text_test.c).
+// utf8text.h - UTF-8 <-> UTF-16 for the text that crosses the loader's boundary (rows.json values, property text dumps, FText). Pure C.
 #ifndef LANNATIVE_UTF8TEXT_H
 #define LANNATIVE_UTF8TEXT_H
 #include <stddef.h>

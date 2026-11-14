@@ -1,4 +1,4 @@
-// perfstats.h - always-on frame-time recorder (config "perf_stats", secore.inc se_tick). Pure C, no Windows, offline-testable (test\perfstats_test.c).
+// perfstats.h - always-on frame-time recorder (config "perf_stats", secore.inc se_tick). Pure C, no Windows.
 // One PfHist = a 1 ms histogram (0..199 ms, last bin = 200 ms and more) + count / sum / max. Cost per frame: one bin increment for "all" and one for the kind in hand.
 // Fine 1 ms bins (not just the 7 report bands) so the 1% / 0.1% lows come out to +-0.5 ms without keeping every frame.
 // Intervals of PF_STALL_MS or more (map loads, a paused window) are not frames: they are counted as stalls and kept out of every statistic.

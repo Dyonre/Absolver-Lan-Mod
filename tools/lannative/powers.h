@@ -1,4 +1,4 @@
-/* powers.h - pure helpers of the "powers" content kind (powers.inc). No game access; offline checks in test/powers_test.c. */
+/* powers.h - pure helpers of the "powers" content kind (powers.inc). No game access. */
 #ifndef POWERS_H
 #define POWERS_H
 #include <stdio.h>

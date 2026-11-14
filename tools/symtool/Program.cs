@@ -130,7 +130,7 @@ switch (mode)
         break;
 
     case "resolve":
-        // resolve <file>: one hex RVA per line in, "RVA<TAB>name+disp" out (used by tools/disasm/disasm.py).
+        // resolve <file>: one hex RVA per line in, "RVA<TAB>name+disp" out.
         foreach (var line in File.ReadLines(args[2]))
         {
             if (!uint.TryParse(line.Trim(), System.Globalization.NumberStyles.HexNumber, null, out var r)) continue;

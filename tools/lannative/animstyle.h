@@ -1,5 +1,5 @@
 // animstyle.h - pure parts of the weapon animation set ("anim style", API 2.17, animstyle.inc): which callers of AFightingCharacter::BPF_GetCombatStyle
-// are animation lookups, and the per-character override table. No OS calls: tested offline (test\animstyle_test.c).
+// are animation lookups, and the per-character override table. No OS calls.
 //
 // Every style-indexed animation table is read with a style ARGUMENT that its caller gets from BPF_GetCombatStyle (0x322E00); the three inlined reads
 // (Disarm, InitStyle, ServerUpdateMovementAnimation_Implementation) all end in UFightingMovementComponent::ReplaceMovementAnimation (0x448C60).

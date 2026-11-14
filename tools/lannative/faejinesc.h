@@ -1,4 +1,4 @@
-// faejinesc.h - pure decision logic of the Faejin gold-LOOP counter shared by the two brakes (loader glue: faejinesc.inc; offline tests: test\faejinesc_test.c, test\faejinws_test.c).
+// faejinesc.h - pure decision logic of the Faejin gold-LOOP counter shared by the two brakes (loader glue: faejinesc.inc).
 // No game access, no allocation, no clock: the caller passes `now` in seconds.
 //
 // n counts the gold links that involve a style-ability row (into or out of an ability) of one Faejin character:

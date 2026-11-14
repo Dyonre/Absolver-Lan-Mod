@@ -1,9 +1,8 @@
 ﻿"""Generates the two headers lannative.c needs.
   version_exports.h   - forwards every export of the real System32\version.dll (this DLL is installed AS version.dll, the game imports it)
   lannative_targets.h - RVA, stolen byte count and the expected original prologue bytes of each hook target (verified before patching)
-python gen_headers.py   (needs: pip install pefile capstone)"""
+python gen_headers.py   (needs: pip install pefile)"""
 import os, sys, struct, pefile
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "disasm"))
 HERE = os.path.dirname(os.path.abspath(__file__))
 USAGE = "usage: python gen_headers.py   (set ABSOLVER_EXE to Absolver-Win64-Shipping.exe or ABSOLVER_GAME to the game folder first)"
 def find_exe():
