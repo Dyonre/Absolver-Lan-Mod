@@ -14,7 +14,9 @@ enum { OV_OFF = 0, OV_STARTING, OV_READY, OV_DEAD };                    // not r
 enum { OVC_NONE = 0, OVC_MENU_SELECT, OVC_MENU_BACK, OVC_TOGGLE, OVC_MODS_ACT,             // OVC_MENU_SELECT / OVC_MODS_ACT: index = row / action line
        OVC_MODS_ENABLE,        // Mods page: index = row in OvSnap.mods, arg 1 = switch on, 0 = off
        OVC_MODS_MOVE,          // index = row, arg -1 = earlier in the load order, +1 = later
-       OVC_MODS_RESTART };     // quit the game cleanly so it can be started again
+       OVC_MODS_RESTART,       // quit the game cleanly so it can be started again
+       OVC_MODS_FORM,          // index = row whose settings form opens; -1 closes the form
+       OVC_MODS_APPLY };       // index = row, text = "key<TAB>value<LF>" for every setting of the form
 
 #define OV_LINE 96
 #define OV_ROWS 192                                                     // rows of a list page
@@ -30,9 +32,15 @@ typedef struct OvMod {
     int paks_ok, paks_total, rows_ops, content_files, plugin, affects_gameplay;   // plugin: 0 none, 1 allowed, 2 blocked
     int enabled;                      // the box as it is now (loadorder.txt, possibly changed on this page)
     int effect;                       // 0 nothing pending, 1 switches on after a restart, 2 switches off after a restart, 3 switched on live
-    int has_pak, has_lua, has_rows, has_content, has_plugin, hot_ok, nconf;
+    int has_pak, has_lua, has_rows, has_content, has_plugin, hot_ok, nsettings, nconf;
     char conf[3][112];                // the first conflicts with other mods (tooltip); nconf counts all
 } OvMod;
+#define OV_SETTINGS 24
+typedef struct OvSetting {
+    char key[48], label[64], help[160], def[128], value[128];
+    int type;                         // 0 bool, 1 int, 2 float, 3 choice, 4 text (modsettings.h)
+    int has_min, has_max, nchoice; double min, max; char choice[16][48];
+} OvSetting;
 
 typedef struct OvSnap {
     int kind;                         // OV_*
@@ -52,9 +60,11 @@ typedef struct OvSnap {
     char reload_status[240];
     int nactions; char action[OV_ACTIONS][OV_LINE]; int action_kind[OV_ACTIONS];   // kind: 0 reload, 1 plugin section header, 2 plugin item
     int pending_n; char pending_text[160];           // load order changes that wait for a restart
+    int form_mod; unsigned form_serial;              // row whose settings form is open (-1 = none); the serial changes whenever the values below were reloaded
+    char form_title[96], form_msg[200]; int form_ok, form_live, nform; OvSetting form[OV_SETTINGS];   // form_live: the mod's plugin takes changes without a restart
 } OvSnap;
 
-typedef struct OvCmd { int cmd, index, arg; } OvCmd;
+typedef struct OvCmd { int cmd, index, arg; char text[1536]; } OvCmd;
 
 // Plugin side (AbsApi overlay_*). owner = the plugin's index (0..63). Draw callbacks run on the render thread inside a frame, between NewFrame and Render, after the
 // loader's own windows. Modes are per owner and combined: frames run while any owner has a mode set (or a loader menu is open).

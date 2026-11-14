@@ -125,8 +125,8 @@ extern "C" int ov_poll(OvCmd *c) {
     LeaveCriticalSection(&g_cs);
     return got;
 }
-static void post(int cmd, int index, int arg = 0) {   // render thread; the caller holds g_cs (it is inside the frame)
-    if (g_qn < CMDQ) { OvCmd &c = g_q[g_qn]; c.cmd = cmd; c.index = index; c.arg = arg; g_qn++; }
+static void post(int cmd, int index, int arg = 0, const char *text = NULL) {   // render thread; the caller holds g_cs (it is inside the frame)
+    if (g_qn < CMDQ) { OvCmd &c = g_q[g_qn]; c.cmd = cmd; c.index = index; c.arg = arg; snprintf(c.text, sizeof c.text, "%s", text ? text : ""); g_qn++; }
 }
 extern "C" void ov_publish(const OvSnap *s) {
     if (!g_installed) return;
@@ -296,10 +296,10 @@ static void draw_mods(const OvSnap &s) {
             if (ImGui::Button("Restart game now")) post(OVC_MODS_RESTART, 0);
             ImGui::TextDisabled("The game quits cleanly; start it again from Steam. A later mod in the list wins when two mods change the same thing.");
         }
-        if (ImGui::BeginTable("mods", 6, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingStretchProp)) {
+        if (ImGui::BeginTable("mods", 7, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingStretchProp)) {
             ImGui::TableSetupColumn("On", ImGuiTableColumnFlags_WidthFixed, 34.f * g_scale); ImGui::TableSetupColumn("Mod", ImGuiTableColumnFlags_WidthFixed, 200.f * g_scale); ImGui::TableSetupColumn("State", ImGuiTableColumnFlags_WidthFixed, 140.f * g_scale);
             ImGui::TableSetupColumn("Holds"); ImGui::TableSetupColumn("Conflicts", ImGuiTableColumnFlags_WidthFixed, 70.f * g_scale);
-            ImGui::TableSetupColumn("Order", ImGuiTableColumnFlags_WidthFixed, 56.f * g_scale);
+            ImGui::TableSetupColumn("Order", ImGuiTableColumnFlags_WidthFixed, 56.f * g_scale); ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 80.f * g_scale);
             ImGui::TableHeadersRow();
             for (int i = 0; i < s.nmods; i++) {
                 const OvMod &m = s.mods[i]; char c[200]; ImGui::PushID(i);
@@ -330,6 +330,8 @@ static void draw_mods(const OvSnap &s) {
                 else ImGui::TextDisabled("-");
                 ImGui::TableSetColumnIndex(5);
                 if (ImGui::SmallButton("^")) post(OVC_MODS_MOVE, i, -1); ImGui::SameLine(); if (ImGui::SmallButton("v")) post(OVC_MODS_MOVE, i, 1);
+                ImGui::TableSetColumnIndex(6);
+                if (m.nsettings && ImGui::SmallButton("Settings")) post(OVC_MODS_FORM, i);
                 ImGui::PopID();
             }
             ImGui::EndTable();
@@ -357,6 +359,40 @@ static void draw_mods(const OvSnap &s) {
     ImGui::TextWrapped("Last reload: %s", s.reload_status[0] ? s.reload_status : "none yet (the Reload line of this page, or a LanNative\\reload.txt file, reloads Mods\\*\\content and rows.json)");
 }
 
+static void draw_form(const OvSnap &s) {
+    static char buf[OV_SETTINGS][128]; static unsigned seen = 0xFFFFFFFFu; static int seen_mod = -2;
+    if (s.form_serial != seen || s.form_mod != seen_mod) { for (int i = 0; i < s.nform; i++) snprintf(buf[i], sizeof buf[i], "%s", s.form[i].value); seen = s.form_serial; seen_mod = s.form_mod; }
+    bool open = true;
+    float fw = 520.f * g_scale, fx = 40.f + 860.f * g_scale + 20.f; if (fx + fw > (float)g_cw - 10.f) fx = (float)g_cw - fw - 10.f; if (fx < 10.f) fx = 10.f;     // beside the Mods window when there is room, otherwise on top of its right edge
+    ImGui::SetNextWindowPos(ImVec2(fx, 100.f), ImGuiCond_Appearing); ImGui::SetNextWindowSize(ImVec2(fw, 420.f * g_scale), ImGuiCond_Appearing); ImGui::SetNextWindowBgAlpha(1.0f);
+    if (ImGui::Begin(s.form_title[0] ? s.form_title : "Mod settings###lnform", &open, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse)) {
+        ImGui::BeginChild("fields", ImVec2(0, -(ImGui::GetFrameHeightWithSpacing() * 3.f + 12.f)));     // the buttons below stay visible however many settings there are
+        for (int i = 0; i < s.nform; i++) {
+            const OvSetting &st = s.form[i]; ImGui::PushID(i); char *v = buf[i];
+            ImGui::TextUnformatted(st.label);
+            if (st.type == 0) { bool b = v[0] == '1' || !_stricmp(v, "true") || !_stricmp(v, "on") || !_stricmp(v, "yes"); if (ImGui::Checkbox("##v", &b)) snprintf(v, 128, "%s", b ? "1" : "0"); }
+            else if (st.type == 3) {
+                if (ImGui::BeginCombo("##v", v[0] ? v : "(choose)")) { for (int k = 0; k < st.nchoice; k++) if (ImGui::Selectable(st.choice[k], !strcmp(v, st.choice[k]))) snprintf(v, 128, "%s", st.choice[k]); ImGui::EndCombo(); }
+            } else { ImGui::SetNextItemWidth(260.f * g_scale); ImGui::InputText("##v", v, 128, st.type == 1 ? ImGuiInputTextFlags_CharsDecimal : st.type == 2 ? ImGuiInputTextFlags_CharsScientific : 0); }
+            if (st.type == 1 || st.type == 2) { if (st.has_min || st.has_max) { ImGui::SameLine(); ImGui::TextDisabled("(%g .. %g)", st.has_min ? st.min : -1e9, st.has_max ? st.max : 1e9); } }
+            if (st.help[0]) ImGui::TextDisabled("%s", st.help);
+            ImGui::PopID(); ImGui::Spacing();
+        }
+        ImGui::EndChild();
+        ImGui::Separator();
+        if (ImGui::Button("Apply")) {
+            char out[1536]; size_t w = 0; out[0] = 0;
+            for (int i = 0; i < s.nform; i++) { int n = snprintf(out + w, sizeof out - w, "%s\t%s\n", s.form[i].key, buf[i]); if (n < 0 || w + (size_t)n >= sizeof out) break; w += (size_t)n; }
+            post(OVC_MODS_APPLY, s.form_mod, 0, out);
+        }
+        ImGui::SameLine(); if (ImGui::Button("Defaults")) for (int i = 0; i < s.nform; i++) snprintf(buf[i], sizeof buf[i], "%s", s.form[i].def);
+        ImGui::SameLine(); if (ImGui::Button("Close")) open = false;
+        ImGui::TextDisabled("%s", s.form_live ? "Changes apply immediately." : "Changes apply after a restart.");
+        if (s.form_msg[0]) ImGui::TextColored(s.form_ok ? ImVec4(0.45f, 0.9f, 0.5f, 1) : ImVec4(1.f, 0.45f, 0.4f, 1), "%s", s.form_msg);
+    }
+    ImGui::End();
+    if (!open) post(OVC_MODS_FORM, -1);
+}
 static int guarded_draw(void (*draw)(void *), void *user, unsigned long *code) {
     __try { draw(user); return 1; } __except (EXCEPTION_EXECUTE_HANDLER) { *code = GetExceptionCode(); return 0; }
 }
@@ -390,11 +426,12 @@ static void draw_ui(int w, int h) {
         ImGui::SetNextWindowSize(ImVec2(ww, wh), ImGuiCond_Appearing);
         ImGui::SetNextWindowBgAlpha(0.88f);
         const char *name = s.kind == OV_MODS ? "Mods###lnwin" : "LanNative###lnwin";
-        if (ImGui::Begin(name, &open, ImGuiWindowFlags_NoSavedSettings)) {
+        if (ImGui::Begin(name, &open, ImGuiWindowFlags_NoSavedSettings | (s.kind == OV_MODS && s.form_mod >= 0 ? ImGuiWindowFlags_NoBringToFrontOnFocus : 0))) {   // an open settings form stays above the page
             if (s.kind == OV_MODS) draw_mods(s); else if (s.kind == OV_MENU) draw_menu(s); else draw_lines(s);
         }
         ImGui::End();
         if (!open) post(OVC_TOGGLE, 0);
+        if (s.kind == OV_MODS && s.form_mod >= 0) draw_form(s);
     }
     DrawReg list[DRAWMAX]; int n = g_nreg; memcpy(list, g_reg, sizeof(DrawReg) * (size_t)n);   // a callback may register or unregister: iterate a copy, in registration order
     for (int i = 0; i < n; i++) call_draw(list[i]);

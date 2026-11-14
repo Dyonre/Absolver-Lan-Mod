@@ -38,9 +38,10 @@ static int api_p_reload_content(const AbsApi *self) {
     return mods_reload_all();
 }
 
-// ----- Mods page: load order edits, live switch-on (commands come from the overlay: OVC_MODS_*)
+// ----- Mods page: load order edits, live switch-on, settings forms (commands come from the overlay: OVC_MODS_*)
 static int md_console(const char *cmd);                                           // modes.inc
 static int g_mi_live[MODS_MAX];                                                    // switched on while the game runs (rows / content only)
+static int g_form_row = -1, g_form_mi = -1, g_form_ok, g_form_live, g_form_n; static unsigned g_form_serial; static char g_form_title[96], g_form_msg[200]; static OvSetting g_form[OV_SETTINGS];
 static int mods_ui_mi_of(const char *name) { for (int i = 0; i < g_mi_n; i++) if (!_stricmp(g_mi[i].name, name)) return i; return -1; }
 // 0 nothing pending, 1 switches on after a restart, 2 switches off after a restart, 3 switched on live
 static int mods_ui_effect(int mi, int row) {
@@ -70,6 +71,64 @@ static int mods_ui_hot_enable(int mi) {
     if (b >= 0) { ModEntry e = g_order_boot.mods[b]; e.enabled = 1; memmove(&g_order_boot.mods[b], &g_order_boot.mods[b + 1], (size_t)(g_order_boot.count - b - 1) * sizeof(ModEntry)); g_order_boot.mods[g_order_boot.count - 1] = e; }
     logf_("mods page: %s switched on live (rows/content only) at load position %d", m->name, pos);
     mods_reload_all(); return 1;
+}
+static void mods_ui_form_close(void) { g_form_row = -1; g_form_mi = -1; g_form_n = 0; g_form_msg[0] = 0; g_form_serial++; }
+static void mods_ui_form_open(int row) {
+    if (row < 0 || row >= g_order_now.count) { mods_ui_form_close(); return; }
+    int mi = mods_ui_mi_of(g_order_now.mods[row].name); if (mi < 0 || !g_mset[mi]) { mods_ui_form_close(); return; }
+    const ModSettings *set = g_mset[mi]; wchar_t cp[MAX_PATH]; swprintf(cp, MAX_PATH, L"%ls\\plugin.cfg", g_mi_dir[mi]); char *cfg = mods_read_text(cp, 65536);
+    g_form_n = 0; memset(g_form, 0, sizeof g_form);
+    for (int i = 0; i < set->n && g_form_n < OV_SETTINGS; i++) {
+        const ModSetting *s = &set->s[i]; OvSetting *d = &g_form[g_form_n++];
+        snprintf(d->key, sizeof d->key, "%s", s->key); snprintf(d->label, sizeof d->label, "%s", s->label); snprintf(d->help, sizeof d->help, "%s", s->help); snprintf(d->def, sizeof d->def, "%s", s->def);
+        d->type = s->type; d->has_min = s->has_min; d->has_max = s->has_max; d->min = s->min; d->max = s->max; d->nchoice = s->nchoice; memcpy(d->choice, s->choice, sizeof d->choice);
+        char v[MSET_TEXT]; if (!cfg || !mset_cfg_get(cfg, s->key, v, sizeof v)) snprintf(v, sizeof v, "%s", s->def); snprintf(d->value, sizeof d->value, "%s", v);
+    }
+    free(cfg);
+    g_form_row = row; g_form_mi = mi; g_form_msg[0] = 0; g_form_ok = 0; g_form_serial++;
+    snprintf(g_form_title, sizeof g_form_title, "Settings: %s###lnform", g_mi[mi].name);
+    g_form_live = 0; for (int p = 0; p < g_plugins_n; p++) if (!_stricmp(g_plugins[p].name, g_mi[mi].name) && g_plugins[p].loaded && g_plugins[p].module && GetProcAddress(g_plugins[p].module, "gleam_settings_changed")) g_form_live = 1;
+    logf_("mods page: settings form of %s opened (%d setting(s), changes %s)", g_mi[mi].name, g_form_n, g_form_live ? "apply live" : "apply after a restart");
+}
+static void mods_ui_form_apply(int row, const char *text) {
+    if (row != g_form_row || g_form_mi < 0) return;
+    int mi = g_form_mi; const ModSettings *set = g_mset[mi]; if (!set) return;
+    wchar_t cp[MAX_PATH]; swprintf(cp, MAX_PATH, L"%ls\\plugin.cfg", g_mi_dir[mi]); char *cfg = mods_read_text(cp, 65536);
+    static char keys[MSET_MAX][48], vals[MSET_MAX][MSET_TEXT]; const char *kp[MSET_MAX], *vp[MSET_MAX]; int n = 0;
+    for (const char *p = text; *p && n < MSET_MAX;) {                                // "key<TAB>value<LF>" lines; only values that differ from what the file (or the default) holds are written
+        const char *e = strchr(p, '\n'); size_t len = e ? (size_t)(e - p) : strlen(p); const char *tab = memchr(p, '\t', len);
+        if (tab && tab - p < 48 && len - (size_t)(tab - p) - 1 < MSET_TEXT) {
+            char k[48], v[MSET_TEXT]; snprintf(k, sizeof k, "%.*s", (int)(tab - p), p); snprintf(v, sizeof v, "%.*s", (int)(len - (size_t)(tab - p) - 1), tab + 1);
+            const ModSetting *st = NULL; for (int i = 0; i < set->n; i++) if (!strcmp(set->s[i].key, k)) st = &set->s[i];
+            if (st) {                                                                // unchanged values are not written (an unknown key or an invalid value still goes to mset_apply, which refuses it)
+                char cur[MSET_TEXT], cn[MSET_TEXT * 2], cc[MSET_TEXT * 2], w1[200], w2[200];
+                if (!cfg || !mset_cfg_get(cfg, k, cur, sizeof cur)) snprintf(cur, sizeof cur, "%s", st->def);
+                if (mset_validate(st, v, cn, sizeof cn, w1, sizeof w1) == 0 && mset_validate(st, cur, cc, sizeof cc, w2, sizeof w2) == 0 && !strcmp(cn, cc)) { if (!e) break; p = e + 1; continue; }
+            }
+            snprintf(keys[n], sizeof keys[n], "%s", k); snprintf(vals[n], sizeof vals[n], "%s", v); kp[n] = keys[n]; vp[n] = vals[n]; n++;
+        }
+        if (!e) break; p = e + 1;
+    }
+    if (n == 0) { snprintf(g_form_msg, sizeof g_form_msg, "Nothing changed."); g_form_ok = 1; free(cfg); return; }
+    static char out[65536 + 4096]; char err[200] = "";
+    if (mset_apply(set, cfg, n, kp, vp, out, sizeof out, err, sizeof err) < 0) {
+        snprintf(g_form_msg, sizeof g_form_msg, "Nothing was saved. %.150s", err); g_form_ok = 0; free(cfg);
+        logf_("mods page: settings of %s rejected: %s", g_mi[mi].name, err); return;
+    }
+    wchar_t tmp[MAX_PATH]; swprintf(tmp, MAX_PATH, L"%ls\\plugin.cfg.tmp", g_mi_dir[mi]);
+    HANDLE h = CreateFileW(tmp, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL); DWORD w = 0; int ok = 0; size_t len = strlen(out);
+    if (h != INVALID_HANDLE_VALUE) { ok = WriteFile(h, out, (DWORD)len, &w, NULL) && w == (DWORD)len; CloseHandle(h); }
+    if (ok) ok = MoveFileExW(tmp, cp, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH); else DeleteFileW(tmp);
+    free(cfg);
+    if (!ok) { snprintf(g_form_msg, sizeof g_form_msg, "Nothing was saved: plugin.cfg could not be written (error %lu).", GetLastError()); g_form_ok = 0; logf_("mods page: %s", g_form_msg); return; }
+    int notified = 0;
+    for (int p = 0; p < g_plugins_n; p++) if (!_stricmp(g_plugins[p].name, g_mi[mi].name) && g_plugins[p].loaded && g_plugins[p].module && plug_guard(p)) {
+        void (*cb)(const AbsApi *) = (void (*)(const AbsApi *))GetProcAddress(g_plugins[p].module, "gleam_settings_changed");
+        if (cb) { __try { cb(&g_plugins[p].api); notified = 1; } __except (EXCEPTION_EXECUTE_HANDLER) { plug_fault(p, "gleam_settings_changed", GetExceptionCode()); } }
+    }
+    char done[200]; snprintf(done, sizeof done, n ? "Saved %d setting(s) to plugin.cfg. %s" : "Nothing changed (%d). %s", n, n ? (notified ? "The mod applied them." : "They take effect after a restart.") : "");
+    mods_ui_form_open(row); snprintf(g_form_msg, sizeof g_form_msg, "%s", done); g_form_ok = 1;
+    logf_("mods page: settings of %s saved (%d value(s)); %s", g_mi[mi].name, n, notified ? "the plugin was told (gleam_settings_changed)" : "restart needed");
 }
 // ----- the page
 static MuiRef g_mui_ref[MUI_ACTIONS]; static int g_mui_nref, g_mui_open = -1;          // what each action line does; the open section (plugin index, -1 = all closed)
@@ -127,6 +186,8 @@ static void modsui_command(const OvCmd *c) {
           if (mods_ui_write_order(msg, sizeof msg)) { logf_("mods page: %s", msg); mo_move(&g_order_now, to, c->arg < 0 ? 1 : -1); snprintf(g_reload_status, sizeof g_reload_status, "%s", msg); } }
         break;
     case OVC_MODS_RESTART: logf_("mods page: restart requested - the game quits now"); md_console("quit"); break;
+    case OVC_MODS_FORM: if (c->index < 0) mods_ui_form_close(); else mods_ui_form_open(c->index); break;
+    case OVC_MODS_APPLY: mods_ui_form_apply(c->index, c->text); break;
     default: break;
     }
     g_mui_at = 0;
@@ -147,11 +208,13 @@ static void modsui_snapshot(OvSnap *o) {
         snprintf(d->name, sizeof d->name, "%s", m->name); snprintf(d->id, sizeof d->id, "%s", m->id); snprintf(d->version, sizeof d->version, "%s", m->version); snprintf(d->reason, sizeof d->reason, "%s", m->reason);
         d->status = m->status; d->paks_ok = m->paks_ok; d->paks_total = m->paks_total; d->rows_ops = m->rows_ops; d->content_files = m->content_files; d->plugin = m->plugin; d->affects_gameplay = m->affects_gameplay;
         d->enabled = g_order_now.mods[r].enabled; d->effect = mods_ui_effect(mi, r);
-        d->has_pak = m->has_pak; d->has_lua = m->has_lua; d->has_rows = m->has_rows; d->has_content = m->has_content; d->has_plugin = m->has_plugin; d->nconf = m->nconf;
+        d->has_pak = m->has_pak; d->has_lua = m->has_lua; d->has_rows = m->has_rows; d->has_content = m->has_content; d->has_plugin = m->has_plugin; d->nsettings = m->nsettings; d->nconf = m->nconf;
         { ModKind k = { m->has_pak, m->has_plugin, m->has_lua, m->requires }; d->hot_ok = mo_hot_enable_ok(&k) && (m->has_rows || m->has_content); }
         memcpy(d->conf, m->conf, sizeof d->conf);
     }
     { ModDiff df = mo_diff(&g_order_boot, &g_order_now); o->pending_n = mo_pending(&df); if (o->pending_n) mo_describe(&df, o->pending_text, sizeof o->pending_text); else o->pending_text[0] = 0; }
+    o->form_mod = g_form_row; o->form_serial = g_form_serial; snprintf(o->form_title, sizeof o->form_title, "%s", g_form_title); snprintf(o->form_msg, sizeof o->form_msg, "%s", g_form_msg);
+    o->form_ok = g_form_ok; o->form_live = g_form_live; o->nform = g_form_n; memcpy(o->form, g_form, sizeof(OvSetting) * (size_t)g_form_n);
     o->pak_conflicts = in->pak_conflicts; o->pak_conflicts_real = in->pak_conflicts_real; o->row_conflicts = in->row_conflicts; o->obj_conflicts = in->obj_conflicts; o->split_assets = in->split_assets;
     o->nwarn = in->nwarn < OV_WARN ? in->nwarn : OV_WARN; for (int i = 0; i < o->nwarn; i++) snprintf(o->warn[i], sizeof o->warn[i], "%s", in->warn[i]);
     o->c_files = in->c_files; o->c_entries = in->c_entries; o->c_invalid = in->c_invalid;

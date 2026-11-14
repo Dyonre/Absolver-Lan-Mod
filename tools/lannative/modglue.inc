@@ -6,6 +6,7 @@
 #include "manifest.h"
 #include "contentreg.h"
 #include "modsui.h"
+#include "modsettings.h"
 #include "modorder.h"
 #include "pakshadow.h"
 #include "records.h"
@@ -30,6 +31,7 @@ static PakInit_t g_orig_pakinit;
 // what the F1 "Mods" page shows (modsui.h): one ModInfo per mod folder (same index as the ModList), filled below while the mods load; g_mi_dir keeps each mod's folder for content hot reload
 static ModInfo g_mi[MODS_MAX]; static int g_mi_n; static wchar_t g_mi_dir[MODS_MAX][MAX_PATH]; static int g_mi_pos[MODS_MAX];   // g_mi_pos = load position (counts mounted mods only), -1 = not loaded
 static ModList g_order_boot, g_order_now;                  // loadorder.txt as the game booted with it / as edited on the Mods page (modorder.h)
+static ModSettings *g_mset[MODS_MAX]; static char g_mset_err[MODS_MAX][160];   // "settings" of each mod's mod.json, index = g_mi index (NULL = none)
 static wchar_t g_mods_dir[MAX_PATH];                       // <game>\Mods
 static char g_mi_order[1400]; static int g_mi_pakc, g_mi_pakc_real, g_mi_rowc, g_mi_objc, g_mi_split, g_mi_rows_mods;
 // content warnings (F2 Mods page "WARNING:" lines, mods.txt, log): pak shadowing, superseded paks, equip conflicts. Filled while the mods load and when items are granted.
@@ -141,6 +143,8 @@ static void mods_mount_all(void *self) {
         wchar_t wname[MOD_NAME_MAX * 2], mj[MAX_PATH]; u8_to_w(list.mods[m].name, wname, MOD_NAME_MAX * 2); swprintf(mj, MAX_PATH, L"%ls\\%ls\\mod.json", mods, wname);
         char *jt = mods_read_text(mj, 65536); char merr[200] = "";
         if (manifest_parse(jt, list.mods[m].name, &mfs[m], merr, sizeof merr) != 0) logf_("mods: %s: %s (using the folder name as id and no dependencies)", list.mods[m].name, merr);
+        if (g_mset[m]) { free(g_mset[m]); g_mset[m] = NULL; } g_mset_err[m][0] = 0;
+        if (jt && strstr(jt, "\"settings\"")) { ModSettings *ms = malloc(sizeof *ms); if (ms) { mset_parse(jt, ms, g_mset_err[m], sizeof g_mset_err[m]); if (ms->n) g_mset[m] = ms; else free(ms); } if (g_mset_err[m][0]) logf_("mods: %s: %s", list.mods[m].name, g_mset_err[m]); }
         free(jt); men[m] = list.mods[m].enabled;
     }
     mf_resolve(mfs, men, list.count, ABS_API_VERSION, &mres);
@@ -157,7 +161,7 @@ static void mods_mount_all(void *self) {
         mi->affects_gameplay = mfs[i].affects_gameplay; mi->status = mres.status[i] == MF_OFF ? MI_OFF : mres.status[i] == MF_SKIPPED ? MI_SKIPPED : MI_ON; snprintf(mi->reason, sizeof mi->reason, "%s", mres.reason[i]); g_mi_pos[i] = -1;
         {   wchar_t wn[MOD_NAME_MAX * 2], dd[MAX_PATH], pp[MAX_PATH]; u8_to_w(list.mods[i].name, wn, MOD_NAME_MAX * 2); swprintf(dd, MAX_PATH, L"%ls\\%ls", mods, wn);
             wcsncpy(g_mi_dir[i], dd, MAX_PATH - 1); g_mi_dir[i][MAX_PATH - 1] = 0;
-            mi->enabled = list.mods[i].enabled; mi->has_pak = mods_dir_has_pak(dd); mi->requires = mfs[i].nreq;
+            mi->enabled = list.mods[i].enabled; mi->has_pak = mods_dir_has_pak(dd); mi->requires = mfs[i].nreq; mi->nsettings = g_mset[i] ? g_mset[i]->n : 0;
             WIN32_FIND_DATAW lfd; swprintf(pp, MAX_PATH, L"%ls\\scripts\\*.lua", dd); HANDLE lh = FindFirstFileW(pp, &lfd); mi->has_lua = lh != INVALID_HANDLE_VALUE; if (lh != INVALID_HANDLE_VALUE) FindClose(lh);
             swprintf(pp, MAX_PATH, L"%ls\\rows.json", dd); mi->has_rows = GetFileAttributesW(pp) != INVALID_FILE_ATTRIBUTES;
             swprintf(pp, MAX_PATH, L"%ls\\content", dd); { DWORD a = GetFileAttributesW(pp); mi->has_content = a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY); }
