@@ -416,6 +416,8 @@ The loader reads these keys (all optional; a mod without `mod.json` uses its fol
 | `settings` | values the player can change on the Mods page; section 9b |
 | `name`, `author`, `description` | for humans |
 
+`requires`, `after`, `incompatible_with` and `supersedes` hold at most 8 entries each; further entries are ignored and `lannative.log` gets a warning naming the mod and the list (`mods: WARNING <mod>: mod.json: 'requires' has more than 8 entries ...`).
+
 The load order is: `requires` and `after` first (a mod always loads after what it needs), then `loadorder.txt` (last line wins), which new folders join alphabetically at the end. It is printed once at boot in `lannative.log` (`mods: load order ...`); skipped mods appear as `mods: SKIPPED <mod>: <reason>`, in `LanNative\mods.txt` and as a red line on screen for 90 seconds. Plugins and content use the same order.
 
 When you host or join a LAN game, both PCs compare their **gameplay mods** (every mod except those marked `affects_gameplay: false`): the same mods, in the same order, with the same file contents (a fingerprint over pak contents and `rows.json` contents). If they differ, both players see a red warning listing who has what. Fights between different versions of a move are not meaningful. The setting `modmismatch = warn | block | off` in `LanNative\config.txt` chooses between only warning (default), refusing the join, or no check.

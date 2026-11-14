@@ -142,7 +142,9 @@ static void mods_mount_all(void *self) {
     for (int m = 0; m < list.count; m++) {
         wchar_t wname[MOD_NAME_MAX * 2], mj[MAX_PATH]; u8_to_w(list.mods[m].name, wname, MOD_NAME_MAX * 2); swprintf(mj, MAX_PATH, L"%ls\\%ls\\mod.json", mods, wname);
         char *jt = mods_read_text(mj, 65536); char merr[200] = "";
-        if (manifest_parse(jt, list.mods[m].name, &mfs[m], merr, sizeof merr) != 0) logf_("mods: %s: %s (using the folder name as id and no dependencies)", list.mods[m].name, merr);
+        int mrc = manifest_parse(jt, list.mods[m].name, &mfs[m], merr, sizeof merr);
+        if (mrc < 0) logf_("mods: %s: %s (using the folder name as id and no dependencies)", list.mods[m].name, merr);
+        else if (mrc > 0) logf_("mods: WARNING %s: %s", list.mods[m].name, merr);
         if (g_mset[m]) { free(g_mset[m]); g_mset[m] = NULL; } g_mset_err[m][0] = 0;
         if (jt && strstr(jt, "\"settings\"")) { ModSettings *ms = malloc(sizeof *ms); if (ms) { mset_parse(jt, ms, g_mset_err[m], sizeof g_mset_err[m]); if (ms->n) g_mset[m] = ms; else free(ms); } if (g_mset_err[m][0]) logf_("mods: %s: %s", list.mods[m].name, g_mset_err[m]); }
         free(jt); men[m] = list.mods[m].enabled;

@@ -2,7 +2,7 @@
 #define LANNATIVE_MANIFEST_H
 // Mod manifest (mod.json) and dependency / load-order resolution. Pure code.
 //   { "id": "MyStyle", "name": "My Style", "version": "0.1.0", "api": 2, "requires": [ { "id": "ItemLoader", "min": "0.1.0" } ], "after": ["Other"], "incompatible_with": ["X"], "affects_gameplay": true }
-// "requires" entries may also be plain strings; a list key given as one value ("requires": "Lib") is a one-element list.
+// "requires" entries may also be plain strings; a list key given as one value ("requires": "Lib") is a one-element list. Each list keeps MF_LIST_MAX entries (more: a warning).
 // A mod without mod.json (or without "id") gets its folder name as id.
 // Resolution: mods that are off, need a newer API, share an id with an earlier mod, declare incompatible_with a mod that is on, or lack a required (enabled, itself not skipped, new enough) mod are SKIPPED with a reason;
 // the rest are ordered topologically (requires + after), ties broken by the incoming order (= loadorder.txt, which the loader keeps alphabetical for new folders).
@@ -43,7 +43,13 @@ static const char *mf_str(const JDoc *d, int obj, const char *key) { int c = jfi
 // entries of a list key c: the elements of an array, or the value itself (a single value is a one-element list; null = empty)
 static int mf_first(const JDoc *d, int c) { return c < 0 || d->n[c].t == J_NULL ? -1 : d->n[c].t == J_ARR ? d->n[c].first : c; }
 static int mf_next(const JDoc *d, int c, int e) { return e == c ? -1 : d->n[e].next; }
-// 0 = ok (m filled; unknown keys are fine). On a parse problem returns -1, err says why, and m holds the folder defaults so the mod still loads as if it had no manifest.
+static void mf_dropped(const char *key, int n, char *err, size_t cap, int *rc) {
+    if (!n) return;
+    if (err && !err[0]) snprintf(err, cap, "mod.json: '%s' has more than %d entries, the last %d %s ignored", key, MF_LIST_MAX, n, n == 1 ? "was" : "were");
+    if (!*rc) *rc = 1;
+}
+// 0 = ok (m filled; unknown keys are fine). 1 = read, but err holds a warning (entries past MF_LIST_MAX were ignored).
+// On a parse problem returns -1, err says why, and m holds the folder defaults so the mod still loads as if it had no manifest.
 static int manifest_parse(const char *json, const char *folder, Manifest *m, char *err, size_t cap) {
     manifest_default(m, folder); if (err && cap) err[0] = 0; if (!json) return 0;
     JDoc d; if (jdoc_parse(&d, json) != 0) { if (err) snprintf(err, cap, "mod.json: %s", d.err); jdoc_free(&d); return -1; }
@@ -55,21 +61,27 @@ static int manifest_parse(const char *json, const char *folder, Manifest *m, cha
     if ((s = mf_str(&d, 0, "version"))) snprintf(m->version, sizeof m->version, "%s", s);
     if ((s = mf_str(&d, 0, "api"))) m->api = atoi(s);
     int c = jfind(&d, 0, "affects_gameplay"); if (c >= 0 && d.n[c].t == J_BOOL && d.n[c].str && !strcmp(d.n[c].str, "False")) m->affects_gameplay = 0;
+    int drop = 0;
     c = jfind(&d, 0, "requires");
-    for (int e = mf_first(&d, c); e >= 0 && m->nreq < MF_LIST_MAX; e = mf_next(&d, c, e)) {
+    for (int e = mf_first(&d, c); e >= 0; e = mf_next(&d, c, e)) {
         const char *id = d.n[e].t == J_STR ? d.n[e].str : d.n[e].t == J_OBJ ? mf_str(&d, e, "id") : NULL, *mn = d.n[e].t == J_OBJ ? mf_str(&d, e, "min") : NULL;
         if (!id || !mf_id_ok(id)) { if (err && !err[0]) snprintf(err, cap, "mod.json: a 'requires' entry without a valid id was ignored"); rc = -1; continue; }
+        if (m->nreq == MF_LIST_MAX) { drop++; continue; }
         snprintf(m->req[m->nreq].id, MOD_NAME_MAX, "%s", id); snprintf(m->req[m->nreq].min, sizeof m->req[0].min, "%s", mn ? mn : ""); m->nreq++;
     }
+    mf_dropped("requires", drop, err, cap, &rc); drop = 0;
     c = jfind(&d, 0, "after");
-    for (int e = mf_first(&d, c); e >= 0 && m->nafter < MF_LIST_MAX; e = mf_next(&d, c, e))
-        if (d.n[e].t == J_STR && mf_id_ok(d.n[e].str)) snprintf(m->after[m->nafter++], MOD_NAME_MAX, "%s", d.n[e].str);
+    for (int e = mf_first(&d, c); e >= 0; e = mf_next(&d, c, e))
+        if (d.n[e].t == J_STR && mf_id_ok(d.n[e].str)) { if (m->nafter == MF_LIST_MAX) drop++; else snprintf(m->after[m->nafter++], MOD_NAME_MAX, "%s", d.n[e].str); }
+    mf_dropped("after", drop, err, cap, &rc); drop = 0;
     c = jfind(&d, 0, "incompatible_with");
-    for (int e = mf_first(&d, c); e >= 0 && m->ninc < MF_LIST_MAX; e = mf_next(&d, c, e))
-        if (d.n[e].t == J_STR && mf_id_ok(d.n[e].str)) snprintf(m->inc[m->ninc++], MOD_NAME_MAX, "%s", d.n[e].str);
+    for (int e = mf_first(&d, c); e >= 0; e = mf_next(&d, c, e))
+        if (d.n[e].t == J_STR && mf_id_ok(d.n[e].str)) { if (m->ninc == MF_LIST_MAX) drop++; else snprintf(m->inc[m->ninc++], MOD_NAME_MAX, "%s", d.n[e].str); }
+    mf_dropped("incompatible_with", drop, err, cap, &rc); drop = 0;
     c = jfind(&d, 0, "supersedes");
-    for (int e = mf_first(&d, c); e >= 0 && m->nsup < MF_LIST_MAX; e = mf_next(&d, c, e))
-        if (d.n[e].t == J_STR && d.n[e].str[0] && strlen(d.n[e].str) < MOD_NAME_MAX && !strpbrk(d.n[e].str, "/\\")) snprintf(m->sup[m->nsup++], MOD_NAME_MAX, "%s", d.n[e].str);
+    for (int e = mf_first(&d, c); e >= 0; e = mf_next(&d, c, e))
+        if (d.n[e].t == J_STR && d.n[e].str[0] && strlen(d.n[e].str) < MOD_NAME_MAX && !strpbrk(d.n[e].str, "/\\")) { if (m->nsup == MF_LIST_MAX) drop++; else snprintf(m->sup[m->nsup++], MOD_NAME_MAX, "%s", d.n[e].str); }
+    mf_dropped("supersedes", drop, err, cap, &rc);
     jdoc_free(&d); return rc;
 }
 
