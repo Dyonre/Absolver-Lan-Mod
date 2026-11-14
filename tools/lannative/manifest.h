@@ -6,7 +6,7 @@
 // A mod without mod.json (or without "id") gets its folder name as id.
 // Resolution: mods that are off, need a newer API, share an id with an earlier mod, declare incompatible_with a mod that ends up on, lack a required (enabled, itself not skipped,
 // new enough) mod, or are part of a requires cycle are SKIPPED with a reason; the rest are ordered topologically (requires + after), ties broken by the incoming order
-// (= loadorder.txt, which the loader keeps alphabetical for new folders).
+// (= loadorder.txt, which the loader keeps alphabetical for new folders). "after" is only an order hint: an after loop is broken with a warning (MfResult.warn), nothing is skipped.
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -87,7 +87,8 @@ static int manifest_parse(const char *json, const char *folder, Manifest *m, cha
 }
 
 enum { MF_OK = 0, MF_OFF = 1, MF_SKIPPED = 2 };
-typedef struct { int status[MODS_MAX]; char reason[MODS_MAX][180]; int order[MODS_MAX]; int norder; } MfResult;
+#define MF_WARN_MAX 4
+typedef struct { int status[MODS_MAX]; char reason[MODS_MAX][180]; int order[MODS_MAX]; int norder; int nwarn; char warn[MF_WARN_MAX][200]; } MfResult;   // nwarn counts all warnings, the first MF_WARN_MAX are kept
 static int mf_find_id(const Manifest *mf, int n, const char *id) { for (int i = 0; i < n; i++) if (!_stricmp(mf[i].id, id)) return i; return -1; }
 static int mf_lists_inc(const Manifest *m, const char *id) { for (int q = 0; q < m->ninc; q++) if (!_stricmp(m->inc[q], id)) return 1; return 0; }
 // edges between mods by index (-1 = not installed, -2 = the mod itself): what i requires, what i loads after, and the incompatible_with entries that count for i
@@ -161,17 +162,31 @@ static void mf_resolve(const Manifest *mf, const int *enabled, int n, int our_ap
         open[pick] = 0; out->status[pick] = MF_SKIPPED;
         snprintf(out->reason[pick], sizeof out->reason[pick], "its mod.json says it is incompatible with %.60s (incompatible_with entries form a loop; the later mod is skipped)", pj >= 0 ? mf[pj].id : "another mod");
     }
-    // Order the ON mods: Kahn, always the lowest incoming index among the ready mods.
+    // Order the ON mods: Kahn, always the lowest incoming index among the ready mods. Requires among ON mods have no cycle (skipped above), so a stall comes from "after":
+    // the lowest mod whose requires are placed and whose after entries lead back to it loads now, with a warning naming both mods.
     int placed[MODS_MAX] = {0}, left = 0; for (int i = 0; i < n; i++) if (out->status[i] == MF_OK) left++;
     while (left) {
-        int pick = -1;
+        int pick = -1, loopj = -1;
         for (int i = 0; i < n && pick < 0; i++) {
             if (out->status[i] != MF_OK || placed[i]) continue; int ready = 1;
             for (int r = 0; r < g.nreq[i] && ready; r++) { int j = g.req[i][r]; if (j >= 0 && out->status[j] == MF_OK && !placed[j]) ready = 0; }
             for (int r = 0; r < g.naft[i] && ready; r++) { int j = g.aft[i][r]; if (j >= 0 && out->status[j] == MF_OK && !placed[j]) ready = 0; }
             if (ready) pick = i;
         }
-        if (pick < 0) { for (int i = 0; i < n; i++) if (out->status[i] == MF_OK && !placed[i]) { out->status[i] = MF_SKIPPED; snprintf(out->reason[i], sizeof out->reason[i], "dependency cycle (requires / after)"); } break; }
+        if (pick < 0) {
+            unsigned char un[MODS_MAX] = {0}; for (int i = 0; i < n; i++) un[i] = out->status[i] == MF_OK && !placed[i];
+            int first = -1;
+            for (int i = 0; i < n && pick < 0; i++) {
+                if (!un[i]) continue; int reqok = 1;
+                for (int r = 0; r < g.nreq[i] && reqok; r++) { int j = g.req[i][r]; if (j >= 0 && un[j]) reqok = 0; }
+                if (!reqok) continue; if (first < 0) first = i;
+                for (int r = 0; r < g.naft[i] && pick < 0; r++) { int j = g.aft[i][r]; if (j >= 0 && un[j] && mf_reach(&g, un, j, i, 1, 0)) { pick = i; loopj = j; } }
+            }
+            if (pick < 0) pick = first;                                     // a mod with placed requires always exists; first is the fallback
+            if (pick < 0) break;
+            if (out->nwarn < MF_WARN_MAX) snprintf(out->warn[out->nwarn], sizeof out->warn[0], "the 'after' entries of %.60s and %.60s form a loop: %.60s loads first", mf[pick].id, loopj >= 0 ? mf[loopj].id : "other mods", mf[pick].id);
+            out->nwarn++;
+        }
         placed[pick] = 1; out->order[out->norder++] = pick; left--;
     }
 }

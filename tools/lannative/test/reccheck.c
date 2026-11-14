@@ -94,6 +94,7 @@ int main(int argc, char **argv) {
         if (manifest_parse(t, list.mods[m].name, &mfs[m], err, sizeof err) != 0) { printf("[WARN] %s/mod.json: %s\n", list.mods[m].name, err); problems++; } free(t); en[m] = list.mods[m].enabled; if (alone) mfs[m].nreq = 0; }
     mf_resolve(mfs, en, list.count, ABS_API_VERSION, &res);
     printf("load order:"); for (int k = 0; k < res.norder; k++) printf(" %s", list.mods[res.order[k]].name); printf("\n");
+    for (int w = 0; w < res.nwarn && w < MF_WARN_MAX; w++) printf("[WARN] load order: %s\n", res.warn[w]); problems += res.nwarn;
     for (int m = 0; m < list.count; m++) if (res.status[m] == MF_SKIPPED) { printf("[SKIPPED] %s: %s\n", list.mods[m].name, res.reason[m]); problems++; }
     // pass 1 (records) and pass 2 (expand + edits), exactly like modglue.inc
     static RecCtx rc; static RowOps ops; static ObjOps objs; static JDoc docs[MODS_MAX]; int have[MODS_MAX] = {0}; const char *posname[MODS_MAX];

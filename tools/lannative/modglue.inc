@@ -153,6 +153,7 @@ static void mods_mount_all(void *self) {
     int has_pak[MODS_MAX] = {0}; g_mi_warn_n = 0;
     for (int i = 0; i < nlong && i < 8; i++) mods_warn("mod folder '%s' (%d bytes) exceeds the %d-character name limit - skipped", longnames[i], longlen[i], MOD_NAME_MAX - 1);
     if (nlong > 8) mods_warn("%d more mod folder(s) exceed the %d-character name limit - skipped", nlong - 8, MOD_NAME_MAX - 1);
+    for (int w = 0; w < mres.nwarn && w < MF_WARN_MAX; w++) mods_warn("load order: %s", mres.warn[w]);
     for (int m = 0; m < list.count && m < MODS_MAX; m++) if (mres.status[m] == MF_OK && mfs[m].nsup) {          // only a mod that supersedes something needs to know whether it ships a pak
         wchar_t wn[MOD_NAME_MAX * 2], dd[MAX_PATH]; u8_to_w(list.mods[m].name, wn, MOD_NAME_MAX * 2); swprintf(dd, MAX_PATH, L"%ls\\%ls", mods, wn); has_pak[m] = mods_dir_has_pak(dd);
     }
