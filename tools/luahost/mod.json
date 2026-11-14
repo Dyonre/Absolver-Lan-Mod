@@ -1,0 +1,2 @@
+{ "id": "LuaHost", "name": "Lua host (scripts for mods)", "version": "0.1.0", "api": 2, "affects_gameplay": false,
+  "description": "Runs Mods/<mod>/scripts/*.lua in a sandbox (Lua 5.4.9, MIT). docs/sdk/LUA.md. Only active when listed in Mods/plugins.txt." }

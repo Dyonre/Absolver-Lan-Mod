@@ -1,0 +1,15 @@
+// RecordsDemoA: flats (named numbers) + templates with inheritance. Rows 004 (Jab), 006 and a new row RecDemoJab share the template DemoBase,
+// so changing ONE flat (another mod, RecordsDemoB, does that) retunes all three. Needs records = on in LanNative\config.txt.
+{
+  "format": 1,
+  "flats": { "Demo.Damage": 21.5, "Demo.Guard": 3.25 },
+  "templates": [
+    { "id": "DemoBase", "set": { "m_fDamageMax1": "$Demo.Damage", "m_fGuardGaugeCost": "$Demo.Guard", "m_fRange": 150 } },
+    { "id": "DemoChild", "base": "DemoBase", "set": { "m_fRange": 175 } }
+  ],
+  "edits": [
+    { "table": "attacks", "row": "004", "base": "DemoChild" },
+    { "table": "attacks", "row": "006", "base": "DemoBase", "set": { "m_fRange": 160 } },
+    { "table": "attacks", "add": "RecDemoJab", "copy_of": "004", "base": "DemoBase" }
+  ]
+}

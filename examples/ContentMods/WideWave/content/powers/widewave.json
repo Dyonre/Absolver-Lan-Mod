@@ -1,0 +1,18 @@
+{
+  "powers": [
+    {
+      "id": "WideWave",
+      "base": "/Game/DB/Items/Shockwave.Shockwave",
+      "name": "Wide Wave",
+      "description": "A slower, wider shockwave.",
+      "icon_file": "wave.png",
+      "cost": 3,
+      "cooldown": 4.0,
+      "anims": { "all": "/Game/Animations/ItemUse/Exhaust.Exhaust" },
+      "attack": { "copy_of": "10001", "set": { "m_fKnockBackDistance": "500" } },
+      "radius": 450,
+      "grant": true,
+      "equip_slot": 0
+    }
+  ]
+}

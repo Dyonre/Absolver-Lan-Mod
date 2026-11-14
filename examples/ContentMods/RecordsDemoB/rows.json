@@ -1,0 +1,2 @@
+// RecordsDemoB: overrides ONE flat of RecordsDemoA (loads after it): rows 004, 006 and RecDemoJab all get 33 damage.
+{ "format": 1, "flats": { "Demo.Damage": 33 }, "edits": [] }

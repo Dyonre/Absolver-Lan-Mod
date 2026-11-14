@@ -1,0 +1,61 @@
+// luasave.h - per-mod save sections of LuaHost, the Lua half (text chunk run after luabus.h's PRELUDE). Pure Lua in a C string.
+// Data lives in the character's SIDECAR (LanNative\state\<GUID>.txt, key p.LuaHost.lua.<mod>.save = "v<version>;<data>"), never in the game's save file,
+// so a save with modded data still loads in the vanilla game. Versioned: abs.save_section(version, migrate) migrates older data once;
+// data written by a NEWER script version is kept unchanged and read-only. Values: nested tables of strings / numbers / booleans (no functions, no cycles, depth 16,
+// 60000 bytes per mod). Committed on abs.save_commit(), when the game writes its save, and before every reload.
+// Needs from C: abs._save_get(mod) -> text|nil, abs._save_set(mod, text) -> bool, abs._parse(text) -> value (data-only chunk, empty environment), abs._log, abs._error.
+#ifndef LUAHOST_SAVE_H
+#define LUAHOST_SAVE_H
+static const char PRELUDE_SAVE[] =
+"local sections = {}\n"
+"local function ser(v, depth, seen)\n"
+"  local t = type(v)\n"
+"  if t == 'number' then\n"
+"    if v ~= v or v == math.huge or v == -math.huge then error('save: numbers must be finite') end\n"
+"    return math.type(v) == 'integer' and string.format('%d', v) or string.format('%.17g', v)\n"
+"  elseif t == 'boolean' then return tostring(v)\n"
+"  elseif t == 'string' then return (string.format('%q', v):gsub('\\\\\\n', '\\\\n'))\n"
+"  elseif t == 'table' then\n"
+"    if depth > 16 then error('save: tables nested deeper than 16') end\n"
+"    if seen[v] then error('save: a table refers to itself') end\n"
+"    seen[v] = true\n"
+"    local parts = {}\n"
+"    for k, x in pairs(v) do\n"
+"      local kt = type(k)\n"
+"      if kt ~= 'string' and kt ~= 'number' and kt ~= 'boolean' then error('save: keys must be strings, numbers or booleans') end\n"
+"      parts[#parts + 1] = '[' .. ser(k, depth + 1, seen) .. ']=' .. ser(x, depth + 1, seen)\n"
+"    end\n"
+"    seen[v] = nil\n"
+"    table.sort(parts)\n"
+"    return '{' .. table.concat(parts, ',') .. '}'\n"
+"  end\n"
+"  error('save: cannot store a ' .. t)\n"
+"end\n"
+"function __ser(v) return ser(v, 0, {}) end\n"
+"function __save_section(mod, version, migrate)\n"
+"  if math.type(version) ~= 'integer' or version < 1 then error('abs.save_section(version >= 1 [, migrate])', 3) end\n"
+"  local raw, data, ver = abs._save_get(mod), {}, 0\n"
+"  if raw then\n"
+"    local v, body = raw:match('^v(%d+);(.*)$')\n"
+"    local t = v and abs._parse(body)\n"
+"    if type(t) == 'table' then data, ver = t, tonumber(v) else abs._log(mod, 'save section unreadable - starting empty') end\n"
+"  end\n"
+"  local s = { data = data, version = version, readonly = false }\n"
+"  if ver > version then abs._log(mod, 'save section v' .. ver .. ' is NEWER than this script (v' .. version .. '): kept unchanged, read-only'); s.readonly = true\n"
+"  elseif ver > 0 and ver < version then\n"
+"    if migrate then local nd = migrate(ver, data); if type(nd) == 'table' then s.data = nd end end\n"
+"    abs._log(mod, 'save section migrated v' .. ver .. ' -> v' .. version)\n"
+"  end\n"
+"  sections[mod] = s\n"
+"  return s.data\n"
+"end\n"
+"function __save_commit(mod)\n"
+"  local s = sections[mod]; if not s or s.readonly then return false end\n"
+"  local text = __ser(s.data)\n"
+"  if #text > 60000 then error('save section larger than 60000 bytes', 2) end\n"
+"  return abs._save_set(mod, 'v' .. s.version .. ';' .. text)\n"
+"end\n"
+"function __commit_all()\n"
+"  for mod in pairs(sections) do local ok, err = pcall(__save_commit, mod); if not ok then abs._error(mod, 'save', tostring(err), 1) end end\n"
+"end\n";
+#endif

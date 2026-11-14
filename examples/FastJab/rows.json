@@ -1,0 +1,16 @@
+// FastJab: makes the basic Jab (row 004 of the attacks table) start 4 frames faster and hit harder,
+// and adds a brand new move "FastJabPlus": a copy of the Jab with its own name and a different starting quadrant.
+// A new move sets "m_Name" to its own row name (the game identifies the move by it) and "learn": "always" so it appears in the deck editor.
+{
+  "format": 1,
+  "edits": [
+    { "table": "attacks", "row": "004", "set": { "m_iFrameBuildUp": 6, "m_fDamageMax1": 55.0 } },
+
+    { "table": "attacks", "add": "FastJabPlus", "copy_of": "004", "learn": "always", "set": {
+        "m_Name": "FastJabPlus",
+        "m_RealAttackName": "INVTEXT(\"Fast Jab Plus\")",
+        "m_eStartQuadrant": "BackRight",
+        "m_iFrameBuildUp": 4
+    } }
+  ]
+}

@@ -1,0 +1,47 @@
+// luabus.h - the Lua side of LuaHost's event bus and per-mod environments (a text chunk run in the sandbox after `abs` exists). Used by plugin.c.
+// Needs from C: abs._want(name) (first handler of a name), abs._error(mod, event, message, count), abs._log(mod, ...), abs._kv_get/_kv_set(key[, value]), abs._timer(mod, s, repeat, fn), abs._bind(mod, action, key, fn, label).
+#ifndef LUAHOST_BUS_H
+#define LUAHOST_BUS_H
+static const char PRELUDE[] =
+"local handlers = {}\n"
+"local function add(mod, name, fn)\n"
+"  if type(name) ~= 'string' or type(fn) ~= 'function' then error('abs.on(name, function)', 3) end\n"
+"  local l = handlers[name]; if not l then l = {}; handlers[name] = l; abs._want(name) end\n"
+"  l[#l + 1] = { mod = mod, fn = fn, errors = 0 }\n"
+"end\n"
+"function __dispatch(name, ...)\n"
+"  local l = handlers[name]; if not l then return end\n"
+"  local i = 1\n"
+"  while i <= #l do\n"
+"    local h = l[i]\n"
+"    __cur = { list = l, h = h, name = name }\n"
+"    local ok, err = pcall(h.fn, ...)\n"
+"    __cur = nil\n"
+"    local drop = false\n"
+"    if not ok then h.errors = h.errors + 1; abs._error(h.mod, name, tostring(err), h.errors); drop = h.errors >= 3 end\n"
+"    if drop then table.remove(l, i) else i = i + 1 end\n"
+"  end\n"
+"end\n"
+"-- the budget cannot be caught inside Lua: the host calls __blame after such a failure, so the running handler gets the error\n"
+"function __blame(msg)\n"
+"  local c = __cur; __cur = nil; if not c then return end\n"
+"  c.h.errors = c.h.errors + 1; abs._error(c.h.mod, c.name, tostring(msg), c.h.errors)\n"
+"  if c.h.errors >= 3 then for i, x in ipairs(c.list) do if x == c.h then table.remove(c.list, i) break end end end\n"
+"end\n"
+"function __count(name) local l = handlers[name]; return l and #l or 0 end\n"
+"function __make_env(mod)\n"
+"  local api = setmetatable({}, { __index = abs })\n"
+"  api.mod = mod\n"
+"  api.on = function(name, fn) add(mod, name, fn) end\n"
+"  api.emit = function(name, ...) __dispatch(name, ...) end\n"
+"  api.log = function(...) abs._log(mod, ...) end\n"
+"  api.kv_get = function(k) return abs._kv_get(mod .. '.' .. tostring(k)) end\n"
+"  api.kv_set = function(k, v) return abs._kv_set(mod .. '.' .. tostring(k), v) end\n"
+"  api.timer = function(s, rep, fn) return abs._timer(mod, s, rep, fn) end\n"
+"  api.bind = function(action, key, fn, label) return abs._bind(mod, action, key, fn, label) end\n"
+"  api.save_section = function(version, migrate) return __save_section(mod, version, migrate) end\n"
+"  api.save_commit = function() return __save_commit(mod) end\n"
+"  return setmetatable({ abs = api, MOD = mod, print = api.log }, { __index = _G })\n"
+"end\n";
+
+#endif

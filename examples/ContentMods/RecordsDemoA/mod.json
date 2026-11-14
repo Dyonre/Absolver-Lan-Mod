@@ -1,0 +1,2 @@
+{ "id": "RecordsDemoA", "name": "Records demo A (flats + templates)", "version": "0.1.0", "api": 2, "affects_gameplay": true,
+  "description": "Records example: one flat retunes several moves; needs 'records = on' in LanNative/config.txt." }

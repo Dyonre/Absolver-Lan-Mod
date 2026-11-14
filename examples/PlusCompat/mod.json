@@ -1,0 +1,10 @@
+{
+  "id": "PlusCompat",
+  "name": "Plus Compatibility Example",
+  "version": "1.0.0",
+  "api": 2,
+  "author": "Gleam Loader examples",
+  "description": "Example: a rows.json mod that sits on top of AbsolverPlus (or vanilla) by adding a move instead of replacing a table.",
+  "after": ["AbsolverPlus"],
+  "affects_gameplay": true
+}

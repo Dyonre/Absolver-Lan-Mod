@@ -1,0 +1,2 @@
+{ "id": "RecordsDemoB", "name": "Records demo B (overrides a flat of A)", "version": "0.1.0", "api": 2, "after": ["RecordsDemoA"], "affects_gameplay": true,
+  "description": "Overrides RecordsDemoA's flat Demo.Damage: every row that inherits it changes. Needs 'records = on'." }

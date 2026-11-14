@@ -1,0 +1,15 @@
+{
+  // Adds one new move, "PlusCompat_QuickJab", as a copy of the Jab (row 004).
+  // The copy is made from whatever attacks table is loaded when the game reads it, so with AbsolverPlus installed the new
+  // move starts from Plus's version of the Jab, and without Plus it starts from the vanilla Jab.
+  // Nothing here replaces a row or a table, so it cannot undo Plus's tuning.
+  "format": 1,
+  "edits": [
+    { "table": "attacks", "add": "PlusCompat_QuickJab", "copy_of": "004", "learn": "always", "set": {
+        "m_Name": "PlusCompat_QuickJab",
+        "m_RealAttackName": "INVTEXT(\"Quick Jab\")",
+        "m_eStartQuadrant": "BackRight",
+        "m_iFrameBuildUp": 5
+    } }
+  ]
+}

@@ -1,0 +1,6 @@
+// HeavyJab: a second mod that also changes the Jab (slower, even more damage). It clashes with FastJab on m_iFrameBuildUp and m_fDamageMax1.
+{
+  "edits": [
+    { "table": "attacks", "row": "004", "set": { "m_iFrameBuildUp": 14, "m_fDamageMax1": 90.0 } }
+  ]
+}

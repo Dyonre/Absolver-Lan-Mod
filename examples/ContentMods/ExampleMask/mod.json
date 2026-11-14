@@ -1,0 +1,8 @@
+{
+  "id": "ExampleMask",
+  "name": "Example Mask",
+  "version": "0.1.0",
+  "api": 2,
+  "description": "A data-only mod: a clone of the SillyFace mask, granted and equipped once a world is loaded. No plugin.dll, no pak.",
+  "affects_gameplay": true
+}

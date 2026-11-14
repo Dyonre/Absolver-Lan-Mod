@@ -1,0 +1,8 @@
+{
+  "id": "CloneDemo",
+  "name": "Clone Demo",
+  "version": "0.1.0",
+  "api": 2,
+  "affects_gameplay": true,
+  "description": "Player-clone bots (content/clones): second local players with their own character, driven by a bot brain. F1 > Mods: Clones: spawn ..., save my character as a profile, remove all. Brains need bot_ai = on and a brain preset."
+}

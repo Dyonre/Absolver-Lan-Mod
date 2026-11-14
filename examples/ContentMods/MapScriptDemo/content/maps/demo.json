@@ -1,0 +1,24 @@
+{
+  "id": "demo",
+  "map": "MainMap_Main",
+  "origin": "player",
+  "delay": 2,
+  "curves": {
+    "rainbow": { "type": "color", "loop": 6, "keys": [[0, [1, 0, 0]], [1.5, [1, 1, 0]], [2, [0, 1, 0]], [3, [0, 1, 1]], [4, [0, 0, 1]], [5, [1, 0, 1]], [6, [1, 0, 0]]] },
+    "pulse": { "type": "float", "loop": 2, "keys": [[0, 0.3], [1, 1], [2, 0.3]] }
+  },
+  "lights": [
+    { "id": "rainbow", "type": "point", "pos": [350, 0, 180], "radius": 900, "intensity": 60000, "color_curve": "rainbow", "intensity_curve": "pulse" },
+    { "id": "party", "type": "point", "pos": [350, -350, 180], "color": [0, 1, 0.8], "radius": 700, "intensity": 50000, "on": "phase:party" },
+    { "id": "door_lamp", "type": "point", "pos": [600, 0, 330], "color": [1, 0.75, 0.3], "radius": 600, "intensity": 40000, "on": "phase:opened" }
+  ],
+  "meshes": [
+    { "id": "gate", "mesh": "/Engine/BasicShapes/Cube.Cube", "pos": [600, 0, 35], "scale": [0.3, 3, 2.5], "initial": "closed", "move_time": 0.8,
+      "states": { "closed": { "offset": [0, 0, 0], "collision": true }, "open": { "offset": [0, 0, 320], "collision": false } } }
+  ],
+  "triggers": [
+    { "id": "zone", "box": { "center": [350, 450, 0], "half": [150, 150, 250] }, "who": "player",
+      "on_enter": [ { "mesh": "gate", "state": "open" }, { "phase": "opened" }, { "message": "GATE OPEN", "seconds": 3 } ],
+      "on_exit": [ { "mesh": "gate", "state": "closed" }, { "phase": "opened", "on": false } ] }
+  ]
+}

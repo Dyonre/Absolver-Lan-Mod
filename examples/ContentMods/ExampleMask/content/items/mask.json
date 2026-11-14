@@ -1,0 +1,11 @@
+{
+  "items": [
+    {
+      "id": "ItemLoaderMask",
+      "base": "/Game/DB/Equipment/Masks/SillyFace_Mask_DataAsset.SillyFace_Mask_DataAsset",
+      "name": "Loader Mask (clone of the SillyFace mask)",
+      "grant": true,
+      "equip": true
+    }
+  ]
+}

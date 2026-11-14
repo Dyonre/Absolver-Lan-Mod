@@ -1,0 +1,14 @@
+// GuardTweak: an example of editing a DATA ASSET (not a table). GuardDB holds the guard animations as nested arrays of animation references:
+//   m_GuardAnimations.m_Array[0]          = the first group (here: the bare-hands style)
+//   m_GuardAnimations.m_Array[0].m_Array[0].m_Array   = the list of guard-idle animations for the front-left quadrant
+// "append" adds an element at the end of a list, "insert" puts one before position [i]. Values are the game's property text for ONE element
+// (an animation reference is written AnimSequence'"/Game/path/Name.Name"'). Other mods can append to the same list too: all of them end up in it.
+{
+  "format": 1,
+  "edits": [
+    { "object": "/Game/DB/Guard/GuardDB.GuardDB", "ops": [
+        { "append": "m_GuardAnimations.m_Array[0].m_Array[0].m_Array",    "value": "AnimSequence'\"/Game/Animations/Guards/bare_hands/common_style/FL/Idle_Guard_FL05.Idle_Guard_FL05\"'" },
+        { "insert": "m_GuardAnimations.m_Array[0].m_Array[0].m_Array[0]", "value": "AnimSequence'\"/Game/Animations/Guards/bare_hands/common_style/FL/Idle_Guard_FL05.Idle_Guard_FL05\"'" }
+    ] }
+  ]
+}

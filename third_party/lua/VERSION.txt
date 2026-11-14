@@ -1,0 +1,4 @@
+Lua 5.4.9 (released 2026-08-10), official source from https://www.lua.org/ftp/lua-5.4.9.tar.gz
+SHA-256 2335b6c582a52654f94612bf10d2f4672805d05329aa6568b1d8cd9e5c6fb8e6 (373429 bytes), equal to the sum published on https://www.lua.org/ftp/ (checked 2026-10-21).
+Copied unchanged: src/*.c, src/*.h, src/lua.hpp, README. Not copied: Makefiles, doc/. License: MIT, see LICENSE (text from the end of src/lua.h).
+Used by the LanNative Lua host (tools/luahost). lua.c / luac.c are the stand-alone interpreter / compiler and are not built into the loader.

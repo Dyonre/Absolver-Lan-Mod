@@ -1,13 +1,38 @@
-# build output
+# never commit game data, builds, saves or recordings
+*.exe
+*.dll
 *.obj
-*.res
 *.lib
 *.exp
+*.res
 *.pdb
-*.dll
-*.exe
+*.log
+*.pak
+*.sig
+*.utoc
+*.ucas
+*.uasset
+*.uexp
+*.ubulk
+*.umap
+*.sav
 *.zip
-*.rar
-# local logs
-lannative.log
-telemetry_*.csv
+*.7z
+*.mp4
+*.mkv
+*.wav
+*.fbx
+*.psk
+*.psa
+.env
+*.env
+bin/
+obj/
+out/
+dist/
+work/
+Mods/
+GameExtract*/
+SaveGames/
+recordings/
+testdata/
