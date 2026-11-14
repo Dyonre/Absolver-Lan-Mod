@@ -133,8 +133,8 @@ static void ws_validate_decks(WsItem *w) {
     }
     logf_("weaponslot: %s: %d of %d item deck(s) were invalid", w->it->id, bad, w->rng.count);
 }
-// the item deck to load: the one used last (kind state, else legacy.staff_deck) if it still exists, else the first
-static int ws_pick(WsItem *w) { char d[64]; uint64_t fn; ks_kind_get(w->it->id, "deck", "legacy.staff_deck", d, sizeof d); if (d[0]) { CA->fname_make(CA, d, &fn); int k = ws_own(w, fn); if (k >= 0 && cd_deck_index(w->it->family, fn) >= 0) return k; } return 0; }
+// the item deck to load: the one used last (kind state) if it still exists, else the first
+static int ws_pick(WsItem *w) { char d[64]; uint64_t fn; ks_kind_get(w->it->id, "deck", NULL, d, sizeof d); if (d[0]) { CA->fname_make(CA, d, &fn); int k = ws_own(w, fn); if (k >= 0 && cd_deck_index(w->it->family, fn) >= 0) return k; } return 0; }
 // the family deck for the family's other weapons: the remembered one if it exists and is not an item deck, else entry 1
 static void ws_family_deck(WsItem *w, char *d, int cap) {
     uint64_t fn = 0; ks_family_get(w->it->family, d, cap); if (d[0]) CA->fname_make(CA, d, &fn);

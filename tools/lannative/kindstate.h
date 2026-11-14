@@ -1,8 +1,8 @@
 // kindstate.h - pure logic of the weapon-kind state (a kind is an item on a base family).
 // Runtime state is PER CHARACTER (a table keyed by the character pointer; NULL = the local player, which keeps its entry across travel), so bots / NPCs
 // can hold kinds too. Persistent state is PER CHARACTER AND PER KIND in that character's sidecar document (sidecar.h):
-//   kind.<item id>.deck    the kind's deck used last            (fallback: legacy.staff_deck, migrated from "<name>.staff_deck" in LanNative\data\Content.txt)
-//   family.<n>.deck        the base family's deck for its other weapons (fallback: legacy.sword_deck, from "<name>.sword_deck")
+//   kind.<item id>.deck    the kind's deck used last
+//   family.<n>.deck        the base family's deck for its other weapons (fallback: legacy.sword_deck, migrated from "<name>.sword_deck" in LanNative\data\Content.txt)
 #ifndef KINDSTATE_H
 #define KINDSTATE_H
 #include <stdio.h>

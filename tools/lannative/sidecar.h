@@ -51,11 +51,11 @@ static char *sc_render(ScDoc *d, const char *header) {
 // FGuid {A,B,C,D} as 32 upper-case hex digits (UE's FGuid::ToString default). Returns 0 for the all-zero guid (not assigned yet), else 1
 static int sc_guid_text(const uint32_t g[4], char out[33]) { snprintf(out, 33, "%08X%08X%08X%08X", g[0], g[1], g[2], g[3]); return (g[0] | g[1] | g[2] | g[3]) != 0; }
 
-// ----- migration of the name-keyed kv store (LanNative\data\Content.txt, the loader's own kv file): "<name>.staff_deck", "<name>.sword_deck",
+// ----- migration of the name-keyed kv store (LanNative\data\Content.txt, the loader's own kv file): "<name>.sword_deck",
 // "<name>.style" -> "legacy.<what>" in this character's document (readers try the new per-kind key first, then the legacy one). Runs once per document: it sets
 // "migrated" (to the name it came from, or "-" when nothing was found). `name` = the sanitised name the kv store uses (spaces, '=', CR, LF -> '_').
 // Returns the number of keys taken; `removed` (may be NULL) receives the old keys to delete from the kv file, at most `max_removed`, each < 160 chars.
-static const char *const SC_LEGACY[] = { "staff_deck", "sword_deck", "style", NULL };
+static const char *const SC_LEGACY[] = { "sword_deck", "style", NULL };
 static int sc_migrate(ScDoc *d, const char *old_text, const char *name, char (*removed)[160], int max_removed, int *nremoved) {
     if (nremoved) *nremoved = 0; if (sc_get(d, "migrated")) return 0;
     int took = 0; ScDoc old = { 0 }; if (old_text && name && *name) sc_parse(&old, old_text);

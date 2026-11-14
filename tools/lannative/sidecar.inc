@@ -56,7 +56,7 @@ static ScDoc *sc_doc(void) {
     if (!sc_get(&g_sc, "migrated")) {                                         // once per character: the old name-keyed kv keys
         wchar_t kp[MAX_PATH]; swprintf(kp, MAX_PATH, L"%sdata\\Content.txt", g_dir); char *kv = sc_read_all(kp), on[100], rm[8][160]; int nrm = 0;
         sc_old_name(name, on, sizeof on); int took = sc_migrate(&g_sc, kv, on, rm, 8, &nrm); free(kv); dirty = 1;
-        logf_("sidecar: migration from the name-keyed kv store ('%s.*'): %d key(s) taken%s", on, took, took ? " (legacy.staff_deck / legacy.sword_deck / legacy.style)" : "");
+        logf_("sidecar: migration from the name-keyed kv store ('%s.*'): %d key(s) taken%s", on, took, took ? " (legacy.sword_deck / legacy.style)" : "");
         if (dirty && sc_flush()) sc_kv_remove(rm, nrm); dirty = 0;           // the old keys go only after the new file is on disk
     }
     if (dirty) sc_flush();
