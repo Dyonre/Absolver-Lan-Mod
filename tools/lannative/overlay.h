@@ -11,7 +11,10 @@ extern "C" {
 
 enum { OV_NONE = 0, OV_MENU, OV_MODS, OV_LINES };                       // what the snapshot shows: nothing / an F1 list page / the Mods page / plain text lines
 enum { OV_OFF = 0, OV_STARTING, OV_READY, OV_DEAD };                    // not requested / hooked, first frame pending / drawing / switched off (reason in the log)
-enum { OVC_NONE = 0, OVC_MENU_SELECT, OVC_MENU_BACK, OVC_TOGGLE, OVC_MODS_ACT };   // OVC_MENU_SELECT / OVC_MODS_ACT: index = row / action line
+enum { OVC_NONE = 0, OVC_MENU_SELECT, OVC_MENU_BACK, OVC_TOGGLE, OVC_MODS_ACT,             // OVC_MENU_SELECT / OVC_MODS_ACT: index = row / action line
+       OVC_MODS_ENABLE,        // Mods page: index = row in OvSnap.mods, arg 1 = switch on, 0 = off
+       OVC_MODS_MOVE,          // index = row, arg -1 = earlier in the load order, +1 = later
+       OVC_MODS_RESTART };     // quit the game cleanly so it can be started again
 
 #define OV_LINE 96
 #define OV_ROWS 192                                                     // rows of a list page
@@ -23,8 +26,12 @@ enum { OVC_NONE = 0, OVC_MENU_SELECT, OVC_MENU_BACK, OVC_TOGGLE, OVC_MODS_ACT };
 
 typedef struct OvMod {
     char name[96], id[96], version[24], reason[180];
-    int status;                       // 0 loaded, 1 switched off, 2 skipped (reason), 3 empty
+    int status;                       // at boot: 0 loaded, 1 switched off, 2 skipped (reason), 3 empty
     int paks_ok, paks_total, rows_ops, content_files, plugin, affects_gameplay;   // plugin: 0 none, 1 allowed, 2 blocked
+    int enabled;                      // the box as it is now (loadorder.txt, possibly changed on this page)
+    int effect;                       // 0 nothing pending, 1 switches on after a restart, 2 switches off after a restart, 3 switched on live
+    int has_pak, has_lua, has_rows, has_content, has_plugin, hot_ok, nconf;
+    char conf[3][112];                // the first conflicts with other mods (tooltip); nconf counts all
 } OvMod;
 
 typedef struct OvSnap {
@@ -44,9 +51,10 @@ typedef struct OvSnap {
     int nplug; char plug_name[OV_PLUG][64]; int plug_faults[OV_PLUG], plug_loaded[OV_PLUG];
     char reload_status[240];
     int nactions; char action[OV_ACTIONS][OV_LINE]; int action_kind[OV_ACTIONS];   // kind: 0 reload, 1 plugin section header, 2 plugin item
+    int pending_n; char pending_text[160];           // load order changes that wait for a restart
 } OvSnap;
 
-typedef struct OvCmd { int cmd, index; } OvCmd;
+typedef struct OvCmd { int cmd, index, arg; } OvCmd;
 
 // Plugin side (AbsApi overlay_*). owner = the plugin's index (0..63). Draw callbacks run on the render thread inside a frame, between NewFrame and Render, after the
 // loader's own windows. Modes are per owner and combined: frames run while any owner has a mode set (or a loader menu is open).

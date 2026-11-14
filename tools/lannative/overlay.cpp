@@ -125,8 +125,8 @@ extern "C" int ov_poll(OvCmd *c) {
     LeaveCriticalSection(&g_cs);
     return got;
 }
-static void post(int cmd, int index) {                               // render thread; the caller holds g_cs (it is inside the frame)
-    if (g_qn < CMDQ) { g_q[g_qn].cmd = cmd; g_q[g_qn].index = index; g_qn++; }
+static void post(int cmd, int index, int arg = 0) {   // render thread; the caller holds g_cs (it is inside the frame)
+    if (g_qn < CMDQ) { OvCmd &c = g_q[g_qn]; c.cmd = cmd; c.index = index; c.arg = arg; g_qn++; }
 }
 extern "C" void ov_publish(const OvSnap *s) {
     if (!g_installed) return;
@@ -290,21 +290,50 @@ static void draw_mods(const OvSnap &s) {
     }
     if (s.nactions) ImGui::Separator();
     if (s.nwarn && ImGui::CollapsingHeader("Warnings", ImGuiTreeNodeFlags_DefaultOpen)) for (int i = 0; i < s.nwarn; i++) ImGui::TextColored(yellow, "%s", s.warn[i]), ImGui::Spacing();
-    if (ImGui::CollapsingHeader("Mods", ImGuiTreeNodeFlags_DefaultOpen) && ImGui::BeginTable("mods", 4, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingStretchProp)) {
-        ImGui::TableSetupColumn("State", ImGuiTableColumnFlags_WidthFixed, 70.f * g_scale); ImGui::TableSetupColumn("Mod"); ImGui::TableSetupColumn("Version", ImGuiTableColumnFlags_WidthFixed, 60.f * g_scale); ImGui::TableSetupColumn("Content / reason");
-        ImGui::TableHeadersRow();
-        static const char *names[] = { "loaded", "off", "SKIPPED", "empty" };
-        for (int i = 0; i < s.nmods; i++) {
-            const OvMod &m = s.mods[i]; char c[200];
-            ImGui::TableNextRow();
-            ImGui::TableSetColumnIndex(0); ImGui::TextColored(m.status == 0 ? green : m.status == 2 ? red : grey, "%s", names[m.status >= 0 && m.status < 4 ? m.status : 3]);
-            ImGui::TableSetColumnIndex(1); ImGui::TextUnformatted(m.name); if (m.id[0] && strcmp(m.id, m.name)) { ImGui::SameLine(); ImGui::TextDisabled("(%s)", m.id); }
-            ImGui::TableSetColumnIndex(2); if (m.version[0] && strcmp(m.version, "0")) ImGui::TextUnformatted(m.version);
-            ImGui::TableSetColumnIndex(3);
-            if (m.status == 2) ImGui::TextColored(red, "%s", m.reason[0] ? m.reason : "skipped");
-            else { content_text(m, c, sizeof c); ImGui::TextUnformatted(c); if (m.plugin == 2) { ImGui::SameLine(); ImGui::TextColored(red, "plugin BLOCKED (list it in Mods\\plugins.txt)"); } }
+    if (ImGui::CollapsingHeader("Mods", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (s.pending_n) {
+            ImGui::TextColored(yellow, "Waiting for a restart: %s", s.pending_text); ImGui::SameLine();
+            if (ImGui::Button("Restart game now")) post(OVC_MODS_RESTART, 0);
+            ImGui::TextDisabled("The game quits cleanly; start it again from Steam. A later mod in the list wins when two mods change the same thing.");
         }
-        ImGui::EndTable();
+        if (ImGui::BeginTable("mods", 6, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingStretchProp)) {
+            ImGui::TableSetupColumn("On", ImGuiTableColumnFlags_WidthFixed, 34.f * g_scale); ImGui::TableSetupColumn("Mod", ImGuiTableColumnFlags_WidthFixed, 200.f * g_scale); ImGui::TableSetupColumn("State", ImGuiTableColumnFlags_WidthFixed, 140.f * g_scale);
+            ImGui::TableSetupColumn("Holds"); ImGui::TableSetupColumn("Conflicts", ImGuiTableColumnFlags_WidthFixed, 70.f * g_scale);
+            ImGui::TableSetupColumn("Order", ImGuiTableColumnFlags_WidthFixed, 56.f * g_scale);
+            ImGui::TableHeadersRow();
+            for (int i = 0; i < s.nmods; i++) {
+                const OvMod &m = s.mods[i]; char c[200]; ImGui::PushID(i);
+                ImGui::TableNextRow();
+                ImGui::TableSetColumnIndex(0);
+                { bool on = m.enabled != 0; if (s.safe_mode) ImGui::BeginDisabled(); if (ImGui::Checkbox("##on", &on)) post(OVC_MODS_ENABLE, i, on ? 1 : 0); if (s.safe_mode) ImGui::EndDisabled();
+                  if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", m.hot_ok ? "Switching a rows/content-only mod on takes effect now; everything else after a restart." : "Takes effect after a restart."); }
+                ImGui::TableSetColumnIndex(1); ImGui::TextUnformatted(m.name); if (m.id[0] && strcmp(m.id, m.name)) { ImGui::SameLine(); ImGui::TextDisabled("(%s)", m.id); }
+                if (m.version[0] && strcmp(m.version, "0")) { ImGui::SameLine(); ImGui::TextDisabled("v%s", m.version); }
+                ImGui::TableSetColumnIndex(2);
+                if (m.effect == 3) ImGui::TextColored(green, "loaded now (live)");
+                else if (m.effect == 1) ImGui::TextColored(yellow, "on after restart");
+                else if (m.effect == 2) ImGui::TextColored(yellow, "off after restart");
+                else if (m.status == 2) { ImGui::TextColored(red, "SKIPPED"); if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", m.reason[0] ? m.reason : "skipped"); }
+                else ImGui::TextColored(m.status == 0 ? green : grey, "%s", m.status == 0 ? "loaded" : m.status == 1 ? "off" : "empty");
+                ImGui::TableSetColumnIndex(3);
+                { int w = 0; c[0] = 0;
+                  if (m.has_pak) w += snprintf(c + w, sizeof c - (size_t)w, m.status == 0 && m.paks_total ? "%d/%d pak  " : "pak  ", m.paks_ok, m.paks_total);
+                  if (m.has_rows) w += snprintf(c + w, sizeof c - (size_t)w, m.rows_ops ? "%d row edit(s)  " : "rows  ", m.rows_ops);
+                  if (m.has_content) w += snprintf(c + w, sizeof c - (size_t)w, "content  ");
+                  if (m.has_plugin) w += snprintf(c + w, sizeof c - (size_t)w, "plugin  ");
+                  if (m.has_lua) w += snprintf(c + w, sizeof c - (size_t)w, "Lua  ");
+                  if (!m.affects_gameplay) snprintf(c + w, sizeof c - (size_t)w, "[cosmetic]");
+                  ImGui::TextUnformatted(c); if (m.plugin == 2) { ImGui::SameLine(); ImGui::TextColored(red, "plugin BLOCKED (list it in Mods\\plugins.txt)"); } }
+                ImGui::TableSetColumnIndex(4);
+                if (m.nconf) { ImGui::TextColored(yellow, "%d", m.nconf);
+                    if (ImGui::IsItemHovered()) { ImGui::BeginTooltip(); for (int k = 0; k < m.nconf && k < 3; k++) ImGui::TextUnformatted(m.conf[k]); if (m.nconf > 3) ImGui::TextDisabled("... %d in all (see mods.txt)", m.nconf); ImGui::EndTooltip(); } }
+                else ImGui::TextDisabled("-");
+                ImGui::TableSetColumnIndex(5);
+                if (ImGui::SmallButton("^")) post(OVC_MODS_MOVE, i, -1); ImGui::SameLine(); if (ImGui::SmallButton("v")) post(OVC_MODS_MOVE, i, 1);
+                ImGui::PopID();
+            }
+            ImGui::EndTable();
+        }
     }
     if (ImGui::CollapsingHeader("Conflicts", ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::Text("files %d (%d differ), row edits %d, data assets %d, split assets %d", s.pak_conflicts, s.pak_conflicts_real, s.row_conflicts, s.obj_conflicts, s.split_assets);

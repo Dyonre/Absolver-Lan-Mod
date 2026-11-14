@@ -6,6 +6,7 @@
 #include "manifest.h"
 #include "contentreg.h"
 #include "modsui.h"
+#include "modorder.h"
 #include "pakshadow.h"
 #include "records.h"
 // Records (pure code: records.h): config "records = on" (default OFF). Pass 1 collects the flats / templates of every
@@ -28,6 +29,8 @@ typedef uint8_t (*PakMount_t)(void *self, const wchar_t *path, uint32_t order, c
 static PakInit_t g_orig_pakinit;
 // what the F1 "Mods" page shows (modsui.h): one ModInfo per mod folder (same index as the ModList), filled below while the mods load; g_mi_dir keeps each mod's folder for content hot reload
 static ModInfo g_mi[MODS_MAX]; static int g_mi_n; static wchar_t g_mi_dir[MODS_MAX][MAX_PATH]; static int g_mi_pos[MODS_MAX];   // g_mi_pos = load position (counts mounted mods only), -1 = not loaded
+static ModList g_order_boot, g_order_now;                  // loadorder.txt as the game booted with it / as edited on the Mods page (modorder.h)
+static wchar_t g_mods_dir[MAX_PATH];                       // <game>\Mods
 static char g_mi_order[1400]; static int g_mi_pakc, g_mi_pakc_real, g_mi_rowc, g_mi_objc, g_mi_split, g_mi_rows_mods;
 // content warnings (F2 Mods page "WARNING:" lines, mods.txt, log): pak shadowing, superseded paks, equip conflicts. Filled while the mods load and when items are granted.
 static char g_mi_warn[MUI_WARN][240]; static int g_mi_warn_n;
@@ -36,6 +39,10 @@ static void mods_warn(const char *fmt, ...) {
     logf_("mods: WARNING %s", t);
     for (int i = 0; i < g_mi_warn_n; i++) if (!strcmp(g_mi_warn[i], t)) return;
     if (g_mi_warn_n < MUI_WARN) snprintf(g_mi_warn[g_mi_warn_n++], sizeof g_mi_warn[0], "%s", t);
+}
+// one conflict line for the Mods page tooltip of a mod (the first three are kept, nconf counts all)
+static void mods_note_conflict(const char *mod, const char *text) {
+    for (int i = 0; i < g_mi_n; i++) if (!strcmp(g_mi[i].name, mod)) { ModInfo *m = &g_mi[i]; if (m->nconf < 3) snprintf(m->conf[m->nconf], sizeof m->conf[0], "%s", text); m->nconf++; return; }
 }
 static int mods_dir_has_pak(const wchar_t *dir) {
     wchar_t pat[MAX_PATH]; swprintf(pat, MAX_PATH, L"%ls\\*.pak", dir); WIN32_FIND_DATAW fd; HANDLE h = FindFirstFileW(pat, &fd); if (h == INVALID_HANDLE_VALUE) return 0;
@@ -77,7 +84,7 @@ static void mods_mount_all(void *self) {
         size_t n = wcslen(root); while (n && root[n - 1] == L'\\') root[--n] = 0;
         wchar_t *sl = wcsrchr(root, L'\\'); if (!sl) { logf_("mods: cannot derive the game folder from the LanNative folder"); return; } *sl = 0;
     }
-    wchar_t mods[MAX_PATH]; swprintf(mods, MAX_PATH, L"%ls\\Mods", root);
+    wchar_t mods[MAX_PATH]; swprintf(mods, MAX_PATH, L"%ls\\Mods", root); wcscpy(g_mods_dir, mods);
     if (GetFileAttributesW(mods) == INVALID_FILE_ATTRIBUTES) {          // first run without the launcher: make the folder so people can find it
         if (CreateDirectoryW(mods, NULL)) logf_("mods: created the Mods folder (put each mod in <game folder>\\Mods\\<ModName>\\ as a .pak)");
         else { logf_("mods: no Mods folder and it could not be created (error %lu)", GetLastError()); return; }
@@ -116,6 +123,7 @@ static void mods_mount_all(void *self) {
     wchar_t orderpath[MAX_PATH]; swprintf(orderpath, MAX_PATH, L"%ls\\loadorder.txt", mods);
     static ModList list; char *text = mods_read_text(orderpath, 1 << 20); modlist_parse(&list, text ? text : ""); free(text);
     int added = modlist_sync(&list, (const char **)names, nnames);
+    g_order_boot = list; g_order_now = list;
     static char rendered[MODS_MAX * (MOD_NAME_MAX + 4) + 512]; int rn = modlist_render(&list, rendered, sizeof rendered);
     char *old = mods_read_text(orderpath, 1 << 20);
     if (rn > 0 && (!old || strcmp(old, rendered) != 0)) {
@@ -147,6 +155,13 @@ static void mods_mount_all(void *self) {
     for (int i = 0; i < g_mi_n; i++) {
         ModInfo *mi = &g_mi[i]; snprintf(mi->name, sizeof mi->name, "%s", list.mods[i].name); snprintf(mi->id, sizeof mi->id, "%s", mfs[i].id); snprintf(mi->version, sizeof mi->version, "%s", mfs[i].version);
         mi->affects_gameplay = mfs[i].affects_gameplay; mi->status = mres.status[i] == MF_OFF ? MI_OFF : mres.status[i] == MF_SKIPPED ? MI_SKIPPED : MI_ON; snprintf(mi->reason, sizeof mi->reason, "%s", mres.reason[i]); g_mi_pos[i] = -1;
+        {   wchar_t wn[MOD_NAME_MAX * 2], dd[MAX_PATH], pp[MAX_PATH]; u8_to_w(list.mods[i].name, wn, MOD_NAME_MAX * 2); swprintf(dd, MAX_PATH, L"%ls\\%ls", mods, wn);
+            wcsncpy(g_mi_dir[i], dd, MAX_PATH - 1); g_mi_dir[i][MAX_PATH - 1] = 0;
+            mi->enabled = list.mods[i].enabled; mi->has_pak = mods_dir_has_pak(dd); mi->requires = mfs[i].nreq;
+            WIN32_FIND_DATAW lfd; swprintf(pp, MAX_PATH, L"%ls\\scripts\\*.lua", dd); HANDLE lh = FindFirstFileW(pp, &lfd); mi->has_lua = lh != INVALID_HANDLE_VALUE; if (lh != INVALID_HANDLE_VALUE) FindClose(lh);
+            swprintf(pp, MAX_PATH, L"%ls\\rows.json", dd); mi->has_rows = GetFileAttributesW(pp) != INVALID_FILE_ATTRIBUTES;
+            swprintf(pp, MAX_PATH, L"%ls\\content", dd); { DWORD a = GetFileAttributesW(pp); mi->has_content = a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY); }
+            swprintf(pp, MAX_PATH, L"%ls\\plugin.dll", dd); mi->has_plugin = GetFileAttributesW(pp) != INVALID_FILE_ATTRIBUTES; }
     }
     {
         char ord[1400] = ""; size_t ow = 0;
@@ -311,6 +326,7 @@ static void mods_mount_all(void *self) {
     for (int i = 0; i < shown; i++) {
         const char *wn = cf[i].winner < mounted_mods ? g_posname[cf[i].winner] : "?", *ln = cf[i].loser < mounted_mods ? g_posname[cf[i].loser] : "?";
         if (cf[i].same_content && ++same_shown > 12) continue;                      // identical shared files: the first 12 are logged, the rest only counted
+        if (!cf[i].same_content) { char t1[120], t2[120]; snprintf(t1, sizeof t1, "overrides %s: %.70s", ln, cf[i].path); snprintf(t2, sizeof t2, "overridden by %s: %.60s", wn, cf[i].path); mods_note_conflict(wn, t1); mods_note_conflict(ln, t2); }
         logf_("mods: conflict %s: %s overrides %s%s", cf[i].path, wn, ln, cf[i].same_content ? " (identical content)" : "");
         if (rl < (int)sizeof report - 700) RPT("%s: %s overrides %s%s\r\n", cf[i].path, wn, ln, cf[i].same_content ? " (identical content)" : "");
     }
@@ -338,6 +354,7 @@ static void mods_mount_all(void *self) {
         logf_("mods: %d row edit(s) from %d mod(s); %d field(s) are set by more than one mod (%d with different values)", g_rowops.count, rows_mods, nrc, rdiff); g_mi_rowc = nrc; g_mi_rows_mods = rows_mods;
         RPT("\r\nRow edits (rows.json): %d edits from %d mod(s)\r\nRow edit conflicts (same field set by several mods; the later mod wins):\r\n", g_rowops.count, rows_mods);
         for (int i = 0; i < rshown; i++) {
+            if (!rcf[i].same) { char t1[120]; snprintf(t1, sizeof t1, "row %s.%s.%s also set by %s", rcf[i].table, rcf[i].row, rcf[i].prop, g_posname[rcf[i].first_mod]); mods_note_conflict(g_posname[rcf[i].last_mod], t1); snprintf(t1, sizeof t1, "row %s.%s.%s overridden by %s", rcf[i].table, rcf[i].row, rcf[i].prop, g_posname[rcf[i].last_mod]); mods_note_conflict(g_posname[rcf[i].first_mod], t1); }
             logf_("mods: row conflict %s.%s.%s: %s then %s%s", rcf[i].table, rcf[i].row, rcf[i].prop, g_posname[rcf[i].first_mod], g_posname[rcf[i].last_mod], rcf[i].same ? " (same value)" : "");
             if (rl < (int)sizeof report - 700) RPT("%s.%s.%s: %s then %s%s\r\n", rcf[i].table, rcf[i].row, rcf[i].prop, g_posname[rcf[i].first_mod], g_posname[rcf[i].last_mod], rcf[i].same ? " (same value)" : "");
         }

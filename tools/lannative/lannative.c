@@ -1691,6 +1691,7 @@ static void paks_watch(uint64_t now) {
 // hands back clicks, which are executed as the same keys. The text menu is drawn whenever the overlay is not usable (menu_style = text, start failure, faults).
 static int g_ov_on, g_ov_dead_logged; static OvSnap g_ov_snap;
 static void modsui_snapshot(OvSnap *o);                                                  // modsui.inc
+static void modsui_command(const OvCmd *c);                                              // modsui.inc (Mods page buttons)
 static int read_menu_style(void) {
     wchar_t path[MAX_PATH]; char value[32] = "";
     if (!setting_get("menu_style", L"menu_style.txt", 0, value, sizeof value, path)) { logf_("menu: style imgui (default; 'menu_style = text' in %ls selects the plain text menu)", path); return 1; }
@@ -1760,7 +1761,8 @@ static void menu_tick(int focus, uint64_t now) {
 #ifdef LN_OVERLAY
     { OvCmd oc;                                                                   // a click in the overlay runs as the key that does the same
         if (g_ov_on && ov_poll(&oc) && g_menu.open && !g_ti_active) {
-            if (oc.cmd == OVC_TOGGLE) key = MK_TOGGLE;
+            if (oc.cmd >= OVC_MODS_ENABLE) { __try { modsui_command(&oc); } __except (EXCEPTION_EXECUTE_HANDLER) { logf_("mods page: EXCEPTION 0x%08lX in command %d", GetExceptionCode(), oc.cmd); } }
+            else if (oc.cmd == OVC_TOGGLE) key = MK_TOGGLE;
             else if (oc.cmd == OVC_MENU_BACK) key = MK_BACK;
             else if ((oc.cmd == OVC_MENU_SELECT || oc.cmd == OVC_MODS_ACT) && oc.index >= 0 && oc.index < g_menu.count[g_menu.page]) { g_menu.sel = oc.index; key = MK_SELECT; }
             if (key) logf_("menu: overlay command %d (row %d)", oc.cmd, oc.index);

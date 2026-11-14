@@ -12,6 +12,8 @@ enum { MIP_NONE = 0, MIP_ALLOWED, MIP_BLOCKED };             // plugin.dll: none
 typedef struct {
     char name[MOD_NAME_MAX], id[MOD_NAME_MAX], version[24], reason[180];
     int status, paks_ok, paks_total, rows_ops, content_files, plugin, affects_gameplay;
+    // Mods page table (filled for every mod folder, loaded or not): what the folder holds, whether loadorder.txt had it enabled at boot, conflicts with other mods
+    int enabled, has_pak, has_lua, has_rows, has_content, has_plugin, requires, nconf; char conf[3][112];
 } ModInfo;
 
 #define MUI_LINE 96

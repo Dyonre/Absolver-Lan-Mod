@@ -38,6 +38,39 @@ static int api_p_reload_content(const AbsApi *self) {
     return mods_reload_all();
 }
 
+// ----- Mods page: load order edits, live switch-on (commands come from the overlay: OVC_MODS_*)
+static int md_console(const char *cmd);                                           // modes.inc
+static int g_mi_live[MODS_MAX];                                                    // switched on while the game runs (rows / content only)
+static int mods_ui_mi_of(const char *name) { for (int i = 0; i < g_mi_n; i++) if (!_stricmp(g_mi[i].name, name)) return i; return -1; }
+// 0 nothing pending, 1 switches on after a restart, 2 switches off after a restart, 3 switched on live
+static int mods_ui_effect(int mi, int row) {
+    if (g_mi_live[mi]) return g_order_now.mods[row].enabled ? 3 : 2;
+    int b = modlist_find(&g_order_boot, g_mi[mi].name), boot_on = b >= 0 && g_order_boot.mods[b].enabled, now_on = g_order_now.mods[row].enabled;
+    return boot_on == now_on ? 0 : now_on ? 1 : 2;
+}
+static int mods_ui_write_order(char *msg, size_t cap) {                          // loadorder.txt, after a copy of the old file as loadorder.txt.bak; nothing else in Mods is written
+    static char text[MODS_MAX * (MOD_NAME_MAX + 4) + 512]; int n = mo_render(&g_order_now, text, sizeof text);
+    if (n <= 0 || n >= (int)sizeof text) { snprintf(msg, cap, "the load order text is too large"); return -1; }
+    wchar_t path[MAX_PATH], bak[MAX_PATH]; swprintf(path, MAX_PATH, L"%ls\\loadorder.txt", g_mods_dir); swprintf(bak, MAX_PATH, L"%ls\\loadorder.txt.bak", g_mods_dir);
+    if (GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES && !CopyFileW(path, bak, FALSE)) { snprintf(msg, cap, "could not back up loadorder.txt (error %lu); nothing was changed", GetLastError()); return -1; }
+    HANDLE h = CreateFileW(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (h == INVALID_HANDLE_VALUE) { snprintf(msg, cap, "could not write loadorder.txt (error %lu)", GetLastError()); return -1; }
+    DWORD w = 0; int ok = WriteFile(h, text, (DWORD)n, &w, NULL) && w == (DWORD)n; CloseHandle(h);
+    if (!ok) { snprintf(msg, cap, "loadorder.txt was written incompletely; the previous file is loadorder.txt.bak"); return -1; }
+    return 0;
+}
+// A mod that was off at boot and holds only rows.json / content\ files is loaded into the running game through the hot reload; returns 1 if it was.
+static int mods_ui_hot_enable(int mi) {
+    ModInfo *m = &g_mi[mi]; ModKind k = { m->has_pak, m->has_plugin, m->has_lua, m->requires };
+    if (g_safe_mode || m->status != MI_OFF || g_mi_live[mi] || !mo_hot_enable_ok(&k) || !(m->has_rows || m->has_content)) return 0;
+    int pos = 0; for (int i = 0; i < g_mi_n; i++) if (g_mi_pos[i] >= pos) pos = g_mi_pos[i] + 1;
+    if (pos >= MODS_MAX) return 0;
+    g_mi_pos[mi] = pos; strcpy(g_posname[pos], m->name); g_mi_live[mi] = 1;
+    int b = modlist_find(&g_order_boot, m->name);                                  // the live position is the end of the list: mirror that in the boot list so only a different file order stays "pending"
+    if (b >= 0) { ModEntry e = g_order_boot.mods[b]; e.enabled = 1; memmove(&g_order_boot.mods[b], &g_order_boot.mods[b + 1], (size_t)(g_order_boot.count - b - 1) * sizeof(ModEntry)); g_order_boot.mods[g_order_boot.count - 1] = e; }
+    logf_("mods page: %s switched on live (rows/content only) at load position %d", m->name, pos);
+    mods_reload_all(); return 1;
+}
 // ----- the page
 static MuiRef g_mui_ref[MUI_ACTIONS]; static int g_mui_nref, g_mui_open = -1;          // what each action line does; the open section (plugin index, -1 = all closed)
 static ModsUiIn g_mui; static char g_mui_lines[MENU_LIST_MAX][MUI_LINE]; static int g_mui_n; static ULONGLONG g_mui_at;
@@ -76,6 +109,30 @@ static void modsui_action(int index) {
     }
 }
 #ifdef LN_OVERLAY
+static void modsui_command(const OvCmd *c) {
+    char msg[200] = "";
+    switch (c->cmd) {
+    case OVC_MODS_ENABLE:
+        if (g_safe_mode || c->index < 0 || c->index >= g_order_now.count) break;
+        { int on = c->arg != 0; mo_set_enabled(&g_order_now, g_order_now.mods[c->index].name, on);
+          logf_("mods page: %s %s", g_order_now.mods[c->index].name, on ? "switched on" : "switched off");
+          if (mods_ui_write_order(msg, sizeof msg)) { logf_("mods page: %s", msg); mo_set_enabled(&g_order_now, g_order_now.mods[c->index].name, !on); snprintf(g_reload_status, sizeof g_reload_status, "%s", msg); break; }
+          if (on) { int mi = mods_ui_mi_of(g_order_now.mods[c->index].name); if (mi >= 0) mods_ui_hot_enable(mi); } }
+        break;
+    case OVC_MODS_MOVE:
+        if (g_safe_mode) break;
+        { char nm[MOD_NAME_MAX]; if (c->index < 0 || c->index >= g_order_now.count) break; snprintf(nm, sizeof nm, "%s", g_order_now.mods[c->index].name);
+          int to = mo_move(&g_order_now, c->index, c->arg); if (to < 0) break;
+          logf_("mods page: %s moved %s (now position %d of %d)", nm, c->arg < 0 ? "earlier" : "later", to + 1, g_order_now.count);
+          if (mods_ui_write_order(msg, sizeof msg)) { logf_("mods page: %s", msg); mo_move(&g_order_now, to, c->arg < 0 ? 1 : -1); snprintf(g_reload_status, sizeof g_reload_status, "%s", msg); } }
+        break;
+    case OVC_MODS_RESTART: logf_("mods page: restart requested - the game quits now"); md_console("quit"); break;
+    default: break;
+    }
+    g_mui_at = 0;
+}
+#endif
+#ifdef LN_OVERLAY
 // the same data the text page is built from, copied for the overlay's render thread (overlay.h OvSnap)
 static void modsui_snapshot(OvSnap *o) {
     modsui_count();                                                               // refreshes g_mui when it is older than 500 ms
@@ -83,12 +140,18 @@ static void modsui_snapshot(OvSnap *o) {
     o->kind = OV_MODS; snprintf(o->title, OV_LINE, "Mods");
     o->safe_mode = in->safe_mode; snprintf(o->safe_why, sizeof o->safe_why, "%s", in->safe_why ? in->safe_why : "");
     snprintf(o->order, sizeof o->order, "%s", in->order ? in->order : "");
-    o->nmods = in->nmods < OV_MODS_MAX ? in->nmods : OV_MODS_MAX;
-    for (int i = 0; i < o->nmods; i++) {
-        const ModInfo *m = &in->mods[i]; OvMod *d = &o->mods[i];
+    o->nmods = 0;                                                                 // one row per entry of loadorder.txt as it is now (the page can reorder it); the row index is the index in g_order_now
+    for (int r = 0; r < g_order_now.count && o->nmods < OV_MODS_MAX; r++) {
+        int mi = mods_ui_mi_of(g_order_now.mods[r].name); if (mi < 0) continue;
+        const ModInfo *m = &in->mods[mi]; OvMod *d = &o->mods[o->nmods++]; memset(d, 0, sizeof *d);
         snprintf(d->name, sizeof d->name, "%s", m->name); snprintf(d->id, sizeof d->id, "%s", m->id); snprintf(d->version, sizeof d->version, "%s", m->version); snprintf(d->reason, sizeof d->reason, "%s", m->reason);
         d->status = m->status; d->paks_ok = m->paks_ok; d->paks_total = m->paks_total; d->rows_ops = m->rows_ops; d->content_files = m->content_files; d->plugin = m->plugin; d->affects_gameplay = m->affects_gameplay;
+        d->enabled = g_order_now.mods[r].enabled; d->effect = mods_ui_effect(mi, r);
+        d->has_pak = m->has_pak; d->has_lua = m->has_lua; d->has_rows = m->has_rows; d->has_content = m->has_content; d->has_plugin = m->has_plugin; d->nconf = m->nconf;
+        { ModKind k = { m->has_pak, m->has_plugin, m->has_lua, m->requires }; d->hot_ok = mo_hot_enable_ok(&k) && (m->has_rows || m->has_content); }
+        memcpy(d->conf, m->conf, sizeof d->conf);
     }
+    { ModDiff df = mo_diff(&g_order_boot, &g_order_now); o->pending_n = mo_pending(&df); if (o->pending_n) mo_describe(&df, o->pending_text, sizeof o->pending_text); else o->pending_text[0] = 0; }
     o->pak_conflicts = in->pak_conflicts; o->pak_conflicts_real = in->pak_conflicts_real; o->row_conflicts = in->row_conflicts; o->obj_conflicts = in->obj_conflicts; o->split_assets = in->split_assets;
     o->nwarn = in->nwarn < OV_WARN ? in->nwarn : OV_WARN; for (int i = 0; i < o->nwarn; i++) snprintf(o->warn[i], sizeof o->warn[i], "%s", in->warn[i]);
     o->c_files = in->c_files; o->c_entries = in->c_entries; o->c_invalid = in->c_invalid;
