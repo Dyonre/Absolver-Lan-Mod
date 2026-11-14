@@ -1,9 +1,9 @@
 #ifndef LANNATIVE_MANIFEST_H
 #define LANNATIVE_MANIFEST_H
 // Mod manifest (mod.json) and dependency / load-order resolution. Pure code.
-//   { "id": "MyStyle", "name": "My Style", "version": "0.1.0", "api": 2, "requires": [ { "id": "ItemLoader", "min": "0.1.0" } ], "after": ["Other"], "affects_gameplay": true }
+//   { "id": "MyStyle", "name": "My Style", "version": "0.1.0", "api": 2, "requires": [ { "id": "ItemLoader", "min": "0.1.0" } ], "after": ["Other"], "incompatible_with": ["X"], "affects_gameplay": true }
 // "requires" / "after" entries may also be plain strings. A mod without mod.json (or without "id") gets its folder name as id.
-// Resolution: mods that are off, need a newer API, share an id with an earlier mod, or lack a required (enabled, itself not skipped, new enough) mod are SKIPPED with a reason;
+// Resolution: mods that are off, need a newer API, share an id with an earlier mod, declare incompatible_with a mod that is on, or lack a required (enabled, itself not skipped, new enough) mod are SKIPPED with a reason;
 // the rest are ordered topologically (requires + after), ties broken by the incoming order (= loadorder.txt, which the loader keeps alphabetical for new folders).
 #include <string.h>
 #include <stdio.h>
@@ -18,6 +18,7 @@ typedef struct {
     int api;                                   // minimum AbsApi version; 0 = not stated
     int nreq; MfReq req[MF_LIST_MAX];
     int nafter; char after[MF_LIST_MAX][MOD_NAME_MAX];
+    int ninc; char inc[MF_LIST_MAX][MOD_NAME_MAX];   // "incompatible_with": mod ids
     int nsup; char sup[MF_LIST_MAX][MOD_NAME_MAX];   // "supersedes": pak file names (".pak" optional) of OTHER mods that this mod replaces; those paks are not mounted while this mod loads and ships a pak
     int affects_gameplay;                      // default 1
     int has_file;                              // a mod.json was read
@@ -59,6 +60,9 @@ static int manifest_parse(const char *json, const char *folder, Manifest *m, cha
     c = jfind(&d, 0, "after");
     if (c >= 0 && d.n[c].t == J_ARR) for (int e = d.n[c].first; e >= 0 && m->nafter < MF_LIST_MAX; e = d.n[e].next)
         if (d.n[e].t == J_STR && mf_id_ok(d.n[e].str)) snprintf(m->after[m->nafter++], MOD_NAME_MAX, "%s", d.n[e].str);
+    c = jfind(&d, 0, "incompatible_with");
+    if (c >= 0 && d.n[c].t == J_ARR) for (int e = d.n[c].first; e >= 0 && m->ninc < MF_LIST_MAX; e = d.n[e].next)
+        if (d.n[e].t == J_STR && mf_id_ok(d.n[e].str)) snprintf(m->inc[m->ninc++], MOD_NAME_MAX, "%s", d.n[e].str);
     c = jfind(&d, 0, "supersedes");
     if (c >= 0 && d.n[c].t == J_ARR) for (int e = d.n[c].first; e >= 0 && m->nsup < MF_LIST_MAX; e = d.n[e].next)
         if (d.n[e].t == J_STR && d.n[e].str[0] && strlen(d.n[e].str) < MOD_NAME_MAX && !strpbrk(d.n[e].str, "/\\")) snprintf(m->sup[m->nsup++], MOD_NAME_MAX, "%s", d.n[e].str);
@@ -76,6 +80,17 @@ static void mf_resolve(const Manifest *mf, const int *enabled, int n, int our_ap
         if (out->status[i] != MF_OK) continue;
         if (mf[i].api > our_api) { out->status[i] = MF_SKIPPED; snprintf(out->reason[i], sizeof out->reason[i], "needs mod API %d, this loader has %d", mf[i].api, our_api); continue; }
         for (int j = 0; j < i; j++) if (out->status[j] == MF_OK && !_stricmp(mf[j].id, mf[i].id)) { out->status[i] = MF_SKIPPED; snprintf(out->reason[i], sizeof out->reason[i], "id '%s' is already used by the mod in folder #%d", mf[i].id, j + 1); break; }
+    }
+    // incompatible_with: the mod that declares it is skipped; when both declare each other, the later one in the incoming order.
+    // One pass in incoming order: a mod skipped here may already have caused an earlier mod to be skipped (chains of incompatibilities are not re-checked).
+    for (int i = 0; i < n; i++) {
+        for (int k = 0; k < mf[i].ninc && out->status[i] == MF_OK; k++) {
+            int j = mf_find_id(mf, n, mf[i].inc[k]);
+            if (j < 0 || j == i || out->status[j] != MF_OK) continue;
+            int mutual = 0; for (int q = 0; q < mf[j].ninc; q++) if (!_stricmp(mf[j].inc[q], mf[i].id)) mutual = 1;
+            if (mutual && j > i) continue;                                 // j is skipped in its own turn
+            out->status[i] = MF_SKIPPED; snprintf(out->reason[i], sizeof out->reason[i], "its mod.json says it is incompatible with %.60s, which is on", mf[j].id);
+        }
     }
     for (int changed = 1; changed;) {                                       // dependants of skipped mods are skipped too
         changed = 0;

@@ -44,10 +44,10 @@ Mods\MyMod\
 
 ```json
 { "id": "MyMod", "name": "My Mod", "version": "0.1.0", "api": 2, "author": "you", "description": "...",
-  "requires": [ { "id": "Lib", "min": "1.0" } ], "after": ["OtherMod"], "affects_gameplay": true }
+  "requires": [ { "id": "Lib", "min": "1.0" } ], "after": ["OtherMod"], "incompatible_with": ["Rival"], "affects_gameplay": true }
 ```
 
-`requires` missing/off/too old = this mod (pak, rows, content, plugin) is skipped and shown on screen and in `mods.txt`. Load order = requires/after, then `Mods\loadorder.txt` (last line wins; `-Name` switches a mod off). Cosmetic-only mods set `"affects_gameplay": false`.
+`requires` missing/off/too old = this mod (pak, rows, content, plugin) is skipped and shown on screen and in `mods.txt`. `incompatible_with` lists mod ids that must not load together with this one: while one of them is on, this mod is skipped (if both list each other, the later one in the load order). Load order = requires/after, then `Mods\loadorder.txt` (last line wins; `-Name` switches a mod off). Cosmetic-only mods set `"affects_gameplay": false`.
 
 ## 3. Content kinds and every field
 
