@@ -2,7 +2,7 @@
 
 This guide is for people who want to **make** mods. If you only want to install and run mods, read `README.txt` in the release zip (also `tools/installer/README.txt` in the repository).
 
-Before you start: install Gleam Loader (the release zip). Your mods go in the `Mods` folder next to `Absolver.exe` in the game folder, for example `steamapps\common\Absolver\Mods\` inside your Steam library. The installer creates it.
+Before you start: install Absolver LAN Mod (the release zip). Your mods go in the `Mods` folder next to `Absolver.exe` in the game folder, for example `steamapps\common\Absolver\Mods\` inside your Steam library. The installer creates it.
 
 It applies to Absolver 1.31 (Unreal Engine 4.18.3).
 

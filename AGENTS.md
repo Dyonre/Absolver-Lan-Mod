@@ -1,6 +1,6 @@
 # Instructions for AI assistants
 
-You were pointed at this repository. It is **Gleam Loader**, a mod loader and script extender for the game Absolver (Steam build 1.31, Unreal Engine 4.18.3). It is a hobby project, offline and private LAN only.
+You were pointed at this repository. It is **Absolver LAN Mod** (called Gleam Loader inside the code and logs), a mod loader and script extender for the game Absolver (Steam build 1.31, Unreal Engine 4.18.3). It is a hobby project, offline and private LAN only.
 
 ## What to do with the user's request
 

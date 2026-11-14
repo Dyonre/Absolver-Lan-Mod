@@ -1,8 +1,8 @@
-# Gleam Loader (formerly Absolver LAN Mod / LanNative)
+# Absolver LAN Mod
 
-A mod loader and script extender for **Absolver** (Steam build 1.31), with LAN hosting built in. Put a mod in a folder, start the game, and it loads. Offline and private LAN play only.
+A mod loader, script extender and LAN host for **Absolver** (Steam build 1.31). Put a mod in a folder, start the game, and it loads. Offline and private LAN play only.
 
-This repository used to hold **LanNative**, the LAN mod. LanNative grew into Gleam Loader: the same `version.dll`, the same LAN hosting, plus everything below. LanNative 4.3.1 is still available as tag `v4.3.1` on the Releases page.
+It started as **LanNative**, a LAN-only mod, and grew into a full mod loader: the same `version.dll`, the same LAN hosting, plus everything below. Inside the code, the log and the file properties the loader is called **Gleam Loader**. LanNative 4.3.1 is still available as tag `v4.3.1` on the Releases page.
 
 ## Disclaimer
 

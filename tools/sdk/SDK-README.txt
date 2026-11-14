@@ -1,5 +1,5 @@
-Gleam Loader SDK folder
-=======================
+Absolver LAN Mod SDK folder
+===========================
 
 AbsolverSE.h   The plugin API header (Gleam plugin API, version 2). Include it in your plugin; every
                function is documented in its comments.
@@ -12,7 +12,7 @@ Install it: put plugin.dll, mod.json and an optional plugin.cfg in <game folder>
 The first time the game starts, the loader adds the plugin's name to Mods\plugins.txt with a # in front;
 remove the # to enable it. Plugins are programs: the loader never loads one that is not enabled.
 
-The repository (https://github.com/Dyonre/GleamLoader) has the guide (docs/sdk/README.md), the full
+The repository (https://github.com/Dyonre/Absolver-Lan-Mod) has the guide (docs/sdk/README.md), the full
 reference (docs/PLUGIN-API.md) and a scaffold script that writes a ready-to-build plugin:
 
   powershell -ExecutionPolicy Bypass -File tools\sdk\New-Plugin.ps1 -Name MyPlugin -Sdk <this folder> -Build
