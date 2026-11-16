@@ -1,4 +1,4 @@
-// content.inc - content registry of the script extender (included by lannative.c after secore.inc). Guide: docs\MODDING-GUIDE.md section 10b.
+// content.inc - content registry of the script extender (included by lannative.c after secore.inc). Guide: docs/CONTENT.md.
 // A mod ships JSON in  Mods\<mod>\content\<kind>\*.json  (no plugin.dll of its own). At boot the mod loader lists the files in load order (content_scan_mod); at engine ready (title screen, before the
 // save is loaded) and again right before a save resolves its items, every entry is validated by its kind's handler, duplicate ids are resolved by load order (later wins) and the winners are applied.
 // Built-in kinds: "items" (runtime copies of stock DataAssets under /Game/Mods/<mod id>/, granted / equipped / sold), "styles" (extra Meditation > Combat Style buttons) and the others
@@ -361,7 +361,7 @@ static void items_try_equip(CItem *it, int idx, int newly) {
     if (v == EQ_SLOT_TAKEN_BY_MOD) mods_warn("equip conflict, slot %s: %s/%s has equip:true but %s already equipped it - only the first is equipped, set equip false in one", slot, it->mod, it->id, owner);
     else if (v == EQ_SLOT_HAS_OTHER_ITEM) mods_warn("%s/%s has equip:true but the %s slot already holds %s (player's or save's choice) - not replaced", it->mod, it->id, slot, oname[0] ? oname : "another item");
 }
-// grants (docs\PLUGIN-API.md "Grants"): an item with grant:true is pending per character (re-armed when a save loads) until the local player's inventory
+// grants (docs/API-REFERENCE.md): an item with grant:true is pending per character (re-armed when a save loads) until the local player's inventory
 // takes it; polled every GP_POLL_S s from every non-title world (re-armed on each on_world_loaded) while anything is pending (grantpoll.h), so a world that
 // appears late or a missed on_world_loaded does not lose the grant. An owned item is never added twice.
 static GpReady g_gp_ready = { -1, 0 }; static int g_gp_timer, g_gp_world_ok, g_gp_ready_why = GP_NO_PAWN, g_gp_polls;
@@ -550,7 +550,7 @@ static void content_init(const AbsApi *a) {
 }
 
 // ================================================================ hot reload
-// Re-lists Mods\<mod>\content of every mod that loaded, re-validates, and applies what is new or changed (docs\PLUGIN-API.md "Mods page, menu items and hot reload"). Per kind.
+// Re-lists Mods\<mod>\content of every mod that loaded, re-validates, and applies what is new or changed (docs/API-REFERENCE.md). Per kind.
 //   items   name, description, icon / icon_file, props, price, gear_row.set values, grant: re-applied to the live object (a changed icon_file image becomes a NEW texture object);
 //           base, shop, shop_copy_of, gear_row.table / copy_of, moves cannot change (the object / rows exist): logged, entry kept as it was. A NEW item is created like at boot.
 //   styles  name and icon are written into the style DB (shown the next time Meditation opens); db, style_id, index cannot change. A NEW style appears when the Meditation menu is built again.

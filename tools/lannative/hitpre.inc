@@ -1,5 +1,5 @@
 // hitpre.inc - on_hit_pre + damage_mod, poise (API v2.19; included by content.inc after bots.inc: uses npcs.inc's api_p_npc_archetype).
-// Pure maths and the per-character table: hitpre.h. docs\PLUGIN-API.md "Pre-hit, damage_mod and poise".
+// Pure maths and the per-character table: hitpre.h. docs/API-REFERENCE.md.
 //
 // One detour on UHitComponent::GenerateImpact (stacks with secore's on_hit detour) opens a context for the duration of the game's own hit
 // resolution; small detours on the getters GenerateImpact calls apply the scales ONLY inside that context (same thread, same victim/attacker):

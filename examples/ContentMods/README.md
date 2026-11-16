@@ -1,16 +1,16 @@
 # Content mods (data only, no plugin.dll)
 
 Drop a folder from here into `<game>\Mods\` (offline / private play, needs the LanNative script extender build with the content registry).
-The loader's content registry (`tools/lannative/content.inc`, guide `docs/MODDING-GUIDE.md` section 10b) reads
+The loader's content registry (`tools/lannative/content.inc`, guide `docs/CONTENT.md`) reads
 `Mods\<mod>\content\<kind>\*.json`; there is no code in these mods. All ship a `mod.json` (id, version, api); `requires`, `after` and `affects_gameplay`
-are optional (MODDING-GUIDE section 9).
+are optional (`docs/MODS.md`).
 
 * `ExampleMask` - `content/items/mask.json`: a clone of the SillyFace mask, granted and equipped once a world is loaded.
 * `WideWave` - `content/powers/widewave.json`: a new power, a Shockwave clone with a 450 radius (stock 280), own ItemAttack row, 3 shards, 4 s cooldown, own name,
-  the stock Exhaust animation as stand-in, granted and equipped in power slot 0 (key 1). Guide: `docs/MODDING-GUIDE.md` section 10c.
+  the stock Exhaust animation as stand-in, granted and equipped in power slot 0 (key 1). Guide: `docs/CONTENT.md`.
 * `MapScriptDemo` - `content/maps/demo.json`: a map script placed relative to the player in the open world: a light that cycles colour and pulses, a second light
   behind a `phase:party` flag, a cube gate that slides up with collision off when the player steps into a trigger box (and closes when leaving), a "GATE OPEN" banner.
-  Guide: `docs/MODDING-GUIDE.md` section 10e.
+  Guide: `docs/CONTENT.md`.
 * `CloneDemo` - `content/clones/duelist.json`: player-clone bots, second local players with their own character, driven by a bot brain (F1 > Mods: Clones).
   Brains need `bot_ai = on` and a brain preset mod.
 * `LuaDemo` - `scripts/`: example for the Lua host (`docs/LUA.md`): your Jab (row 004) does 3x damage. Needs the LuaHost plugin listed in `Mods/plugins.txt`.
@@ -25,4 +25,4 @@ never merge: the older copy can hide the newer rows.
 * Without that hint the loader still tells you: `mods: WARNING <pak A> (read order N) shadows <pak B> (M): k file(s) differ, e.g. ...` in the log, in
   `LanNative\mods.txt` ("Pak shadowing") and as a `WARNING:` line on the F2 Mods page.
 * Pak read order = `10000 + 1000 * position-in-the-load-order + pak index`; the load order is `requires` / `after` first, then `loadorder.txt`
-  (see MODDING-GUIDE section 9). A mod that comes later wins.
+  (see `docs/MODS.md`). A mod that comes later wins.

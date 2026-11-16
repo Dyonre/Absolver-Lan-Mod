@@ -1,5 +1,5 @@
 // Pure logic of the test_* functions (AbsApi 2.6: test_heal, test_attack, test_guard, ...). No engine calls.
-// The engine-facing half is testkit.inc. Background: docs\PLUGIN-API.md "Functions for automated checks".
+// The engine-facing half is testkit.inc. Background: docs/API-REFERENCE.md.
 #ifndef LANNATIVE_TESTKIT_H
 #define LANNATIVE_TESTKIT_H
 #include <stdint.h>

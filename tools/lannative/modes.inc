@@ -1,4 +1,4 @@
-// modes.inc - the "modes" API of the script extender (included by secore.inc). Guide: docs\PLUGIN-API.md "Modes".
+// modes.inc - the "modes" API of the script extender (included by secore.inc). Guide: docs/API-REFERENCE.md.
 //   travel / console_cmd / solo_duel : start a map or a console command (the loader's pvp duel flow + the solo-duel switch do the rest)
 //   match_info / on_match_state / on_round_end : read the live AAdversarialGameMode / GameState (polled 10x per second, one poll for all plugins)
 //   set_mode_prop : write ruleset properties (m_iNbWinningRounds ...) on the live game mode and game state

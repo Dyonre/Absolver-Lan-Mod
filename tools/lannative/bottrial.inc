@@ -1,4 +1,4 @@
-// bottrial.inc - solo combat trials against bots (included at the end of bots.inc). API: docs\PLUGIN-API.md "Bot trials (v2.16)".
+// bottrial.inc - solo combat trials against bots (included at the end of bots.inc). API: docs/API-REFERENCE.md.
 // Content kind "bot_trials" (Mods\<mod>\content\bot_trials\*.json): {id, name, map, bot | bots[] (a gauntlet), rounds_to_win, ai_level, ai_level_step, rewards (a ranks id),
 //   spawn_distance, round_gap, round_seconds, end_delay, return, menu}. Started from the F2 Mods page ("Content: Bot trial: <name>") or bot_trial_start(id).
 // Flow (one 0.25 s timer): solo_duel(1) + travel(map) -> the map's 1v1 game mode reaches InProgress -> m_iNbWinningRounds = rounds_to_win -> each round: npc_spawn(bot) at the
@@ -256,7 +256,7 @@ static void tr_scan_starts(void) {
     double t0 = tr_now(); int n = CA->for_each_object(CA, tr_scan_cb, NULL);
     logf_("bottrial: %s: %d player start(s) in %s (%d objects scanned in %.2f s)", g_trs.id, g_trs.st_n, g_tr_scan_world, n, tr_now() - t0);
 }
-// ================================================================ the bot as a SECOND PLAYER (see also docs\PLUGIN-API.md "Bot trials")
+// ================================================================ the bot as a SECOND PLAYER (see also docs/API-REFERENCE.md)
 // * Score: AFightingCharacter::ServerKilledBy -> AThePlainesGameMode::NotifyKill -> AAdversarialGameMode::Killed -> AThePlainesGameMode::Killed: killer controller's
 //   AFightingPlayerState::ScoreKill(victim's player state) (AAdversarialPlayerState adds an FPlayerKill to m_Scores). AAdversarialGameState::BPF_GetTeamScore sums them over
 //   GameState.PlayerArray filtered by m_iTeamNumber. An AI controller has no player state, so an NPC never scored: the bot gets one (AController::InitPlayerState = the game

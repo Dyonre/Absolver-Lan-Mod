@@ -2,7 +2,7 @@
 // A mod folder with plugin.dll is loaded when its name is listed in Mods\plugins.txt (the loader appends "#Name" for new ones) and the mod is enabled in loadorder.txt.
 // The plugin gets one AbsApi (AbsolverSE.h) with logging, events, stackable hooks with byte checks, and reflection (objects, properties, functions).
 // v2: every API call carries the plugin's own AbsApi pointer ("self"), so identity survives hook detours and plugin threads.
-// Every call into a plugin is wrapped in SEH; after 3 faults its callbacks are switched off. Guide: docs\PLUGIN-API.md.
+// Every call into a plugin is wrapped in SEH; after 3 faults its callbacks are switched off. Guide: docs/API-REFERENCE.md.
 #include "AbsolverSE.h"
 #include <tlhelp32.h>
 #define RVA_PROCESSEVENT   0x8ADC30u     // UObject::ProcessEvent(this, UFunction *, void *params)

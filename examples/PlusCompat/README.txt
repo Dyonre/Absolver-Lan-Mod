@@ -15,7 +15,7 @@ How it aims to stay compatible
   copy of the Jab while the game loads the table, so it works on top of Plus's table, or on the normal one if Plus is not installed.
   It loads after Plus ("after" in mod.json) and uses a prefixed row name so it cannot collide with Plus or other mods.
 
-To make your own, copy this folder, rename it and the row, and change the values. See docs/MODDING-GUIDE.md.
+To make your own, copy this folder, rename it and the row, and change the values. See docs/CONTENT.md.
 
 Disclaimer
   AbsolverPlus belongs to its own authors; this example is not affiliated with them and includes none of their files. If the AbsolverPlus

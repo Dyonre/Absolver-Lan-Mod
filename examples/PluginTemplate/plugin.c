@@ -1,5 +1,5 @@
 ﻿/* PluginTemplate: the smallest AbsolverSE (API v2) plugin. Copy this folder, rename, build with build.bat, put plugin.dll in <game>\Mods\<YourName>\ and
- * remove the # before the name in Mods\plugins.txt. See docs\PLUGIN-API.md. */
+ * remove the # before the name in Mods\plugins.txt. See docs/API-REFERENCE.md. */
 #include <windows.h>
 #include "../../tools/lannative/AbsolverSE.h"
 

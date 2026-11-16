@@ -198,7 +198,7 @@ struct AbsApi {
     int   (*on_save_loading)(const AbsApi *self, void (*cb)(void *save, void *user), void *user);   /* before USaveThePlaines::InitializeInventory resolves the item paths of a loaded save: last moment to create_asset the items the save names */
     int   (*on_save_written)(const AbsApi *self, void (*cb)(void *save, void *user), void *user);   /* after the save object's item path list was written (InitInventoryDataToSerializeFromInventoryArray): read the paths to keep a sidecar */
 
-    /* ---- v2.3: combat and menu events. All callbacks run on the game thread; hooks are installed on first registration. docs/PLUGIN-API.md "Events (API 2.3)" */
+    /* ---- v2.3: combat and menu events. All callbacks run on the game thread; hooks are installed on first registration. docs/API-REFERENCE.md */
     int   (*on_hit)(const AbsApi *self, void (*cb)(const struct AbsHitInfo *hit, void *user), void *user);                       /* one call per resolved impact (hit, guard, guard break, absorb) and per parry / dodge */
     int   (*on_attack_start)(const AbsApi *self, void (*cb)(void *character, int attack_id, const char *attack, void *user), void *user);   /* once per real attack (the ~30 prediction re-runs of OrderAttack::OnStart are filtered out) */
     int   (*on_pawn_spawned)(const AbsApi *self, void (*cb)(void *character, void *user), void *user);                         /* after AFightingCharacter::BeginPlay (player, NPCs, training dummy) */
@@ -211,7 +211,7 @@ struct AbsApi {
      *      kind's handler. Built in: "maps", "items", "styles", "powers", "npcs", "bots", "ranks", "bot_trials", "poise", "clones", "anim_sets", "weapons". register_content_kind adds more (call it in AbsPlugin_Load; entries are processed once at engine ready, again before a save resolves its items).
      *      validate(json, err, cap, user): json = compact text of ONE entry object; return 1 if usable, else 0 and write the reason into err (the entry is skipped and logged).
      *      apply(mod_id, entry_id, json, user): return 0 when done (it is not called again), nonzero to be retried at the next pass. Both run on the game thread, inside the plugin's crash guard.
-     *      Returns 0 = registered, 1 = bad arguments / table full, 2 = the kind already has a handler. docs\PLUGIN-API.md "Content registry". */
+     *      Returns 0 = registered, 1 = bad arguments / table full, 2 = the kind already has a handler. docs/API-REFERENCE.md. */
     int   (*register_content_kind)(const AbsApi *self, const char *kind, int (*validate)(const char *json, char *err, int cap, void *user), int (*apply)(const char *mod_id, const char *entry_id, const char *json, void *user), void *user);
 
     /* ---- v2.5: runtime textures (item icons without cooking). Game thread only; path = "/Game/Mods/<Mod>/<Name>.<Name>"; the texture is rooted and found by that path
@@ -219,7 +219,7 @@ struct AbsApi {
     void *(*create_texture)(const AbsApi *self, const void *bgra, int width, int height, const char *path);   /* 32-bit BGRA pixels (straight alpha), row-major, top row first, 1..4096 per side */
     void *(*texture_from_file)(const AbsApi *self, const char *file_utf8, const char *path);                 /* PNG / JPEG / BMP / GIF / TIFF decoded by Windows Imaging Component; file = absolute path */
 
-    /* ---- v2.6: test functions - drive fights without a keyboard and keep the practice dummy usable (docs/PLUGIN-API.md "Functions for automated checks"). Game thread only.
+    /* ---- v2.6: test functions - drive fights without a keyboard and keep the practice dummy usable (docs/API-REFERENCE.md). Game thread only.
      *      A "character" is an AFightingCharacter (the player, an NPC, the training dummy). */
     int   (*test_heal)(const AbsApi *self, void *character);                                  /* health and guard to full, ghost damage and down state cleared; 1 = ok */
     int   (*test_set_invincible)(const AbsApi *self, void *character, int on);                /* HealthComponent::ServerSetInvicible; returns the resulting state (0/1) or -1 */
@@ -244,7 +244,7 @@ struct AbsApi {
     int   (*on_power_used)(const AbsApi *self, void (*cb)(void *character, void *item_data, void *actor, int dir, void *user), void *user);   /* a power's effect actor was spawned (BPE_BeginItemUseAction) after AFightingCharacter::LaunchItemUseOrder: character = user (player or NPC), item_data = the UUsableItemData, actor = the spawned AUsableItem instance, dir 0/1. The place to patch the INSTANCE (m_ItemAttackName, hit shape radius): never write the stock class defaults. Hooks are installed on first registration; 0 = ok */
     int   (*power_use)(const AbsApi *self, void *character, int dir);                          /* use the power in slot dir without a key (keys 1/3 do not reach powers in practice mode): for the local player (character NULL = the player) UInventoryComponent::CanUseEquippedItem must say CanUse (else refused, reason logged), then AFightingCharacter::LaunchItemUseOrder; for an NPC just the launch. The HUD's launch event is not sent. 1 = launched */
 
-    /* ---- v2.10: decks, fighting styles, weapon / style events (docs/PLUGIN-API.md "Decks, styles and the weapon slot"). Game thread only.
+    /* ---- v2.10: decks, fighting styles, weapon / style events (docs/API-REFERENCE.md). Game thread only.
      *      family: 0 BareHands, 1 Sword, 2 WarGloves. Decks are the live save's m_SavedData.m_SavedCombos[family] (what Meditation > Combat Deck shows). */
     int   (*combo_slot_ensure)(const AbsApi *self, int family, const char *name, int copy_from_index);   /* index of the deck named `name`; if missing it is created as a deep copy of deck copy_from_index (appended: the 4th deck gets index 3). -1 on error */
     int   (*combo_load)(const AbsApi *self, int family, const char *name);                                 /* make that deck current: FightingPlayerController::BPF_LoadComboFromName(name, family, Current) (also loads it into the attack component); 1 = ok */
@@ -260,7 +260,7 @@ struct AbsApi {
     int   (*set_timer_id)(const AbsApi *self, float seconds, int repeat, void (*cb)(void *user), void *user);   /* like set_timer but returns the timer id (> 0), 0 = not created (reason logged) */
     int   (*cancel_timer)(const AbsApi *self, int timer_id);                                   /* remove one of YOUR timers (also from inside its own callback); 1 = removed, 0 = unknown id / not yours / already fired */
 
-    /* ---- v2.12: modes (modes.inc, docs/PLUGIN-API.md "Modes"). Game thread only. */
+    /* ---- v2.12: modes (modes.inc, docs/API-REFERENCE.md). Game thread only. */
     int   (*travel)(const AbsApi *self, const char *map_or_url);                               /* console "open <map>?listen" ("/Game/Maps/.../Name[.Name]" gets ?listen unless it has options; "open ..." text is sent as is). The world changes a moment later (on_world_loaded). 1 = issued. For a lone player in a 1v1 arena call solo_duel(1) first */
     int   (*console_cmd)(const AbsApi *self, const char *cmd);                                 /* KismetSystemLibrary::ExecuteConsoleCommand with the local player controller; 1 = issued */
     int   (*solo_duel)(const AbsApi *self, int on);                                            /* the loader's solo-duel switch: 1 = a hosted 1v1 starts with only the local player (m_iNumTeams 2 -> 1), 0 = stock, -1 = just read; returns the state. Takes effect for the NEXT travel */
@@ -275,7 +275,7 @@ struct AbsApi {
     int   (*mapscript_phase)(const AbsApi *self, const char *name, int on);                    /* set a named phase flag (lights/actions of the scene test it); 1 = ok */
     int   (*mapscript_mesh)(const AbsApi *self, const char *mesh_id, const char *state);       /* move a scene mesh to a named state ("open", "closed"); 1 = ok */
 
-    /* ---- v2.14: NPCs (npcs.inc, docs/PLUGIN-API.md "NPCs"). Game thread only. The content kind "npcs" is built into the loader. */
+    /* ---- v2.14: NPCs (npcs.inc, docs/API-REFERENCE.md). Game thread only. The content kind "npcs" is built into the loader. */
     void *(*npc_spawn)(const AbsApi *self, const char *archetype, const float loc[3], const float *yaw_deg, const char *class_path);   /* spawn an NPC AT loc (NULL = 350 uu in front of the local character): `archetype` = an ArchetypeAsset path ("/Game/DB/AI/NPCs/Trickster/Trickster.Trickster", or a mod copy "/Game/Mods/<mod>/<id>.<id>") or the plain id of an npcs content entry (then its faction / aggro / reactions apply). The spawner actor is placed at loc BEFORE the spawn and the pawn is never teleported afterwards (a teleported AI NPC never moves again). class_path NULL / "" = the game's generic AI character. Returns the character or NULL */
     int   (*npc_remove)(const AbsApi *self, void *character);                                  /* remove an NPC made by npc_spawn (UnSpawnAi + destroy our spawner), or destroy any other character actor; 1 = ok */
     int   (*npc_set_target)(const AbsApi *self, void *character, void *target);                /* UAIFightingComponent::BPF_ForceEnemy(target): the NPC goes for that actor (the player: get_local_player_controller + K2_GetPawn). NULL clears (untested); 1 = ok */
@@ -286,7 +286,7 @@ struct AbsApi {
     int   (*area_remove)(const AbsApi *self, int handle);                                      /* stop watching; 1 = removed */
     int   (*show_message)(const AbsApi *self, const char *utf8, float seconds);                /* on-screen text (the loader's toast, up to 3 lines of 96 characters, 1..30 s); 1 = shown */
 
-    /* ---- v2.15: bots and ranks (bots.inc, docs/PLUGIN-API.md "Bots and ranks"). Game thread only. character NULL = the local player.
+    /* ---- v2.15: bots and ranks (bots.inc, docs/API-REFERENCE.md). Game thread only. character NULL = the local player.
      *      The content kinds "bots" (spawn one with npc_spawn("<bot id>")) and "ranks" (reward tables for trial_reward) are built into the loader. */
     int   (*xp_add)(const AbsApi *self, void *character, int amount);                          /* StatsComponent.BPF_AddGlobalXP(GAMEMODE, amount, Current, notify 0): levels / Prestige rise exactly like after a combat trial; 1..10000000; 1 = called */
     int   (*gm_points_add)(const AbsApi *self, void *character, int points);                   /* native UStatsComponent::AddGameModeXP(points, Current): game-mode points, one Rift Coin (loot box) per 5; returns the Rift Coins added or -1 */
@@ -294,11 +294,11 @@ struct AbsApi {
     int   (*trial_reward)(const AbsApi *self, void *character, const char *ranks_id, int won, int rounds_won, int mentoring, int pay, struct AbsTrialReward *out);   /* the stock 1v1 reward rules (500 finish, +4000 win, +1500 for 2+ rounds won, +500 mentoring; 1 point each) or a "ranks" entry's table (ranks_id); pay = 1 grants it with xp_add + gm_points_add. Returns the XP; out may be NULL */
     float (*npc_difficulty)(const AbsApi *self, void *npc, float set);                         /* the AI's live difficulty level 0..100 (UAIFightingComponent m_fCurrentDifficultyLevel, rubber-bands during a fight); set >= 0 writes it; -1 = not an AI character */
 
-    /* ---- v2.16: bot trials (bottrial.inc, docs/PLUGIN-API.md "Bot trials"). Game thread only. The content kind "bot_trials" is built into the loader. */
+    /* ---- v2.16: bot trials (bottrial.inc, docs/API-REFERENCE.md). Game thread only. The content kind "bot_trials" is built into the loader. */
     int   (*bot_trial_start)(const AbsApi *self, const char *trial_id);                        /* start the bot_trials entry `trial_id` (solo duel + travel to its map, rounds against its bot(s), reward, travel back); 1 = started, 0 = unknown id / a trial is already running */
     int   (*bot_trial_status)(const AbsApi *self, struct AbsTrialStatus *out);                 /* the running (or last finished) trial; set out->size first; 1 = there is one */
 
-    /* ---- v2.17: weapon animation sets (animstyle.inc, docs/PLUGIN-API.md "Animation style"). A character can use another
+    /* ---- v2.17: weapon animation sets (animstyle.inc, docs/API-REFERENCE.md). A character can use another
      *      style INDEX of the style-indexed animation tables (guard, hit reactions, locomotion, dodge, stance change, cancel, fidgets) while its fighting style (stats, special
      *      ability, save, menus) stays what it is. character NULL = the local player (kept across travel); other characters' overrides are dropped on a world change. */
     int   (*anim_style_set)(const AbsApi *self, void *character, int style_index);             /* animation lookups of `character` use table index style_index (0..63) from now on; -1 removes the override. Game thread. The hooks are installed at the first call with a style. 1 = ok */
@@ -312,15 +312,15 @@ struct AbsApi {
     int   (*sidecar_get)(const AbsApi *self, void *character, const char *key, char *out, int cap);   /* 1 = found (out = value), 0 = absent / no character save loaded */
     int   (*sidecar_set)(const AbsApi *self, void *character, const char *key, const char *value);    /* value NULL removes; key without '=', CR, LF; 1 = stored on disk */
 
-    /* ---- v2.19: pre-hit, damage multipliers, poise (hitpre.inc, docs/PLUGIN-API.md "Pre-hit, damage_mod and poise"). Game thread only. character NULL = the local player
+    /* ---- v2.19: pre-hit, damage multipliers, poise (hitpre.inc, docs/API-REFERENCE.md). Game thread only. character NULL = the local player
      *      (kept across travel); other characters' entries are dropped when they are removed or the world changes. Hooks are installed at the first use. */
     int   (*on_hit_pre)(const AbsApi *self, void (*cb)(struct AbsHitPre *hit, void *user), void *user);   /* before the game resolves an impact on a character: change the scales in *hit (see AbsHitPre). 0 = ok, 1 = bad arguments / 16 callbacks, 2 = hooks failed */
     int   (*damage_mod)(const AbsApi *self, void *character, const char *key, float value);     /* per-character multiplier 0..100 (1 = off): damage_taken, damage_dealt, stun_taken, stun_dealt, knockback_taken, knockback_dealt, special_ratio (the attacker's cut share). on_hit_pre starts from these. 1 = ok */
     int   (*poise_set)(const AbsApi *self, void *character, float poise, int heavy_power);      /* poise gauge: while > 0 hits below heavy_power (EAttackPowers 0 Light, 1 Medium, 2 Strong; -1 = default 2) do not interrupt and drain it by their damage; an empty gauge or a heavy hit interrupts and refills it. poise <= 0 removes. 1 = ok */
     float (*poise_get)(const AbsApi *self, void *character);                                   /* current gauge, -1 = no poise */
-    /* ---- v2.20: defence outcome events (defense_ev.inc, docs/PLUGIN-API.md "Defence events"). Game thread. The hooks are installed at the first registration. */
+    /* ---- v2.20: defence outcome events (defense_ev.inc, docs/API-REFERENCE.md). Game thread. The hooks are installed at the first registration. */
     int   (*on_defense)(const AbsApi *self, void (*cb)(const struct AbsDefenseInfo *d, void *user), void *user);   /* one call per successful defence (guard, guard break, absorb, parry, deflect, dodge, avoid; see AbsDefenseInfo). 0 = ok, 1 = bad arguments / 16 callbacks, 2 = hooks failed */
-    /* ---- v2.21: Dear ImGui overlay (overlay.cpp, docs/PLUGIN-API.md "Overlay"). The overlay is installed at the first overlay_register / overlay_set_mode, not at start-up.
+    /* ---- v2.21: Dear ImGui overlay (overlay.cpp, docs/API-REFERENCE.md). The overlay is installed at the first overlay_register / overlay_set_mode, not at start-up.
      *      Threads: overlay_register, overlay_unregister, overlay_set_mode and overlay_raw_mouse may be called from any thread (the game thread, AbsPlugin_Load, a draw callback);
      *      they take a lock that the render thread holds while it draws, so a slow draw callback delays them. Draw callbacks run on the RENDER thread. */
     int   (*overlay_info)(const AbsApi *self, struct AbsOverlayInfo *out);                 /* any thread; fills what fits in out->size and sets out->size to the bytes filled. 0 = ok, 1 = bad arguments or the overlay has not started yet, 2 = unavailable (dead; out->state = -1). Bind the context only inside a draw callback */

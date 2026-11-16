@@ -5,7 +5,7 @@ New-ContentMod.ps1 - scaffold a data-only mod (no plugin.dll): mod.json + conten
 
   -Kind  items (default; a clone of a stock mask, granted + equipped) | weapon (items with gear_row, Sword family) | styles (needs your own FightingStyleDB in a pak)
   -Dest  parent folder (default <repo>\work\sdk-out)
-  -RowsJson  also write an empty rows.json (table / object edits, docs\MODDING-GUIDE.md sections 5-6)
+  -RowsJson  also write an empty rows.json (table / object edits, docs/CONTENT.md)
 Never touches the game folder: copy the finished folder into <game>\Mods\ yourself.
 #>
 param([Parameter(Mandatory)][string]$Name, [ValidateSet('items', 'weapon', 'styles')][string]$Kind = 'items', [string]$Dest, [switch]$RowsJson, [switch]$Force)
@@ -88,5 +88,5 @@ if ($RowsJson) { W 'rows.json' $rows }
 Write-Host "created $dir (kind $Kind, id $id). Copy it to <game>\Mods\ ; check LanNative\lannative.log for 'content:' lines and F2 'Content'."
 if ($Kind -eq 'styles') {
     Write-Host "NOTE: this style entry is a template. The loader skips it as INVALID until you replace 'db' with your own FightingStyleDB asset (in a pak in this mod folder)."
-    Write-Host "      A new style also needs LanNative\symbols.bin and the style unlocked in your save; new style ids start at 6. See docs/sdk/README.md section 3."
+    Write-Host "      A new style also needs LanNative\symbols.bin and the style unlocked in your save; new style ids start at 6. See docs/CONTENT.md."
 }

@@ -1,4 +1,4 @@
-// npcs.inc - NPCs (included at the end of content.inc, after powers.inc). Guide: docs\MODDING-GUIDE.md section 10d, API: docs\PLUGIN-API.md "NPCs (v2.11)".
+// npcs.inc - NPCs (included at the end of content.inc, after powers.inc). Guide: docs/CONTENT.md, API: docs/API-REFERENCE.md.
 // Part 1: API v2.11 (npc_spawn, npc_remove, npc_set_target, npc_set_faction, faction_can_target, npc_archetype, on_area, area_remove, show_message).
 // Part 2: the content kind "npcs" = a copy of a stock ArchetypeAsset (health, style, deck rows, AI tuning, faction) plus data-driven reactions (on_health_below, on_death, on_area) and an optional
 // spawn point. The stock archetype and its deck are never written; every NPC of the entry is made by npc_spawn (own AAISpawner placed AT the spot: an AI pawn that is teleported after it spawned never moves again).

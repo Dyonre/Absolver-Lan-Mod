@@ -1,4 +1,4 @@
-// mapscript.inc - generic map script of the script extender (included by secore.inc after modes.inc). Guide: docs\MODDING-GUIDE.md "Map script".
+// mapscript.inc - generic map script of the script extender (included by secore.inc after modes.inc). Guide: docs/CONTENT.md.
 // A mod ships  Mods\<mod>\content\maps\*.json  (content kind "maps", registered by content_init). One entry = one scene for the maps whose world path contains `map`:
 //   lights (point / spot, colour + intensity from key-frame curves, on/off by phase), meshes (movable props / doors with named states, collision switched with the state),
 //   triggers (player in a box -> set a mesh state, a phase, a light, a banner message) and curves. Everything is spawned at runtime with engine classes (APointLight, ASpotLight,

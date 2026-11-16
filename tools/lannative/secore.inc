@@ -722,7 +722,7 @@ static int se_save_reg(const AbsApi *self, int written, void (*cb)(void *, void 
 static int api_p_on_save_loading(const AbsApi *self, void (*cb)(void *, void *), void *user) { return se_save_reg(self, 0, cb, user); }
 static int api_p_on_save_written(const AbsApi *self, void (*cb)(void *, void *), void *user) { return se_save_reg(self, 1, cb, user); }
 
-// ----- events v2.3: on_hit, on_attack_start, on_pawn_spawned/destroyed, on_death, on_menu; char_info. Hook points (docs\PLUGIN-API.md "Events (API 2.3)").
+// ----- events v2.3: on_hit, on_attack_start, on_pawn_spawned/destroyed, on_death, on_menu; char_info. Hook points (docs/API-REFERENCE.md).
 //   UHitComponent::GenerateImpact(victim's hit component, attacker, FName attack, ?, bool perfectLink, FHitResult*, FHitRequest*, out float damage, out bool guarded, out bool guardBroken, out bool absorbed)
 //     = the authority's hit resolution (applies the damage through AFightingCharacter::ApplyDamage); UDefenseComponent::NotifyParrySuccessful / NotifyAvoidSuccessful for parry / dodge
 //   OrderAttack::OnStart(order): runs ~30x per attack (prediction re-sims on copies) -> deduped on (owner +0x30, attack FName at *(order +0x48) +0x10, m_iOriginalLaunchTime +0x20) (evdedupe.h)

@@ -1,6 +1,6 @@
 // defense_ev.inc - on_defense: defence outcome events (guard, guard break, absorb, parry, deflect, dodge, avoid) with the attack row, attacker,
 // defender and timing (API v2.20; included by content.inc after hitpre.inc: uses hitpre's hp_is_fchar / hp_comp).
-// Pure logic: defense_ev.h. docs\PLUGIN-API.md "Defence events".
+// Pure logic: defense_ev.h. docs/API-REFERENCE.md.
 //
 // Sources (all installed at the first on_defense registration; each stacks with the hooks already there):
 //   on_hit (secore, loader's own registration)          guard / guard break / absorb, from GenerateImpact's out flags (outcome)

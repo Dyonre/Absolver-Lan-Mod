@@ -1,4 +1,4 @@
-// powers.inc - "powers" (included at the end of content.inc). Guide: docs\MODDING-GUIDE.md section 10c, API: docs\PLUGIN-API.md "Powers (v2.9)".
+// powers.inc - "powers" (included at the end of content.inc). Guide: docs/CONTENT.md, API: docs/API-REFERENCE.md.
 // Part 1: API v2.9 (inventory_equip_slot, on_power_used, power_use). Part 2: the content kind "powers" = a clone of a stock power (UsableItemData) built by the items code,
 // plus per-power animations, an own ItemAttack row and a per-INSTANCE override of the spawned effect actor (attack row, radius). The stock classes and their CDOs are never written.
 #include "powers.h"

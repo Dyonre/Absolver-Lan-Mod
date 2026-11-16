@@ -1,4 +1,4 @@
-// bots.inc - bots + ranks (included at the end of content.inc, after npcs.inc). API: docs\PLUGIN-API.md "Bots and ranks (v2.15)".
+// bots.inc - bots + ranks (included at the end of content.inc, after npcs.inc). API: docs/API-REFERENCE.md.
 // Part 1: content kind "bots" = an npcs entry (npcs.inc does the archetype copy, spawn point, aggro, reactions; spawn with npc_spawn("<id>")) built from
 //   template (default the unused dev bot AI_Classic_Hard) + a DECK (bot_decks / decks_json shape, inline or a file in the mod) + an AI PROFILE
 //   (vanilla / classic_hard, bots.h tables; a local add-on may add more) + ai_level (initial difficulty 0..100). Every write is read back and logged.
