@@ -1,0 +1,95 @@
+# How a mod works
+
+Absolver mods have usually been paks that replace game files: one mod per file, the last one wins, and nothing checks whether two mods fit
+together. With the loader a mod is a folder. It can change single fields of game tables (several mods can change the same table), create new
+game objects from JSON, run code, declare what it needs, and be switched on and off from the game. The loader runs only with `-NoEAC`
+(offline / LAN).
+
+## Folder
+One folder per mod in `<game>\Mods\`. Every part is optional:
+
+```
+Mods\MyMod\
+  mod.json              id, version, dependencies, flags
+  rows.json             edits of game tables and data assets
+  content\<kind>\*.json data the loader turns into game objects (docs/CONTENT.md)
+  plugin.dll            native plugin (64-bit) + plugin.cfg for its settings
+  scripts\*.lua         Lua scripts (run by the LuaHost plugin, docs/LUA.md)
+  *.pak                 packed game files (cooked for UE 4.18.3), mounted by the loader
+```
+
+## mod.json
+```json
+{ "id": "MyMod", "name": "My Mod", "version": "1.0.0", "api": 2, "author": "...", "description": "...",
+  "requires": [ { "id": "Lib", "min": "1.0" } ], "after": ["Other"], "incompatible_with": ["Rival"],
+  "supersedes": ["zzzOldMod.pak"], "affects_gameplay": true, "settings": [ ... ] }
+```
+| Key | Meaning |
+|---|---|
+| `id` | letters, digits, `_ - .`; default = folder name; a second mod with the same id is skipped |
+| `version` | dotted number, compared by `requires.min` |
+| `api` | lowest plugin API version the mod needs (2) |
+| `requires` | mods that must be present, enabled and at least `min`; otherwise this mod is skipped |
+| `after` | load after these mods when they are present |
+| `incompatible_with` | mod ids that must not load together with this one |
+| `supersedes` | pak file names of other mods that this mod replaces; they are not mounted while this mod ships a pak |
+| `affects_gameplay` | `false` = cosmetic only (looks, textures); left out of the LAN mod check. Default `true` |
+| `settings` | fields shown as a form on the Mods page (F2); the values go to the mod's `plugin.cfg` |
+| `name`, `author`, `description` | display only |
+
+## Load order
+1. Mods switched off on the Mods page (or with a line `-Name` in `Mods\loadorder.txt`) are skipped.
+2. Mods whose `requires`, `api` or `incompatible_with` cannot be met are skipped, together with every mod that needs them.
+3. The rest is ordered by `requires` and `after`; `loadorder.txt` breaks ties (a later line wins). New folders are added at the end (highest priority).
+
+The same order applies to paks, `rows.json`, content and plugins. It is written to `LanNative\lannative.log` and `LanNative\mods.txt`;
+skipped mods and their reason are also shown on screen.
+
+## Start sequence
+1. The game loads `version.dll`. Without `-NoEAC` the loader stops here.
+2. Settings are read; safe mode (Shift held, `-SESafe`, or two failed starts in a row) skips everything below.
+3. Mods are scanned and ordered; their paks are mounted.
+4. Plugins load. A `plugin.dll` loads only if its folder is listed without `#` in `Mods\plugins.txt`; the loader adds `#Name` the first time
+   it sees a new plugin. It calls `int AbsPlugin_Load(const AbsApi *api)`; return 0 to stay loaded.
+5. On the first game tick content entries are applied and `on_engine_ready` callbacks run.
+6. `rows.json` edits are applied each time the game loads the table or asset they target.
+7. At exit `AbsPlugin_Unload()` is called if the plugin exports it.
+
+## Conflicts
+The Mods page and `mods.txt` list paks that overwrite each other's files, `rows.json` fields set by several mods (the later mod wins that field)
+and duplicate content ids (the later mod wins). Content and `rows.json` reload without a restart from the first line of the Mods page.
+
+## Saves
+Objects a mod creates live under `/Game/Mods/<mod id>/`. Items granted to a character are saved by that path; when the mod is removed they
+are dropped at the next save. Plugins keep their own data outside the game's save files (`kv_get` / `kv_set`, `sidecar_get` / `sidecar_set`).
+
+## LAN
+Paks, `rows.json`, `content\` and allowed `plugin.dll` files of every mod with `affects_gameplay` true form a fingerprint that host and joiner compare (`modmismatch`,
+`docs/SETTINGS.md`). A plugin runs only on the PC that has it; other players see its effects only where the game itself sends them.
+
+## Starter mod
+A data mod: `Mods\FasterJab\rows.json` (`examples/FastJab` also adds a new move)
+```json
+{ "format": 1, "edits": [ { "table": "attacks", "row": "004", "set": { "m_iFrameBuildUp": 8 } } ] }
+```
+`LanNative\rows.txt` lists each edit as applied or skipped with the reason.
+
+A plugin (template: `examples/PluginTemplate`; scaffold: `tools/sdk/New-Plugin.ps1 -Name MyPlugin -Build`, needs MSVC Build Tools 2022 x64):
+```c
+#include <windows.h>
+#include <stddef.h>
+#include "AbsolverSE.h"
+static const AbsApi *A;
+
+static void on_hit(const AbsHitInfo *h, void *user) { A->log(A, "hit %s damage %.1f", h->attack, h->damage); }
+
+__declspec(dllexport) int AbsPlugin_Load(const AbsApi *api) {
+    if (api->version != ABS_API_VERSION || api->size < offsetof(AbsApi, on_hit) + sizeof(void *)) return 1;
+    A = api;
+    A->on_hit(A, on_hit, NULL);
+    return 0;
+}
+```
+Copy `plugin.dll` (and the `mod.json` that `New-Plugin.ps1` writes; it is optional) to `Mods\MyPlugin\`, start the game once, remove the `#` before `MyPlugin` in `Mods\plugins.txt`, start
+again. Lines tagged `plugin MyPlugin:` appear in `LanNative\lannative.log`. Every API function takes `A` as its first argument; check
+`api->size` before using a function newer than your header. Reference: `docs/API-REFERENCE.md`.

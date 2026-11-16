@@ -145,7 +145,7 @@ def main():
          'Generated from `tools/lannative/AbsolverSE.h` (`python tools/sdk/gen_api_reference.py`). This page may lag the header: the header is the source of truth.  \n'
          f'`ABS_API_VERSION` = {ver.group(1) if ver else "?"}; {len(fns)} functions. Every function takes `self` (the `const AbsApi *` you were given) as its first argument. '
          'Fields are only ever appended: check `api->size >= offsetof(AbsApi, <field>) + sizeof(void *)` before using a field newer than the version you built against.  \n'
-         'Notes for larger plugins: `docs/ADVANCED.md`.\n',
+         'How a mod is loaded: `docs/MODS.md`. Notes for larger plugins: `docs/ADVANCED.md`.\n',
          '## Header fields\n\n| Name | Type | Description |\n|---|---|---|']
     for r in rows:
         if r['kind'] == 'field':
