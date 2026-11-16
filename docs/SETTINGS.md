@@ -45,7 +45,8 @@ Keys of individual features (`wp_*`, `anim_sets*`, `bot_ai_*`, `clone_spawn`, `d
 ## Command line
 | Switch | Meaning |
 |---|---|
-| `-NoEAC` | required: without it the loader does nothing. The launcher installed in place of `Absolver.exe` adds it |
+| `-NoEAC` | required: without it the loader does nothing. The launcher installed in place of `Absolver.exe` adds it in Modded starts |
+| `-Modded` / `-Vanilla` | launcher only (Steam launch options): start that way without the Modded / Vanilla window. Vanilla renames `version.dll` to `version.dll.off` and runs the original `Absolver.exe.eac` with EasyAntiCheat; the next Modded start renames it back. The remembered choice is `LanNative\launch.txt` (`modded` / `vanilla`); Shift held at start shows the window again (release it once the window is up: Shift still held when the game starts also selects safe mode) |
 | `-NoMods` | start without mods |
 | `-SESafe` | safe mode: no mods, no plugins, no extender hooks (also: Shift held at start, or a file `LanNative\safe.txt`) |
 | `-LNServer`, `-LNSave=<character>` | server mode |

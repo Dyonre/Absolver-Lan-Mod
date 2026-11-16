@@ -24,8 +24,9 @@ Much of the code and documentation was written with the help of AI tools.
 ## Multiplayer and VPNs
 
 The official online mode is not supported and almost certainly will not work with this loader (it needs EasyAntiCheat off). Do not use mods
-online. To play with friends use a private LAN, or a VPN / virtual LAN over the internet. That is your responsibility: only play with people
-you trust, keep the join key private, never port-forward the game to the internet, and read the terms of the VPN software you choose.
+online; choose Vanilla when the game starts to play online without the loader. To play with friends use a private LAN, or a VPN /
+virtual LAN over the internet. That is your responsibility: only play with people you trust, keep the join key private, never
+port-forward the game to the internet, and read the terms of the VPN software you choose.
 See `docs/HOSTING.md`.
 
 ## Installation
@@ -34,9 +35,11 @@ See `docs/HOSTING.md`.
 2. Run `Install.bat`. It finds the game through Steam, copies the loader in, keeps the original `Absolver.exe` as `Absolver.exe.eac`, and
    creates a `Mods` folder. It also asks GitHub whether a newer release exists (nothing is downloaded; `Install.bat -NoUpdateCheck` skips
    it). The loader itself never goes online.
-3. Press Play in Steam as usual.
+3. Press Play in Steam as usual. A window asks how to start: **Modded** (the loader and your mods, offline and private LAN only) or
+   **Vanilla** (the unmodified game with EasyAntiCheat, for the official online mode). Paks in `Content\Paks` load either way and are never
+   moved. Tick "Remember my choice" to skip the window; hold Shift while the game starts to see it again (`docs/SETTINGS.md`).
 
-To uninstall (or to play the official online mode), run `Uninstall.bat`. Steam's "Verify integrity of game files" also undoes the install.
+To uninstall, run `Uninstall.bat`. Steam's "Verify integrity of game files" also undoes the install.
 
 Features that hook game functions by name need a `symbols.bin` made from your own copy of the game, placed in
 `Binaries\Win64\LanNative\` (`docs/ADVANCED.md`): plugins using `hook_symbol`, fighting-style buttons, `"learn": "always"` rows, hit / damage /
