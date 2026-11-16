@@ -1,4 +1,4 @@
--- LuaDemo: the smallest useful Lua mod (docs/sdk/LUA.md). The player's Jab (attack row 004) deals 3x damage; every result is logged.
+-- LuaDemo: the smallest useful Lua mod (docs/LUA.md). The player's Jab (attack row 004) deals 3x damage; every result is logged.
 -- Also shows the event bus between scripts (abs.emit / abs.on), a timer and the per-mod key/value store.
 local SCALE = 3
 

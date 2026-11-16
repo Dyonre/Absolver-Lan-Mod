@@ -13,7 +13,7 @@ are optional (MODDING-GUIDE section 9).
   Guide: `docs/MODDING-GUIDE.md` section 10e.
 * `CloneDemo` - `content/clones/duelist.json`: player-clone bots, second local players with their own character, driven by a bot brain (F1 > Mods: Clones).
   Brains need `bot_ai = on` and a brain preset mod.
-* `LuaDemo` - `scripts/`: example for the Lua host (`docs/sdk/LUA.md`): your Jab (row 004) does 3x damage. Needs the LuaHost plugin listed in `Mods/plugins.txt`.
+* `LuaDemo` - `scripts/`: example for the Lua host (`docs/LUA.md`): your Jab (row 004) does 3x damage. Needs the LuaHost plugin listed in `Mods/plugins.txt`.
 * `RecordsDemoA`, `RecordsDemoB` - `rows.json`: the records data layer. A's flat retunes several moves; B overrides one of A's flats, so every row that inherits it
   changes. Need `records = on` in `LanNative/config.txt`.
 

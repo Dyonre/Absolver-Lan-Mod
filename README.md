@@ -16,7 +16,7 @@ Much of the code and documentation was written with the help of AI tools.
 * Data mods: change table rows and data assets (move stats, frame data, shop prices, decks and more) with a `rows.json`, checked before each edit reaches the game (`docs/MODDING-GUIDE.md` sections 5-6).
 * Pak mods: new or replaced game files, mounted from each mod's folder in a load order you control (section 4).
 * Content without code: new items, fighting styles, powers, NPCs, map scripts and bots from JSON files (sections 10b-10f).
-* Lua scripts and C plugins for new game logic (`docs/sdk/LUA.md`, `docs/PLUGIN-API.md`).
+* Lua scripts and C plugins for new game logic (`docs/LUA.md`, `docs/PLUGIN-API.md`).
 * `mod.json` for a mod's name, version, requirements, incompatibilities and settings (section 9).
 
 **In game**
@@ -58,7 +58,7 @@ Start with [docs/MODDING-GUIDE.md](docs/MODDING-GUIDE.md).
 
 ## Where things are
 
-* `docs/` - guides: `MODDING-GUIDE.md` (data mods), `sdk/README.md` (scaffolds and plugins), `sdk/LUA.md` (Lua), `PLUGIN-API.md` (C API), `HOSTING.md` (LAN), `CHANGELOG.md` (what changed in each release)
+* `docs/` - guides: `MODDING-GUIDE.md` (data mods), `sdk/README.md` (scaffolds and plugins), `LUA.md` (Lua), `PLUGIN-API.md` (C API), `HOSTING.md` (LAN), `CHANGELOG.md` (what changed in each release)
 * `examples/` - small working mods and plugins to copy from
 * `tools/` - loader source, launcher, installer, scaffolding and packaging scripts
 

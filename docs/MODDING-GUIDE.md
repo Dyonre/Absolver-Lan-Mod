@@ -581,7 +581,7 @@ Checklist:
 
 ## 12. Limits (what this cannot do yet)
 
-* Edits cover **DataTables** and **data assets** (objects with properties). They cannot change Blueprint graphs, C++ behaviour or anything stored in code. A mod that needs new game logic needs a plugin DLL (`docs/PLUGIN-API.md`) or a Lua script (`docs/sdk/LUA.md`).
+* Edits cover **DataTables** and **data assets** (objects with properties). They cannot change Blueprint graphs, C++ behaviour or anything stored in code. A mod that needs new game logic needs a plugin DLL (`docs/PLUGIN-API.md`) or a Lua script (`docs/LUA.md`).
 * The attack table's row struct has no arrays or nested structs; other tables may. Struct values are written in the game's text form (`(X=1,Y=2)`); arrays inside rows are replaced as a whole (table rows have no per-element syntax; object edits do).
 * Removing an element from a list is not supported (only `set`, `append`, `insert`).
 * Data asset edits happen when the asset loads; an asset that never loads is never edited.

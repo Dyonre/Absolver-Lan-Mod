@@ -1,4 +1,4 @@
-// LuaHost - Lua 5.4 scripting for Absolver mods (Lua API: docs\sdk\LUA.md). A plugin of the script extender: it only runs when
+// LuaHost - Lua 5.4 scripting for Absolver mods (Lua API: docs/LUA.md). A plugin of the script extender: it only runs when
 // "LuaHost" is listed in Mods\plugins.txt (OFF by default, like every plugin). Lua source: third_party\lua (MIT, 5.4.9).
 // Scripts: Mods\<mod>\scripts\*.lua of every ENABLED mod, in the loader's load order (loadorder.txt + mod.json requires / after, manifest.h), files by name.
 // Each mod runs in its own environment (globals are per mod; the libraries and `abs` are shared). Sandbox, memory cap and instruction budget: luasandbox.h.

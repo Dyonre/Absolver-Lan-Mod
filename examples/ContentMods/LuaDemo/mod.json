@@ -1,2 +1,2 @@
 { "id": "LuaDemo", "name": "Lua demo (event bus, hit_pre, timer, kv)", "version": "0.1.0", "api": 2, "requires": ["LuaHost"], "affects_gameplay": true,
-  "description": "Example for the Lua host (docs/sdk/LUA.md): your Jab (row 004) does 3x damage. Needs the LuaHost plugin (built from tools/luahost, not in the release zip) listed in Mods/plugins.txt." }
+  "description": "Example for the Lua host (docs/LUA.md): your Jab (row 004) does 3x damage. Needs the LuaHost plugin (built from tools/luahost, not in the release zip) listed in Mods/plugins.txt." }
