@@ -1,5 +1,20 @@
 # Changes
 
+## 5.1.0
+
+**Starting the game**
+* Steam's Play button now asks how to start: Modded (the loader and the `Mods` folder, EasyAntiCheat off) or Vanilla (the original EasyAntiCheat launcher, no loader, online play works). Playing online no longer needs an uninstall.
+* A Vanilla start renames `Binaries\Win64\version.dll` to `version.dll.off`; the next Modded start renames it back. `Uninstall.bat` removes either file.
+* "Remember my choice" saves the answer in `LanNative\launch.txt`; holding Shift while the game starts asks again. `-Modded` or `-Vanilla` in the Steam launch options skips the question.
+* Paks placed directly in `Content\Paks` are no longer moved into `Mods` at every start, so they load unchanged in both modes. `AbsolverModLauncher.exe --migrate` still moves them on request.
+
+**Docs**
+* Short reference docs replace the long guides: `docs/MODS.md` (how a mod works, a starter mod), `docs/CONTENT.md` (`rows.json` and the content kinds), `docs/SETTINGS.md` (config keys, switches, keys), `docs/ADVANCED.md` (hooks, names, threads, failure handling, limits), `docs/API-REFERENCE.md` (grouped by topic) and `docs/LUA.md`.
+* Examples: `FastJab` (a data mod) and `PluginTemplate` (a plugin) remain; the other examples were removed.
+* The release zip carries these docs instead of `docs/MODDING-GUIDE.md`.
+
+The loader itself is unchanged apart from its version number.
+
 ## 5.0.0
 
 The LAN mod (LanNative 4.3.1) grew into a full mod loader and script extender. It is the same `version.dll`, with the LAN play of 4.3.1 still built in. Inside the code, the log and the file properties it is called Gleam Loader. LanNative 4.3.1 stays available as tag `v4.3.1`.
