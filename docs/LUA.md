@@ -74,7 +74,7 @@ Raw reflection is limited to `abs.get` / `abs.set` / `abs.find`: calling UFuncti
 
 ## Keys (keybind registry)
 `local key = abs.bind("toggle", "K", function() ... end, "Toggle my thing")` registers the action `<YourMod>.toggle` on K and returns the key it really got.
-* Players move keys in `Mods\LuaHost\keybinds.txt`: `LuaDemo.toggle = J` or `= off` (read at load and whenever the file changes).
+* Players move keys in `Mods\LuaHost\keybinds.txt`: `MyMod.toggle = J` or `= off` (read at load and whenever the file changes).
 * `Mods\LuaHost\keybinds_report.txt` lists every binding and every conflict (two actions on one key, or an action on a loader key F1-F11); conflicts are also logged. Both actions still fire on a shared key.
 * Keys: F1..F24, A..Z, 0..9, NUMPAD0..NUMPAD9, 0x01..0xFE. Only while the game window has the focus.
 * Limit: the loader has 32 key slots for all plugins together; each distinct key LuaHost uses takes one.
@@ -97,4 +97,4 @@ end)
 ## Hot reload, REPL, menu
 * Save a script: within a second every script is reloaded (the whole Lua state restarts: timers and handlers of the old state are gone, `ready` fires again). `reload = off` in plugin.cfg disables it.
 * REPL: write Lua into `Mods\LuaHost\repl_in.txt` (an expression or statements); it runs within a second, the result is logged (`luahost: repl>`) and appended to `repl_out.txt`. `repl = off` in plugin.cfg disables it.
-* F1 > Mods page: `LuaHost: reload scripts`, `LuaHost: status`.
+* Mods page (F2): `LuaHost: reload scripts`, `LuaHost: status`.
