@@ -14,9 +14,9 @@ Everything is on the **F1** menu:
 | `Join` | connects to the address in `ip.txt` |
 | `Bring joiners to me` | moves the joined players to the host |
 
-While connected as a joiner, `Host`, `Join` and map travel are ignored once (logged); select the item again within 5 seconds to leave and do it anyway. `ip.txt` line 2 may hold extra URL options for the join, or `none` for a bare URL. F11 `url` (MODDING-GUIDE section 3) shows the join URL without joining.
+While connected as a joiner, `Host`, `Join` and map travel are ignored once (logged); select the item again within 5 seconds to leave and do it anyway. `ip.txt` line 2 may hold extra URL options for the join, or `none` for a bare URL. The developer command `url` (`docs/ADVANCED.md`) shows the join URL without joining.
 
-Both sides compare their gameplay mods when a joiner arrives (`modmismatch = warn | block | off`, MODDING-GUIDE section 9).
+Both sides compare their gameplay mods when a joiner arrives (`modmismatch = warn | block | off`, `docs/MODS.md`).
 
 ## 2. Join protection
 

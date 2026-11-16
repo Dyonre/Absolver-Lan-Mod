@@ -10,13 +10,13 @@ The LAN mod (LanNative 4.3.1) grew into a full mod loader and script extender. I
 * `Install.bat` / `Uninstall.bat`: find the game through Steam, install the loader and a small launcher (the original `Absolver.exe` is kept as `Absolver.exe.eac`), create the `Mods` folder, and check GitHub once for a newer release (`-NoUpdateCheck` skips it). The game no longer has to be patched by hand.
 * `-NoMods` in the Steam launch options starts the game without any mod.
 
-**Mods** (`docs/MODDING-GUIDE.md`)
+**Mods** (`docs/MODS.md`)
 * A mod is a folder in `<game folder>\Mods\`; `Mods\loadorder.txt` sets the order and switches mods on and off.
 * `rows.json`: edit table rows and data assets (move stats, frame data, shop rows, decks and more). Every edit is checked first; a bad edit is skipped on its own and logged.
 * Pak mods: `.pak` files in a mod folder are mounted in load order; conflicts and split assets are reported.
 * Content without code: items, fighting styles, powers, NPCs, map scripts, bots and bot trials from JSON files in `content\`.
 * `mod.json`: name, version, required API, `requires`, `after`, `incompatible_with`, `supersedes`, gameplay flag and a list of settings.
-* Lua scripts (through the LuaHost plugin, built from `tools/luahost`) and C plugins (`docs/PLUGIN-API.md`, `docs/sdk/README.md`, scaffold scripts in `tools/sdk`).
+* Lua scripts (through the LuaHost plugin, built from `tools/luahost`) and C plugins (`docs/MODS.md`, `docs/API-REFERENCE.md`, scaffold scripts in `tools/sdk`).
 * Offline checkers `reccheck` (rows.json, mod.json, load order, paks) and `modscan` (pak conflicts).
 
 **In game**
