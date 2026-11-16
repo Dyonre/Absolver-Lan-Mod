@@ -8,6 +8,8 @@ It started as **LanNative**, a LAN-only mod, and grew into a full mod loader: th
 
 This is a hobby project, provided as is. I take no responsibility for anything that happens from using it. Not affiliated with Sloclap. No support is offered; if you want changes, fork it.
 
+Much of the code and documentation was written with the help of AI tools.
+
 ## What it does
 
 **Mods**
