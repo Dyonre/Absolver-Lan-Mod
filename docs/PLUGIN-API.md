@@ -583,7 +583,7 @@ No API functions; loader behaviour every mod meets. User-facing rules: `docs/MOD
 
 ## More documentation
 * `docs/sdk/README.md`: task-oriented guide with copy-paste examples, a plugin from zero, logging, safe mode, hot reload and the traps list.
-* `docs/sdk/API-REFERENCE.md`: per-function reference generated from the header (`python tools/sdk/gen_api_reference.py` after every header change).
+* `docs/API-REFERENCE.md`: per-function reference generated from the header (`python tools/sdk/gen_api_reference.py` after every header change).
 * `docs/LUA.md`: gameplay logic in Lua instead of C.
 * Scaffolds: `tools/sdk/New-Plugin.ps1`, `tools/sdk/New-ContentMod.ps1`.
 * `docs/MODDING-GUIDE.md`: paks, `rows.json`, `mod.json`, and every content kind without code.

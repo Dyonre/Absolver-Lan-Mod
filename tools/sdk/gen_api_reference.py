@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Generate docs/sdk/API-REFERENCE.md from tools/lannative/AbsolverSE.h (re-runnable; the header is the single source of truth).
+"""Generate docs/API-REFERENCE.md from tools/lannative/AbsolverSE.h (re-runnable; the header is the single source of truth).
 
 Usage: python tools/sdk/gen_api_reference.py [--header PATH] [--out PATH]
-Parses the `struct AbsApi` body: every `ret (*name)(params);  /* description */` becomes a table row. The "since" column is the
+Parses the `struct AbsApi` body: every `ret (*name)(params);  /* description */` becomes a table row, grouped by topic (TOPICS). The "since" column is the
 version header comment ("---- v2.4 (...)") the field sits under; fields before the first versioned block are 2.0.
 A comment on the line(s) just above a field is used when the field has no trailing comment.
 Also tables AbsHitInfo / AbsCharInfo members and the ABS_HIT_* enum. Exit code 1 if nothing parsed (header format changed).
@@ -107,10 +107,31 @@ def parse_plain_struct(text, name):
     return out
 
 
+# Topic of each function: the first matching rule wins; a function that matches no rule is listed under "Other", so nothing is dropped.
+TOPICS = [
+    ('Logging, settings, mod data', r'^(log|config_get|kv_get|kv_set|sidecar_get|sidecar_set)$'),
+    ('Hooks and call interception', r'^(hook_\w+|find_symbol|on_call|replace_native|trace\w*|frame_peek_int)$'),
+    ('Timers and threads', r'(timer|^run_on_game_thread$|^is_game_thread$)'),
+    ('UI: menus, text on screen, overlay', r'^(create_widget|add_to_viewport|remove_from_parent|add_menu_item|show_\w+|hud_score|overlay_\w+|on_menu|reload_content)$'),
+    ('Events', r'^on_\w+$'),
+    ('Reflection, memory, calling functions', r'^(find_\w+|load_object|object_\w+|class_name|is_a|\w*propert\w*|prop_ptr\w*|get_bool|set_bool|call_function\w*|for_each_\w+|dump_\w+|fname_\w+|make_text|text_to_string|set_text|char_info)$'),
+    ('Spawning, objects, assets, tables', r'^(spawn_actor|construct_object|duplicate_object|create_asset|add_to_root|create_texture|texture_from_file|get_world|get_local_player_controller|table_\w+|row_set_text|register_content_kind|inventory_\w+)$'),
+    ('Combat, characters, NPCs', r'^(test_\w+|power_use|combo_\w+|set_combat_style|anim_style\w*|real_style|npc_\w+|faction_\w+|area_remove|damage_mod|poise_\w+)$'),
+    ('Modes, maps, progression', r'^(travel|console_cmd|solo_duel|match_info|set_mode_prop|mapscript_\w+|xp_add|gm_points_add|rank_info|trial_reward|bot_trial_\w+)$'),
+]
+
+
+def topic_of(name):
+    for t, rx in TOPICS:
+        if re.search(rx, name):
+            return t
+    return 'Other'
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--header', default=str(ROOT / 'tools/lannative/AbsolverSE.h'))
-    ap.add_argument('--out', default=str(ROOT / 'docs/sdk/API-REFERENCE.md'))
+    ap.add_argument('--out', default=str(ROOT / 'docs/API-REFERENCE.md'))
     a = ap.parse_args()
     text = Path(a.header).read_text(encoding='utf-8', errors='replace')
     ver = re.search(r'#define\s+ABS_API_VERSION\s+(\d+)', text)
@@ -124,19 +145,18 @@ def main():
          'Generated from `tools/lannative/AbsolverSE.h` (`python tools/sdk/gen_api_reference.py`). This page may lag the header: the header is the source of truth.  \n'
          f'`ABS_API_VERSION` = {ver.group(1) if ver else "?"}; {len(fns)} functions. Every function takes `self` (the `const AbsApi *` you were given) as its first argument. '
          'Fields are only ever appended: check `api->size >= offsetof(AbsApi, <field>) + sizeof(void *)` before using a field newer than the version you built against.  \n'
-         'Task-oriented guide: `docs/sdk/README.md`. Behaviour details: `docs/PLUGIN-API.md`.\n',
+         'Notes for larger plugins: `docs/ADVANCED.md`.\n',
          '## Header fields\n\n| Name | Type | Description |\n|---|---|---|']
     for r in rows:
         if r['kind'] == 'field':
             o.append(f"| `{r['name']}` | `{clean(r['ret'])}` | {clean(r['desc'])} |")
     o.append('')
-    o.append('## Functions\n\nSince = the header block the field was added in (2.0 = the original v2 set, 2.1 = script extender additions).')
-    last = None
-    for r in fns:
-        if r['since'] != last:
-            last = r['since']
-            o.append(f'\n### Since {last}\n\n| Name | Signature | Description |\n|---|---|---|')
-        o.append(f"| `{r['name']}` | `{clean(r['ret'] + ' ' + r['name'] + '(' + r['params'] + ')')}` | {clean(r['desc'])} |")
+    o.append('## Functions\n\nGrouped by topic. Since = the API minor version that added the function (check `api->size` before using anything newer than 2.0).')
+    for t in [t for t, _ in TOPICS] + ['Other']:
+        part = [r for r in fns if topic_of(r['name']) == t]
+        if part:
+            o.append(f'\n### {t}\n\n| Name | Signature | Description | Since |\n|---|---|---|---|')
+            o += [f"| `{r['name']}` | `{clean(r['ret'] + ' ' + r['name'] + '(' + r['params'] + ')')}` | {clean(r['desc'])} | {r['since']} |" for r in part]
     o.append('\n## Structs\n')
     o.append('`AbsHitPre` (`on_hit_pre`, 2.19), `AbsDefenseInfo` with the `ABS_DEF_*` types (`on_defense`, 2.20), `AbsOverlayInfo` with the `ABS_OV_*` modes (`overlay_*`, 2.21) '
              'and `AbsPropInfo` (`for_each_property`, 2.22) are documented in the header.\n')

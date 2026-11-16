@@ -1,6 +1,6 @@
 # Build a mod on the Absolver script extender
 
-Task-oriented guide. Reference: `docs/sdk/API-REFERENCE.md` (generated from `AbsolverSE.h`), behaviour details: `docs/PLUGIN-API.md`, data mods: `docs/MODDING-GUIDE.md`, Lua: `docs/LUA.md`.
+Task-oriented guide. Reference: `docs/API-REFERENCE.md` (generated from `AbsolverSE.h`), behaviour details: `docs/PLUGIN-API.md`, data mods: `docs/MODDING-GUIDE.md`, Lua: `docs/LUA.md`.
 Offline / private play only (game 1.31, UE 4.18.3). The loader does nothing without `-NoEAC`.
 
 ## 1. Pick the kind of mod
@@ -20,7 +20,7 @@ Scaffolds (never touch the game folder; default output `work\sdk-out`):
 cd <repo>
 powershell -ExecutionPolicy Bypass -File tools\sdk\New-Plugin.ps1 -Name MyPlugin -Build        # plugin.c build.bat plugin.cfg mod.json, then compiles
 powershell -ExecutionPolicy Bypass -File tools\sdk\New-ContentMod.ps1 -Name MyMask -Kind items  # mod.json + content\items\MyMask.json  (-Kind weapon | styles, -RowsJson)
-python tools\sdk\gen_api_reference.py                                                           # refresh docs\sdk\API-REFERENCE.md after AbsolverSE.h changes
+python tools\sdk\gen_api_reference.py                                                           # refresh docs/API-REFERENCE.md after AbsolverSE.h changes
 ```
 
 Both scaffolds take `-Dest <folder>` (parent folder of the new mod) and `-Force` (overwrite generated files).

@@ -27,7 +27,7 @@ Mod-checking tools: `test\build_tools.bat` builds `reccheck.exe`, `modscan.exe` 
 * `lannative.c` - entry point, hooks, key handling, the mod loader glue.
 * `*.inc` - feature modules included by `lannative.c` (mods, rows.json, plugins, content kinds, powers, NPCs, bots, map scripts, ...).
 * `*.h` - pure logic and tables used by the modules.
-* `AbsolverSE.h` - the plugin API header (`docs/PLUGIN-API.md`, `docs/sdk/API-REFERENCE.md`).
+* `AbsolverSE.h` - the plugin API header (`docs/PLUGIN-API.md`, `docs/API-REFERENCE.md`).
 * `lan_logic.c`, `lan_telemetry.c` - LAN play logic and its read-only logging (`docs/HOSTING.md`).
 
 ## Keys
