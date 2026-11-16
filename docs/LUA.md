@@ -25,7 +25,6 @@ abs.on("hit_pre", function(h)
 end)
 abs.on("hit", function(h) abs.log("hit", h.attack, h.outcome, h.damage) end)
 ```
-Example in the repo: `examples/ContentMods/LuaDemo`.
 
 ## Rules of the sandbox
 * Available: base Lua (no `load`, `loadfile`, `dofile`), `string` (no `string.dump`), `table`, `math`, `utf8`, `coroutine`. Not available: `io`, `os`, `require`/`package`, `debug`. Only text chunks load.

@@ -2,7 +2,7 @@
 # Refuses (exit 1, no zip written) anything a mod must not ship: game files (loose .uasset/.uexp/.ubulk/.umap, .sig copies of the game's signature), saves (.sav),
 # .env / keys (the ABSOLVER_PAK_KEY / ABSOLVER_SAVE_KEY values of the file given with -EnvFile or GLEAM_ENV_FILE, in text or hex, are searched in every file but never printed),
 # executables other than plugin.dll, personal data (tools\release\scan_personal.py). Then checks rows.json / records with the loader's own code (reccheck.exe).
-#   powershell -ExecutionPolicy Bypass -File tools\sdk\Pack-Mod.ps1 -ModDir examples\ContentMods\LuaDemo [-Out work\packages] [-EnvFile <key file>] [-Secret <extra text to refuse>]
+#   powershell -ExecutionPolicy Bypass -File tools\sdk\Pack-Mod.ps1 -ModDir examples\FastJab [-Out work\packages] [-EnvFile <key file>] [-Secret <extra text to refuse>]
 param([Parameter(Mandatory)][string]$ModDir, [string]$Out = '', [string[]]$Secret = @(), [string]$EnvFile = $env:GLEAM_ENV_FILE)
 $ErrorActionPreference = 'Stop'
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..')); $utf8 = New-Object Text.UTF8Encoding($false)   # relative paths resolve against the repo root, wherever the script is started from

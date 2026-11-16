@@ -57,7 +57,7 @@ Antivirus software may flag `version.dll` because it is an unsigned DLL that pat
 | [docs/HOSTING.md](docs/HOSTING.md) | hosting and joining |
 | [docs/CHANGELOG.md](docs/CHANGELOG.md) | changes per release |
 
-`examples/` holds small mods and plugins to copy from; `tools/` the loader source, launcher, installer, SDK scaffolds and LuaHost.
+`examples/` holds a starter data mod (`FastJab`) and a plugin template (`PluginTemplate`); `tools/` the loader source, launcher, installer, SDK scaffolds and LuaHost.
 
 ## License
 

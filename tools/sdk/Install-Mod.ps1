@@ -1,6 +1,6 @@
 # Install-Mod.ps1 - install / remove ONE mod package (from Pack-Mod.ps1) into a Mods folder. One folder per mod: <Mods>\<id>\.
 #   install: powershell -ExecutionPolicy Bypass -File tools\sdk\Install-Mod.ps1 -Zip <package.zip> -ModsDir <Mods folder> [-AllowPlugin]
-#   remove : powershell -ExecutionPolicy Bypass -File tools\sdk\Install-Mod.ps1 -Remove LuaDemo -ModsDir <Mods folder>
+#   remove : powershell -ExecutionPolicy Bypass -File tools\sdk\Install-Mod.ps1 -Remove FastJab -ModsDir <Mods folder>
 # Checks: the zip holds exactly one top folder <id> with a mod.json whose id matches, every file is listed in files.sha256 with the right hash (and nothing extra).
 # An existing <id> folder is MOVED to <Mods>\..\ModsReplaced\<id>-<time> (never deleted); -Remove moves it to ModsRemoved\. plugin.dll is copied but only enabled
 # (a line in plugins.txt) with -AllowPlugin. Afterwards the whole Mods folder is checked with reccheck.exe (the loader's own rules).
