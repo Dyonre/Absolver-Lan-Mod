@@ -55,6 +55,7 @@ typedef struct OvSnap {
     int nmods; OvMod mods[OV_MODS_MAX];
     int pak_conflicts, pak_conflicts_real, row_conflicts, obj_conflicts, split_assets;
     int nwarn; char warn[OV_WARN][240];
+    char info[240];                   // plain info line under "Load order:" (not a warning); "" = none
     int c_files, c_entries, c_invalid, ncconf; char cconf[OV_CCONF][160];
     int nplug; char plug_name[OV_PLUG][64]; int plug_faults[OV_PLUG], plug_loaded[OV_PLUG];
     char reload_status[240];

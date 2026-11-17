@@ -279,6 +279,7 @@ static void draw_mods(const OvSnap &s) {
     if (s.safe_mode) ImGui::TextColored(yellow, "ON - no mods, no plugins, no extender hooks%s%s", s.safe_why[0] ? ": " : "", s.safe_why); else ImGui::TextColored(green, "off");
     ImGui::Text("Mods: %d loaded, %d off, %d skipped", on, off, skipped);
     ImGui::TextWrapped("Load order: %s", s.order[0] ? s.order : "(none)");
+    if (s.info[0]) { ImGui::PushStyleColor(ImGuiCol_Text, grey); ImGui::TextWrapped("%s", s.info); ImGui::PopStyleColor(); }
     ImGui::Separator();
     for (int i = 0; i < s.nactions; i++) {                           // actions: the reload line, then one line per plugin section / item
         if (s.action_kind[i] == 0) { if (ImGui::Button(s.action[i])) post(OVC_MODS_ACT, i); }

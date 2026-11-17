@@ -10,6 +10,7 @@
 #include "modorder.h"
 #include "pakshadow.h"
 #include "records.h"
+#include "vanillapaks.h"
 // Records (pure code: records.h): config "records = on" (default OFF). Pass 1 collects the flats / templates of every
 // enabled mod's rows.json in load order; pass 2 rewrites each rows.json document into plain edits before rows_from_json. Off: documents are read unchanged.
 // Known limit: the rows.json hot reload (rowedit.inc) re-reads files WITHOUT the expansion; restart after editing a records file.
@@ -28,6 +29,70 @@ static void *g_pak_self;                 // the FPakPlatformFile, kept for rows_
 typedef uint8_t (*PakInit_t)(void *self, void *lower, const wchar_t *cmdline);
 typedef uint8_t (*PakMount_t)(void *self, const wchar_t *path, uint32_t order, const wchar_t *mountpoint);
 static PakInit_t g_orig_pakinit;
+static const uint8_t g_mount_expect[16] = { 0x48, 0x89, 0x5C, 0x24, 0x10, 0x44, 0x89, 0x44, 0x24, 0x18, 0x48, 0x89, 0x4C, 0x24, 0x08, 0x55 };   // Mount prologue, 4 whole instructions
+// Content paks rule (vanillapaks.h): with the loader the engine's Mount refuses every pak under Content\Paks that is not one of the game's
+// own pakchunk0/1/2-WindowsNoEditor.pak (root, ~~\, VanillaOnly\, any subfolder): those are vanilla (pak-only) mods, Vanilla starts load them, the loader
+// edition of a mod comes from Mods\. Setting "content_paks = stock" (default) / "all" (old behaviour: everything in Content\Paks mounts); test switch
+// "vanilla_paks = load" or -VanillaPaks = all. Hook installed in hk_pakinit before the stock paks mount, also in safe mode.
+static PakMount_t g_vo_tramp;            // original Mount (trampoline) once the hook is in; mods_mount_all mounts through it
+static int g_vo_load;                    // 1 = rule off (content_paks = all or the test switch): every Content\Paks pak mounts
+static char g_vo_why[96] = "default";    // where g_vo_load came from (log, mods.txt)
+static int g_vo_n, g_vo_loaded_n, g_vo_cap;    // paks refused / let through by content_paks = all; g_vo_path grows as needed (no fixed limit)
+static wchar_t (*g_vo_path)[MAX_PATH];
+static int cmdline_has_flag(const wchar_t *cl, const wchar_t *flag);
+static int vo_skips_path(const wchar_t *path) { return g_vo_tramp && !g_vo_load && path && vp_is_vanilla_pak(path); }   // for other scanners (map discovery): the engine did not mount it
+static uint8_t hk_pakmount(void *self, const wchar_t *path, uint32_t order, const wchar_t *mountpoint) {
+    int vp = 0; __try { vp = path && vp_is_vanilla_pak(path); } __except (EXCEPTION_EXECUTE_HANDLER) { vp = 0; }
+    if (!vp) return g_vo_tramp(self, path, order, mountpoint);
+    if (g_vo_load) { g_vo_loaded_n++; logf_("content paks: %ls LOADED (not a stock pak; %s)", path, g_vo_why); return g_vo_tramp(self, path, order, mountpoint); }
+    if (g_vo_n >= g_vo_cap) {
+        int cap = g_vo_cap ? g_vo_cap * 2 : 32; void *np = realloc(g_vo_path, (size_t)cap * sizeof *g_vo_path);
+        if (np) { g_vo_path = np; g_vo_cap = cap; } else logf_("content paks: out of memory keeping the list of skipped paks (%d kept; the rest are still skipped and logged)", g_vo_cap);
+    }
+    if (g_vo_n < g_vo_cap) { wcsncpy(g_vo_path[g_vo_n], path, MAX_PATH - 1); g_vo_path[g_vo_n][MAX_PATH - 1] = 0; }
+    g_vo_n++;
+    logf_("content paks: SKIPPED %ls (read order %u) - not a stock pak: a vanilla mod, Vanilla starts load it; the loader mounts pakchunk0-2 + Mods\\ only (content_paks = all mounts it)", path, order);
+    return 0;                                                              // = "not mounted"; the engine logs it and goes on with the next pak
+}
+static void vo_install(void) {
+    char v[16] = ""; wchar_t src[MAX_PATH];
+    if (cmdline_has_flag(GetCommandLineW(), L"VanillaPaks")) { g_vo_load = 1; snprintf(g_vo_why, sizeof g_vo_why, "test switch -VanillaPaks"); }
+    else if (setting_get("vanilla_paks", L"", 0, v, sizeof v, src) && !_strnicmp(v, "load", 4)) { g_vo_load = 1; snprintf(g_vo_why, sizeof g_vo_why, "test switch vanilla_paks = load"); }
+    else if (setting_get("content_paks", L"", 0, v, sizeof v, src)) {
+        if (!_strnicmp(v, "all", 3)) { g_vo_load = 1; snprintf(g_vo_why, sizeof g_vo_why, "content_paks = all"); }
+        else if (!_strnicmp(v, "stock", 5)) snprintf(g_vo_why, sizeof g_vo_why, "content_paks = stock");
+        else { snprintf(g_vo_why, sizeof g_vo_why, "content_paks = '%.16s' not understood, using stock", v); logf_("content paks: setting content_paks = '%s' is not 'stock' or 'all' - using stock", v); }
+    }
+    logf_("content paks: rule %s (%s)", g_vo_load ? "OFF - every pak in Content\\Paks mounts" : "stock + Mods only", g_vo_why);
+    uint8_t *target = g_base + RVA_PAK_MOUNT;
+    EnterCriticalSection(&g_lock);
+    if (hr_find(&g_hreg, RVA_PAK_MOUNT)) logf_("content paks: FPakPlatformFile::Mount is already hooked - rule NOT active (every Content\\Paks pak mounts)");
+    else if (memcmp(target, g_mount_expect, sizeof g_mount_expect) != 0) logf_("content paks: FPakPlatformFile::Mount bytes differ from this build - rule NOT active (every Content\\Paks pak mounts)");
+    else {
+        uint8_t *tramp = VirtualAlloc(NULL, 64, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE); DWORD old;
+        if (!tramp) logf_("content paks: VirtualAlloc failed - rule NOT active");
+        else if (!VirtualProtect(target, sizeof g_mount_expect, PAGE_EXECUTE_READWRITE, &old)) { VirtualFree(tramp, 0, MEM_RELEASE); logf_("content paks: VirtualProtect failed - rule NOT active"); }
+        else {
+            memcpy(tramp, target, sizeof g_mount_expect); emit_abs_jmp(tramp + sizeof g_mount_expect, (uint64_t)(target + sizeof g_mount_expect));
+            g_vo_tramp = (PakMount_t)tramp;                                // set before the jump goes live
+            emit_abs_jmp(target, (uint64_t)hk_pakmount); target[14] = target[15] = 0xCC;
+            VirtualProtect(target, sizeof g_mount_expect, old, &old); FlushInstructionCache(GetCurrentProcess(), target, sizeof g_mount_expect);
+            hr_add(&g_hreg, RVA_PAK_MOUNT, sizeof g_mount_expect, g_mount_expect, tramp, (void *)hk_pakmount, "loader:content paks");
+            logf_("content paks: Mount hook installed at base+0x%X; paks in Content\\Paks other than pakchunk0-2 %s", RVA_PAK_MOUNT,
+                  g_vo_load ? "LOAD (rule off)" : "are skipped");
+        }
+    }
+    LeaveCriticalSection(&g_lock);
+}
+// F2 Mods page info line (not a warning): what the rule did this boot; "" = nothing to say
+static char g_vo_info[240];
+static void vo_info_build(void) {
+    g_vo_info[0] = 0;
+    if (!g_vo_tramp) snprintf(g_vo_info, sizeof g_vo_info, "Content\\Paks rule not active this boot (Mount hook not installed, see lannative.log): every pak there mounts");
+    else if (g_vo_load) { if (g_vo_loaded_n) snprintf(g_vo_info, sizeof g_vo_info, "%d vanilla pak(s) in Content\\Paks loaded too (%s)", g_vo_loaded_n, g_vo_why); }
+    else if (g_vo_n) snprintf(g_vo_info, sizeof g_vo_info, "%d vanilla pak(s) in Content\\Paks not loaded (Vanilla starts use them)", g_vo_n);
+    if (g_vo_info[0]) logf_("content paks: F2 info: %s", g_vo_info);
+}
 static void hm_mount_fromhost(void *self, PakMount_t mount, int *position, uint64_t *fp, uint64_t *gp_fp, const char **gpn, int *ngp, int *mounted_mods, const wchar_t *sigsrc, int have_sigsrc);   // hostmods.inc
 // what the F1 "Mods" page shows (modsui.h): one ModInfo per mod folder (same index as the ModList), filled below while the mods load; g_mi_dir keeps each mod's folder for content hot reload
 static ModInfo g_mi[MODS_MAX]; static int g_mi_n; static wchar_t g_mi_dir[MODS_MAX][MAX_PATH]; static int g_mi_pos[MODS_MAX];   // g_mi_pos = load position (counts mounted mods only), -1 = not loaded
@@ -92,13 +157,13 @@ static void mods_mount_all(void *self) {
         if (CreateDirectoryW(mods, NULL)) logf_("mods: created the Mods folder (put each mod in <game folder>\\Mods\\<ModName>\\ as a .pak)");
         else { logf_("mods: no Mods folder and it could not be created (error %lu)", GetLastError()); return; }
     }
-    static const uint8_t mount_expect[16] = { 0x48, 0x89, 0x5C, 0x24, 0x10, 0x44, 0x89, 0x44, 0x24, 0x18, 0x48, 0x89, 0x4C, 0x24, 0x08, 0x55 };
-    if (memcmp(g_base + RVA_PAK_MOUNT, mount_expect, 16) != 0) { logf_("mods: FPakPlatformFile::Mount bytes differ from this build - mods NOT loaded"); return; }
+    const uint8_t *mount_code = g_vo_tramp ? (const uint8_t *)g_vo_tramp : g_base + RVA_PAK_MOUNT;   // hooked: the trampoline starts with the original bytes
+    if (memcmp(mount_code, g_mount_expect, 16) != 0) { logf_("mods: FPakPlatformFile::Mount bytes differ from this build - mods NOT loaded"); return; }
     if (*((uint8_t *)self + PAK_SIGNED_OFFSET) > 1) { logf_("mods: unexpected FPakPlatformFile layout - mods NOT loaded"); return; }
     wchar_t sigsrc[MAX_PATH]; swprintf(sigsrc, MAX_PATH, L"%ls\\Absolver\\Content\\Paks\\pakchunk0-WindowsNoEditor.sig", root);
     int have_sigsrc = GetFileAttributesW(sigsrc) != INVALID_FILE_ATTRIBUTES;
     if (!have_sigsrc) logf_("mods: the game's own pakchunk0 .sig was not found - mod paks without a .sig will crash the game, so they are skipped");
-    PakMount_t mount = (PakMount_t)(g_base + RVA_PAK_MOUNT);
+    PakMount_t mount = (PakMount_t)mount_code;
 
     // 1. folders -> ModList (loadorder.txt, synced with what is on disk)
     char *names[MODS_MAX]; int nnames = 0;
@@ -155,6 +220,7 @@ static void mods_mount_all(void *self) {
     for (int i = 0; i < nlong && i < 8; i++) mods_warn("mod folder '%s' (%d bytes) exceeds the %d-character name limit - skipped", longnames[i], longlen[i], MOD_NAME_MAX - 1);
     if (nlong > 8) mods_warn("%d more mod folder(s) exceed the %d-character name limit - skipped", nlong - 8, MOD_NAME_MAX - 1);
     for (int w = 0; w < mres.nwarn && w < MF_WARN_MAX; w++) mods_warn("load order: %s", mres.warn[w]);
+    vo_info_build();                                                             // F2 info line (not a warning); each skipped pak is in the log and in mods.txt
     for (int m = 0; m < list.count && m < MODS_MAX; m++) if (mres.status[m] == MF_OK && mfs[m].nsup) {          // only a mod that supersedes something needs to know whether it ships a pak
         wchar_t wn[MOD_NAME_MAX * 2], dd[MAX_PATH]; u8_to_w(list.mods[m].name, wn, MOD_NAME_MAX * 2); swprintf(dd, MAX_PATH, L"%ls\\%ls", mods, wn); has_pak[m] = mods_dir_has_pak(dd);
     }
@@ -209,6 +275,11 @@ static void mods_mount_all(void *self) {
         RPT("Load order (requires / after applied on top of loadorder.txt): %s\r\n", mres.norder ? ord : "(none)"); }
     for (int i = 0; i < nlong && i < 8; i++) RPT("[SKIPPED] %s: exceeds the %d-character name limit\r\n", longnames[i], MOD_NAME_MAX - 1);
     if (nlong > 8) RPT("[SKIPPED] %d more folder(s): name exceeds the %d-character limit\r\n", nlong - 8, MOD_NAME_MAX - 1);
+    if (!g_vo_tramp) RPT("Content\\Paks rule: NOT active (Mount hook not installed, see lannative.log) - every pak there mounts\r\n");
+    else if (g_vo_load) RPT("Content\\Paks rule: off (%s) - %d vanilla pak(s) loaded with the stock paks\r\n", g_vo_why, g_vo_loaded_n);
+    else RPT("Content\\Paks rule: stock + Mods only (%s) - %d vanilla pak(s) not loaded\r\n", g_vo_why, g_vo_n);
+    for (int i = 0; i < g_vo_n && i < g_vo_cap; i++) { char u[MAX_PATH * 2]; w_to_u8(g_vo_path[i], u, sizeof u); RPT("[VANILLA PAK] %s  not loaded (Vanilla starts only)\r\n", u); }
+    if (g_vo_n > g_vo_cap) RPT("[VANILLA PAK] ... and %d more pak(s), see lannative.log\r\n", g_vo_n - g_vo_cap);
     for (int i = 0; i < list.count; i++) {
         if (mres.status[i] == MF_OFF) { logf_("mods: [off] %s", list.mods[i].name); RPT("[off] %s\r\n", list.mods[i].name); }
         else if (mres.status[i] == MF_SKIPPED) RPT("[SKIPPED] %s: %s\r\n", list.mods[i].name, mres.reason[i]);
@@ -406,6 +477,28 @@ static void mods_mount_all(void *self) {
             }
             logf_("mods: verify: %d of %d checked conflicts are served by the expected winner", good, checked);
             RPT("\r\nSelf-check (engine lookup): %d of %d conflicting files served by the expected winner\r\n", good, checked);
+            // content paks rule: up to 4 files of each skipped pak must not be served by a skipped pak (a stock or Mods\ pak may serve the same path)
+            for (int i = 0; i < g_vo_n && i < g_vo_cap; i++) {
+                PakEntry *ve = NULL; int vn = -1; unsigned char vih[20]; FILE *vf = _wfopen(g_vo_path[i], L"rb");
+                if (!vf) { wchar_t vfull[MAX_PATH]; swprintf(vfull, MAX_PATH, L"%ls\\Absolver\\Binaries\\Win64\\%ls", root, g_vo_path[i]); vf = _wfopen(vfull, L"rb"); }   // engine paths are relative to Binaries\Win64
+                if (vf) { if (modpak_footer_ok(vf) == 1) vn = modpak_read(vf, &ve, vih); fclose(vf); }
+                const wchar_t *b = wcsrchr(g_vo_path[i], L'/'); char pn[MAX_PATH]; w_to_u8(b ? b + 1 : g_vo_path[i], pn, sizeof pn);
+                if (vn <= 0) { logf_("content paks: self-check %s: index not readable - not checked", pn); free(ve); continue; }
+                int absent = 0, tested = 0;
+                for (int k = 0; k < vn && tested < 4; k++) {
+                    wchar_t wp[600], wpath[600]; u8_to_w(ve[k].path, wp, 600); swprintf(wpath, 600, L"../../../%ls", wp);
+                    void *pak = NULL, *entry = NULL;
+                    __try { entry = find(self, wpath, &pak); } __except (EXCEPTION_EXECUTE_HANDLER) { logf_("content paks: self-check EXCEPTION 0x%08lX", GetExceptionCode()); break; }
+                    char served[MAX_PATH * 2] = "(none)";
+                    int from_skipped = 0;
+                    if (entry && pak) { const wchar_t *fn = *(const wchar_t **)pak; if (fn && *(int *)((uint8_t *)pak + 8) > 0) { w_to_u8(fn, served, sizeof served); from_skipped = vp_is_vanilla_pak(fn); } }
+                    int ok = !entry || !from_skipped; tested++; absent += ok;
+                    logf_("content paks: self-check %s: %s -> served by %s (%s)", pn, ve[k].path, served, ok ? "OK, not by a skipped pak" : "MISMATCH, a skipped pak serves it");
+                }
+                free(ve);
+                logf_("content paks: self-check %s: %d of %d file(s) not served by a skipped pak", pn, absent, tested);
+                RPT("Self-check (engine lookup): %s: %d of %d file(s) not served by a skipped pak\r\n", pn, absent, tested);
+            }
         } else logf_("mods: verify skipped (FindFileInPakFiles bytes differ from this build)");
     }
     for (int i = 0; i < nsets; i++) free(lists[i]);
@@ -425,6 +518,7 @@ static void mods_mount_all(void *self) {
     plugins_load_all();                                                   // plugins last: everything they might look at is mounted
 }
 static uint8_t hk_pakinit(void *self, void *lower, const wchar_t *cmdline) {
+    __try { vo_install(); } __except (EXCEPTION_EXECUTE_HANDLER) { logf_("content paks: EXCEPTION 0x%08lX installing the Mount hook", GetExceptionCode()); }   // also in safe mode: vanilla paks are mods too
     uint8_t r = g_orig_pakinit(self, lower, cmdline);                      // stock paks first, exactly as the game does it
     g_pak_self = self;
     if (g_safe_mode) { logf_("SAFE MODE: the mod loader is skipped (no Mods\\, no rows.json, no plugins)"); return r; }

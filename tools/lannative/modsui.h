@@ -56,6 +56,7 @@ typedef struct {
     const char *order;                                        // "A, B, C" (load order of the mods that load)
     int pak_conflicts, pak_conflicts_real, row_conflicts, obj_conflicts, split_assets;
     int nwarn; char warn[MUI_WARN][240];                     // content warnings: pak shadowing, superseded paks, equip conflicts (one line each, shown right under "Load order:" so they are on the first screen)
+    const char *info;                                         // plain info under "Load order:" (not a warning), e.g. vanilla paks in Content\Paks not loaded; NULL / "" = none
     int c_files, c_entries, c_invalid, ncconf; char cconf[MUI_CCONF][160];            // content registry: files, entries in use, invalid entries, conflict lines
     int nplug; const char *plug_name[MUI_PLUG]; int plug_faults[MUI_PLUG], plug_loaded[MUI_PLUG];   // loaded plugins and their guard faults (3 = switched off)
     const char *reload_status;                                // result of the last hot reload ("" = none yet)
@@ -82,6 +83,7 @@ static int modsui_build(const ModsUiIn *in, char (*lines)[MUI_LINE], int max) {
     snprintf(t, sizeof t, "%d loaded, %d off, %d skipped%s", on, off, skipped, empty ? ", some empty" : "");
     n = modsui_put(lines, n, max, "Mods: ", t);
     n = modsui_put(lines, n, max, "Load order: ", in->order && in->order[0] ? in->order : "(none)");
+    if (in->info && in->info[0]) n = modsui_put(lines, n, max, "Note: ", in->info);
     for (int i = 0; i < in->nwarn && i < MUI_WARN; i++) n = modsui_put(lines, n, max, "WARNING: ", in->warn[i]);
     for (int i = 0; i < in->nmods; i++) {
         const ModInfo *m = &in->mods[i];

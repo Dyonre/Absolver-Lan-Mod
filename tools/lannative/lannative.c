@@ -1078,6 +1078,7 @@ static void map_discovered(const char *path, void *context) {
     if (d->count == 2048) { d->dropped++; return; }
     strcpy(d->paths[d->count++], path);
 }
+static int vo_skips_path(const wchar_t *path);     // modglue.inc: 1 = a VanillaOnly pak the loader keeps unmounted
 static void discover_directory(const wchar_t *dir, const char *relative, int depth, MapDiscovery *d) {
     wchar_t pattern[MAX_PATH];
     if (depth > 12 || swprintf(pattern, MAX_PATH, L"%s\\*", dir) < 0) { d->dropped++; return; }
@@ -1091,7 +1092,7 @@ static void discover_directory(const wchar_t *dir, const char *relative, int dep
             rel[n] = '/'; rel[n+1] = 0; discover_directory(file, rel, depth+1, d);
         } else {
             const char *ext = strrchr(name, '.'); if (!ext) continue;
-            if (!_stricmp(ext, ".pak")) {
+            if (!_stricmp(ext, ".pak") && !vo_skips_path(file)) {   // VanillaOnly paks are not mounted with the loader: offer none of their maps
                 FILE *f = _wfopen(file, L"rb"); int n = f ? mapscan_pak(f, map_discovered, d) : -1; if (f) fclose(f);
                 d->paks++; if (n < 0) d->skipped++;
                 logf_("discovery: package %ls (%s, %d maps)", file, n < 0 ? "unsupported/unreadable index" : "indexed", n < 0 ? 0 : n);

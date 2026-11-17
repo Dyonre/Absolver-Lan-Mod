@@ -143,7 +143,7 @@ static void modsui_refresh(void) {
     for (int i = 0; i < g_plugins_n && in->nplug < MUI_PLUG; i++) { if (g_plugins[i].builtin) continue; in->plug_name[in->nplug] = g_plugins[i].name; in->plug_faults[in->nplug] = g_plugins[i].faults; in->plug_loaded[in->nplug] = g_plugins[i].loaded; in->nplug++; }
     in->nwarn = g_mi_warn_n < MUI_WARN ? g_mi_warn_n : MUI_WARN; for (int i = 0; i < in->nwarn; i++) snprintf(in->warn[i], sizeof in->warn[i], "%s", g_mi_warn[i]);
     for (int k = 0; in->nwarn < MUI_WARN && grants_warn_line(k, in->warn[in->nwarn], sizeof in->warn[0]); k++) in->nwarn++;   // live: grants still waiting for the player's inventory (content.inc)
-    in->reload_status = g_reload_status;
+    in->reload_status = g_reload_status; in->info = g_vo_info;                    // modglue.inc: content paks rule info line
     static char act[MUI_ACTIONS][MUI_LINE]; in->nactions = 0;
     snprintf(act[0], MUI_LINE, "Reload Mods\\*\\content and rows.json now"); in->action[in->nactions++] = act[0];
     int key[MITEM_MAX]; const char *nm[MITEM_MAX], *tx[MITEM_MAX];                     // plugin items: one collapsible section per plugin (modsui_sections)
@@ -151,12 +151,17 @@ static void modsui_refresh(void) {
     int ns = modsui_sections(g_mitem_n, key, nm, tx, g_mui_open, act + 1, g_mui_ref + 1, MUI_ACTIONS - 1);
     g_mui_ref[0].kind = 0; g_mui_ref[0].ref = 0; g_mui_nref = 1 + ns;
     for (int i = 1; i <= ns; i++) in->action[in->nactions++] = act[i];
-    g_mui_units = 0;
+    g_mui_units = 0; int dropped = 0; static int dropped_last;                    // dropped_last: units past the cap at the previous refresh (logged already)
     LN_FOREACH(modsrows, LnRows, u) {                                             // the units' rows, in key order: host mods, Net Inspector
-        if (g_mui_units >= MUI_UNITS) continue;
+        if (g_mui_units >= MUI_UNITS) {                                           // never silently: each unit past the cap is logged once (the page refreshes every 0.5 s)
+            dropped++;
+            if (dropped > dropped_last) logf_("mods page: unit '%s' (key %s) has rows but the page holds %d units (MUI_UNITS) - its rows are NOT shown; raise MUI_UNITS in modsui.inc", u->name, u->key, MUI_UNITS);
+            continue;
+        }
         int got = 0; for (int i = 0, n = u->count(); i < n && in->nactions < MUI_ACTIONS; i++, got++) in->action[in->nactions++] = u->label(i);
         g_mui_unit[g_mui_units] = u; g_mui_unit_n[g_mui_units++] = got;
     }
+    dropped_last = dropped;
     g_mui_n = modsui_build(in, g_mui_lines, MENU_LIST_MAX); g_mui_at = GetTickCount64();
 }
 static int modsui_count(void) { if (GetTickCount64() - g_mui_at > 500) modsui_refresh(); return g_mui_n; }
@@ -230,6 +235,7 @@ static void modsui_snapshot(OvSnap *o) {
     o->form_ok = g_form_ok; o->form_live = g_form_live; o->nform = g_form_n; memcpy(o->form, g_form, sizeof(OvSetting) * (size_t)g_form_n);
     o->pak_conflicts = in->pak_conflicts; o->pak_conflicts_real = in->pak_conflicts_real; o->row_conflicts = in->row_conflicts; o->obj_conflicts = in->obj_conflicts; o->split_assets = in->split_assets;
     o->nwarn = in->nwarn < OV_WARN ? in->nwarn : OV_WARN; for (int i = 0; i < o->nwarn; i++) snprintf(o->warn[i], sizeof o->warn[i], "%s", in->warn[i]);
+    snprintf(o->info, sizeof o->info, "%s", in->info ? in->info : "");
     o->c_files = in->c_files; o->c_entries = in->c_entries; o->c_invalid = in->c_invalid;
     o->ncconf = in->ncconf < OV_CCONF ? in->ncconf : OV_CCONF; for (int i = 0; i < o->ncconf; i++) snprintf(o->cconf[i], sizeof o->cconf[i], "%s", in->cconf[i]);
     o->nplug = in->nplug < OV_PLUG ? in->nplug : OV_PLUG;
