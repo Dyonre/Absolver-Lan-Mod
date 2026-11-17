@@ -1,7 +1,7 @@
 # AbsolverSE API reference
 
 Generated from `tools/lannative/AbsolverSE.h` (`python tools/sdk/gen_api_reference.py`). This page may lag the header: the header is the source of truth.  
-`ABS_API_VERSION` = 2; 151 functions. Every function takes `self` (the `const AbsApi *` you were given) as its first argument. Fields are only ever appended: check `api->size >= offsetof(AbsApi, <field>) + sizeof(void *)` before using a field newer than the version you built against.  
+`ABS_API_VERSION` = 2; 152 functions. Every function takes `self` (the `const AbsApi *` you were given) as its first argument. Fields are only ever appended: check `api->size >= offsetof(AbsApi, <field>) + sizeof(void *)` before using a field newer than the version you built against.  
 How a mod is loaded: `docs/MODS.md`. Notes for larger plugins: `docs/ADVANCED.md`.
 
 ## Header fields
@@ -218,6 +218,7 @@ Grouped by topic. Since = the API minor version that added the function (check `
 | `bind_action` | `int bind_action(const AbsApi *self, const char *id, const char *label, const char *default_input, const char *context)` | declare (again: updates label / default / context). id: yours, stable, no '/' or '='. context: "always" (overlaps every context), "foot", "riding", "menu" or your own "mymod:state" (each overlaps only itself). Returns the handle (>= 0), -1 = bad arguments / unknown input name | 2.24 |
 | `bind_state` | `int bind_state(const AbsApi *self, int handle, int *pressed)` | 1 while the bound input is held (game window focused, no rebind in progress), 0 not, -1 bad handle; *pressed (may be NULL) = 1 once per press since your last call for this handle. The input_owner rules are yours to apply (as for keys you read yourself) | 2.24 |
 | `bind_name` | `int bind_name(const AbsApi *self, int handle, char *out, int cap)` | the bound input's name ("K", "Pad A", "(none)") into out; returns the input code (0 = unbound, -1 = bad handle). Show it in your own UI ("press K to ...") | 2.24 |
+| `add_travel_entry` | `int add_travel_entry(const AbsApi *self, const char *label, const char *like_map, void (*cb)(void *user), void *user)` | a row in the F1 Map list; like_map ("/Game/Maps/StartMap/...") picks its category and place; choosing it calls cb on the game thread (you travel yourself, e.g. api->travel). Call it in AbsPlugin_Load; listed from the next map scan (every F1 open). 0 = ok, 1 = bad arguments / 16 entries in all | 2.25 |
 
 ## Structs
 

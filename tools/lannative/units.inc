@@ -39,6 +39,7 @@
 #include "modsui.inc"
 #include "logwin.inc"                       // F2 row: the log window (lannative.log: filter, errors only, mod tags)
 #include "profiles.inc"                     // mod profiles: Mods\profiles\<name>.txt, F2 rows Save as / Switch to
+#include "travelx.inc"                      // API 2.25 add_travel_entry: plugin rows in the F1 Map list
 #if defined(__has_include)
 #if __has_include("servermode.inc")
 #include "servermode.inc"                    // the optional unattended-host module; without the file its hooks do not exist

@@ -1067,13 +1067,7 @@ static void hostip_on_travel(const wchar_t *url) {
 // In-game menu (state machine and layout: menu.h; this gathers key edges, runs the chosen action and draws the text)
 static int g_menu_on = 1, g_menu_faults, g_draw_faults, g_perteam_cfg = 1, g_autoleave_on = 1, g_solo_cfg;
 static Menu g_menu;
-#if !defined(LN_MINIMAL) && defined(LN_TRAVELX)                 // travelx.inc: plugin travel entries in the Map list (API add_travel_entry; PENDING until the AbsApi field lands after net_role)
 static int travelx_urls(char (*urls)[MENU_URL_MAX], int cap); static const char *travelx_label(const char *url); static int travelx_run(const char *url);
-#else
-static int travelx_urls(char (*urls)[MENU_URL_MAX], int cap) { (void)urls; (void)cap; return 0; }
-static const char *travelx_label(const char *url) { (void)url; return NULL; }
-static int travelx_run(const char *url) { (void)url; return 0; }
-#endif
 static char g_maps[MENU_LIST_MAX][MENU_URL_MAX], g_altar_label[MENU_LIST_MAX][MENU_LINE_MAX];
 static float g_altar_pos[MENU_LIST_MAX][3];
 static int g_maps_n, g_altars_n;

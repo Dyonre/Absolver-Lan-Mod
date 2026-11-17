@@ -342,6 +342,8 @@ struct AbsApi {
     int   (*bind_action)(const AbsApi *self, const char *id, const char *label, const char *default_input, const char *context);   /* declare (again: updates label / default / context). id: yours, stable, no '/' or '='. context: "always" (overlaps every context), "foot", "riding", "menu" or your own "mymod:state" (each overlaps only itself). Returns the handle (>= 0), -1 = bad arguments / unknown input name */
     int   (*bind_state)(const AbsApi *self, int handle, int *pressed);   /* 1 while the bound input is held (game window focused, no rebind in progress), 0 not, -1 bad handle; *pressed (may be NULL) = 1 once per press since your last call for this handle. The input_owner rules are yours to apply (as for keys you read yourself) */
     int   (*bind_name)(const AbsApi *self, int handle, char *out, int cap);   /* the bound input's name ("K", "Pad A", "(none)") into out; returns the input code (0 = unbound, -1 = bad handle). Show it in your own UI ("press K to ...") */
+    /* ---- v2.25: plugin travel entries in the F1 Map list (travelx.inc, docs/API-REFERENCE.md). Check self->size before using it. */
+    int   (*add_travel_entry)(const AbsApi *self, const char *label, const char *like_map, void (*cb)(void *user), void *user);   /* a row in the F1 Map list; like_map ("/Game/Maps/StartMap/...") picks its category and place; choosing it calls cb on the game thread (you travel yourself, e.g. api->travel). Call it in AbsPlugin_Load; listed from the next map scan (every F1 open). 0 = ok, 1 = bad arguments / 16 entries in all */
 };
 
 /* for_each_property: one property. Read / write it by name with get_property_text / set_property_text ("name[N]" for array_dim > 1). */
