@@ -60,6 +60,10 @@ static int pvp_path_is_3v3(const char *world_path) { return pvp_ci_contains(worl
 // travel was requested after the peer was last seen (the player is already leaving), and starts over in every new world.
 #define AUTOLEAVE_GRACE_MS 3000ull
 #define AUTOLEAVE_QUIET_MS 10000ull   // a connection that has received nothing for this long counts as gone (the game itself waits ~30 s)
+// A host's servertravel out of a duel map: the joiners' ClientTravel arrives while the host is still connected (peer seen AFTER the request) and the
+// host's own servertravel requests nothing here, so "a travel after the last sighting" never holds. Any travel requested in the last 15 s counts as
+// "already travelling" (the new world, seconds later, starts over anyway).
+#define AUTOLEAVE_TRAVEL_HOLD_MS 15000ull
 enum { AL_NONE = 0, AL_ANNOUNCE = 1, AL_LEAVE = 2 };
 typedef struct { int had_peer; uint64_t seen_ms, gone_ms; } AutoLeave;
 static void autoleave_reset(AutoLeave *s) { memset(s, 0, sizeof *s); }
@@ -67,7 +71,7 @@ static int autoleave_step(AutoLeave *s, uint64_t now, int peers, int duel_map, u
     if (!duel_map) { autoleave_reset(s); return AL_NONE; }
     if (peers > 0) { s->had_peer = 1; s->seen_ms = now; s->gone_ms = 0; return AL_NONE; }
     if (!s->had_peer) return AL_NONE;
-    if (last_travel_ms > s->seen_ms) { autoleave_reset(s); return AL_NONE; }   // already travelling
+    if (last_travel_ms > s->seen_ms || (last_travel_ms && now >= last_travel_ms && now - last_travel_ms < AUTOLEAVE_TRAVEL_HOLD_MS)) { autoleave_reset(s); return AL_NONE; }   // already travelling
     if (!s->gone_ms) { s->gone_ms = now ? now : 1; return AL_ANNOUNCE; }
     if (now >= s->gone_ms && now - s->gone_ms >= AUTOLEAVE_GRACE_MS) { autoleave_reset(s); return AL_LEAVE; }
     return AL_NONE;

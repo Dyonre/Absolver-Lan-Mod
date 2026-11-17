@@ -21,7 +21,9 @@ static int md_console(const char *cmd) {
 static int api_p_console_cmd(const AbsApi *self, const char *cmd) { (void)self; if (!cmd || !*cmd || strlen(cmd) > 500) return 0; return md_console(cmd); }
 static int api_p_travel(const AbsApi *self, const char *url) {
     char cmd[600]; if (!md_travel_cmd(url, cmd, sizeof cmd)) { logf_("plugin %s: travel('%s') refused (empty or too long)", plug_name_of(plug_of(self)), url ? url : "(null)"); return 0; }
-    logf_("plugin %s: travel -> %s (solo duel %s)", plug_name_of(plug_of(self)), cmd, g_solo_cfg ? "ON" : "off"); return md_console(cmd);
+    logf_("plugin %s: travel -> %s (solo duel %s)", plug_name_of(plug_of(self)), cmd, g_solo_cfg ? "ON" : "off");
+    if (!_strnicmp(cmd, "servertravel ", 13)) g_last_travel_ms = GetTickCount64();   // a host's server travel requests no client travel here; autoleave holds on this stamp (pvpgate.h)
+    return md_console(cmd);
 }
 static int api_p_solo_duel(const AbsApi *self, int on) {
     if (on >= 0) { g_solo_cfg = on ? 1 : 0; L_set_soloduel(g_solo_cfg); logf_("plugin %s: solo_duel(%d)%s", plug_name_of(plug_of(self)), on, g_pvpflow_on ? "" : " - but the pvp duel flow is OFF (LanNative pvpfix.txt), so it has no effect"); }
