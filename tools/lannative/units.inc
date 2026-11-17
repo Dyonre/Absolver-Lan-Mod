@@ -37,6 +37,7 @@
 #include "keys.inc"                         // key ownership: F2 "Keys" rows, API 2.23 declare_key / input_owner
 #include "kick.inc"                         // host-only F1 "Kick player..." (AGameSession::KickPlayer; kick.h)
 #include "modsui.inc"
+#include "profiles.inc"                     // mod profiles: Mods\profiles\<name>.txt, F2 rows Save as / Switch to
 #if defined(__has_include)
 #if __has_include("servermode.inc")
 #include "servermode.inc"                    // the optional unattended-host module; without the file its hooks do not exist

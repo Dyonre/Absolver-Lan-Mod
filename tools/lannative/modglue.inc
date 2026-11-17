@@ -172,7 +172,7 @@ static void mods_mount_all(void *self) {
         wchar_t pat[MAX_PATH]; swprintf(pat, MAX_PATH, L"%ls\\*", mods); WIN32_FIND_DATAW fd; HANDLE h = FindFirstFileW(pat, &fd);
         if (h != INVALID_HANDLE_VALUE) {
             do {
-                if ((fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && fd.cFileName[0] != L'.' && _wcsicmp(fd.cFileName, L"_FromHost") && nnames < MODS_MAX) {   // _FromHost: host downloads (hostmods.inc), mounted below
+                if ((fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && fd.cFileName[0] != L'.' && _wcsicmp(fd.cFileName, L"_FromHost") && _wcsicmp(fd.cFileName, L"profiles") && nnames < MODS_MAX) {   // _FromHost: host downloads (hostmods.inc), mounted below; profiles: mod profiles (profiles.inc), not a mod
                     char u[1024]; w_to_u8(fd.cFileName, u, sizeof u);
                     if (u[0] && strlen(u) < MOD_NAME_MAX) names[nnames++] = _strdup(u);
                     else if (u[0]) {
