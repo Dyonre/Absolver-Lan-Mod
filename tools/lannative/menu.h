@@ -11,10 +11,11 @@
 
 enum { MK_TOGGLE = 1, MK_UP, MK_DOWN, MK_SELECT, MK_BACK, MK_MODS };   // MK_MODS = F2: open the menu straight on the Mods page (or close it when it is already there)
 enum { MA_NONE = 0, MA_HOST, MA_JOIN, MA_SUMMON, MA_STATE, MA_MARK, MA_AUTOLEAVE, MA_PERTEAM, MA_HOSTIP, MA_OPEN_MAPS, MA_OPEN_ALTARS, MA_TRAVEL, MA_TELEPORT,
-       MA_OPEN_NPCS, MA_SPAWN_NPC, MA_REMOVE_NPCS, MA_SOLODUEL, MA_EDIT_IP, MA_MODS_ACT, MA_MODS_BACK, MA_QUIT };   // MA_MODS_ACT: index = line of the Mods page (the first lines are actions: reload, plugin menu items); MA_MODS_BACK: Left on the Mods page while a section is open (index = line)
-enum { MP_MAIN = 0, MP_MAPS, MP_ALTARS, MP_NPCS, MP_NPCGROUPS, MP_MODS };
+       MA_OPEN_NPCS, MA_SPAWN_NPC, MA_REMOVE_NPCS, MA_SOLODUEL, MA_EDIT_IP, MA_MODS_ACT, MA_MODS_BACK, MA_QUIT, MA_OPEN_LAN, MA_LAN_JOIN };   // MA_MODS_ACT: index = line of the Mods page (the first lines are actions: reload, plugin menu items); MA_MODS_BACK: Left on the Mods page while a section is open (index = line)
+enum { MP_MAIN = 0, MP_MAPS, MP_ALTARS, MP_NPCS, MP_NPCGROUPS, MP_MODS, MP_LAN, MP_COUNT };   // MP_LAN: hosts found by the LAN finder (landisc.inc; MA_LAN_JOIN index = host)
 
-#define MENU_MAIN_COUNT   15
+#define MENU_MAIN_COUNT   16
+#define MENU_MAIN_LAN     14      // "LAN games..." entry (Back from the LAN page lands here)
 #define MENU_LIST_MAX     192     // entries kept per file-backed list (found maps + maps.txt extras)
 #define MENU_URL_MAX      400     // longest URL kept (ASCII)
 #define MENU_GROUPS_MAX   16      // NPC groups
@@ -24,28 +25,29 @@ enum { MP_MAIN = 0, MP_MAPS, MP_ALTARS, MP_NPCS, MP_NPCGROUPS, MP_MODS };
 
 typedef struct {
     int open, page, sel;
-    int count[6];                 // items on each page (MENU_MAIN_COUNT, maps, altars, NPCs in the open group (all of them without groups), NPC groups, Mods page lines)
+    int count[MP_COUNT];                 // items on each page (MENU_MAIN_COUNT, maps, altars, NPCs in the open group (all of them without groups), NPC groups, Mods page lines)
     int ngroups, group;           // NPC groups: entries of group g are the contiguous range [gstart[g], gstart[g] + gcount[g]) of the NPC list; group = the open one
     int gcount[MENU_GROUPS_MAX], gstart[MENU_GROUPS_MAX];
-    int mem_page, mem_sel[6];     // where F1 reopens: the last main / map / altar page and line (kept by menu_init_n)
+    int mem_page, mem_sel[MP_COUNT];     // where F1 reopens: the last main / map / altar page and line (kept by menu_init_n)
     int mods_sub;                 // set by the caller: a section of the Mods page is open, so Left closes it (MA_MODS_BACK) instead of leaving the page
 } Menu;
 
 typedef struct { int action, index; } MenuAct;   // index = list entry for MA_TRAVEL / MA_TELEPORT / MA_SPAWN_NPC
 
 // what the labels show; filled by the caller each frame
-typedef struct { int autoleave_on, perteam, is_host_world, maps_n, altars_n; const char *hostip; int npcs_n, npc_live, solo; const char *joinaddr; } MenuStatus;
+typedef struct { int autoleave_on, perteam, is_host_world, maps_n, altars_n; const char *hostip; int npcs_n, npc_live, solo; const char *joinaddr; int lan_n; } MenuStatus;
 
 static int menu_clamp_list(int n) { return n < 0 ? 0 : (n > MENU_LIST_MAX ? MENU_LIST_MAX : n); }
 
 static void menu_init_n(Menu *m, int maps_n, int altars_n, int npcs_n) {
-    int mp = m->mem_page, ms[6]; memcpy(ms, m->mem_sel, sizeof ms);
+    int mp = m->mem_page, ms[MP_COUNT]; memcpy(ms, m->mem_sel, sizeof ms);
     memset(m, 0, sizeof *m);
     m->mem_page = mp; memcpy(m->mem_sel, ms, sizeof ms);
     m->count[MP_MAIN] = MENU_MAIN_COUNT;
     m->count[MP_MAPS] = menu_clamp_list(maps_n);
     m->count[MP_ALTARS] = menu_clamp_list(altars_n);
     m->count[MP_NPCS] = menu_clamp_list(npcs_n);
+    m->count[MP_LAN] = 1;                      // the caller keeps it at max(1, hosts found): line 0 says "searching" while the list is empty
 }
 static void menu_init(Menu *m, int maps_n, int altars_n) { menu_init_n(m, maps_n, altars_n, 0); }
 
@@ -72,7 +74,7 @@ static MenuAct menu_key(Menu *m, int key) {
 static MenuAct menu_key_raw(Menu *m, int key) {
     MenuAct none = { MA_NONE, 0 };
     if (key == MK_TOGGLE) { m->open = !m->open;
-        if (m->open) { int p = m->mem_page; if ((p == MP_MAPS || p == MP_ALTARS) && m->count[p] > 0) { m->page = p; m->sel = menu_mem_sel(m, p); } else { m->page = MP_MAIN; m->sel = menu_mem_sel(m, MP_MAIN); } }
+        if (m->open) { int p = m->mem_page; if ((p == MP_MAPS || p == MP_ALTARS || p == MP_LAN) && m->count[p] > 0) { m->page = p; m->sel = menu_mem_sel(m, p); } else { m->page = MP_MAIN; m->sel = menu_mem_sel(m, MP_MAIN); } }
         return none; }
     if (key == MK_MODS) {
         if (m->open && m->page == MP_MODS) { m->open = 0; return none; }
@@ -86,16 +88,17 @@ static MenuAct menu_key_raw(Menu *m, int key) {
         if (m->page == MP_MODS && m->mods_sub) { MenuAct a = { MA_MODS_BACK, m->sel }; return a; }
         if (m->page == MP_MODS) { m->page = MP_MAIN; m->sel = 0; }
         else if (m->page == MP_NPCS && m->ngroups > 0) { m->page = MP_NPCGROUPS; m->sel = m->group; }                                // back to the group list
-        else if (m->page != MP_MAIN) { m->sel = (m->page == MP_MAPS) ? 8 : (m->page == MP_ALTARS) ? 9 : 10; m->page = MP_MAIN; }   // back to the entry that opened the list
+        else if (m->page != MP_MAIN) { m->sel = (m->page == MP_MAPS) ? 8 : (m->page == MP_ALTARS) ? 9 : (m->page == MP_LAN) ? MENU_MAIN_LAN : 10; m->page = MP_MAIN; }   // back to the entry that opened the list
         else m->open = 0;
         return none;
     }
     if (key == MK_SELECT && n > 0) {
         if (m->page == MP_MAIN) {
-            static const int act[MENU_MAIN_COUNT] = { MA_HOST, MA_JOIN, MA_SUMMON, MA_STATE, MA_MARK, MA_AUTOLEAVE, MA_PERTEAM, MA_HOSTIP, MA_OPEN_MAPS, MA_OPEN_ALTARS, MA_OPEN_NPCS, MA_REMOVE_NPCS, MA_SOLODUEL, MA_EDIT_IP, MA_QUIT };
+            static const int act[MENU_MAIN_COUNT] = { MA_HOST, MA_JOIN, MA_SUMMON, MA_STATE, MA_MARK, MA_AUTOLEAVE, MA_PERTEAM, MA_HOSTIP, MA_OPEN_MAPS, MA_OPEN_ALTARS, MA_OPEN_NPCS, MA_REMOVE_NPCS, MA_SOLODUEL, MA_EDIT_IP, MA_OPEN_LAN, MA_QUIT };
             MenuAct a = { act[m->sel], 0 };
             if (a.action == MA_OPEN_MAPS)   { if (m->count[MP_MAPS]) { m->page = MP_MAPS; m->sel = menu_mem_sel(m, MP_MAPS); } a.action = MA_NONE; }
             else if (a.action == MA_OPEN_ALTARS) { if (m->count[MP_ALTARS]) { m->page = MP_ALTARS; m->sel = menu_mem_sel(m, MP_ALTARS); } a.action = MA_NONE; }
+            else if (a.action == MA_OPEN_LAN) { if (m->count[MP_LAN] < 1) m->count[MP_LAN] = 1; m->page = MP_LAN; m->sel = 0; a.action = MA_NONE; }
             else if (a.action == MA_OPEN_NPCS) {
                 if (m->ngroups > 0) { m->page = MP_NPCGROUPS; m->sel = 0; }
                 else if (m->count[MP_NPCS]) { m->page = MP_NPCS; m->sel = 0; }
@@ -108,6 +111,7 @@ static MenuAct menu_key_raw(Menu *m, int key) {
             m->group = m->sel; m->count[MP_NPCS] = m->gcount[m->group]; m->page = MP_NPCS; m->sel = 0;
             return none;
         }
+        if (m->page == MP_LAN) { MenuAct a = { MA_LAN_JOIN, m->sel }; return a; }          // stays open: the caller joins (or searches again on the 'searching' line)
         if (m->page == MP_NPCS) { MenuAct a = { MA_SPAWN_NPC, (m->ngroups > 0 ? m->gstart[m->group] : 0) + m->sel }; return a; }   // stays open: several NPCs can be spawned in a row
         MenuAct a = { m->page == MP_ALTARS ? MA_TELEPORT : MA_TRAVEL, m->sel };
         m->open = 0;                                     // travelling / teleporting: the menu is not needed any more
@@ -130,7 +134,7 @@ static int menu_layout(const Menu *m, const MenuStatus *s, const char *(*list_te
     if (!m->open) return 0;
     if (m->page == MP_MAIN) {
         n = menu_append(lines, n, "LanNative menu  (F1 close, F2 mods, Up/Down, Enter)%s", "", 0);
-        const char *items[MENU_MAIN_COUNT] = { "Host: %s", "Join: %s", "Bring joiners to me: %s", "State dump to log: %s", "Log marker: %s", "Auto-leave: %s", "3v3 players per team: %s", "Host address: %s", "Map list...%s", "Altar teleport...%s", "Spawn NPC...%s", "Remove all NPCs: %s", "Solo duel (test maps alone): %s", "Join address (Enter to type it): %s", "Quit to main menu: %s" };
+        const char *items[MENU_MAIN_COUNT] = { "Host: %s", "Join: %s", "Bring joiners to me: %s", "State dump to log: %s", "Log marker: %s", "Auto-leave: %s", "3v3 players per team: %s", "Host address: %s", "Map list...%s", "Altar teleport...%s", "Spawn NPC...%s", "Remove all NPCs: %s", "Solo duel (test maps alone): %s", "Join address (Enter to type it): %s", "LAN games...%s", "Quit to main menu: %s" };
         for (int i = 0; i < MENU_MAIN_COUNT; i++) {
             char val[32] = "";
             switch (i) {
@@ -148,7 +152,8 @@ static int menu_layout(const Menu *m, const MenuStatus *s, const char *(*list_te
                 case 11: snprintf(val, sizeof val, "%d spawned", s->npc_live); break;
                 case 12: snprintf(val, sizeof val, "%s", s->solo ? "ON" : "off"); break;
                 case 13: snprintf(val, sizeof val, "%.28s", s->joinaddr && s->joinaddr[0] ? s->joinaddr : "NOT SET"); break;
-                case 14: snprintf(val, sizeof val, "%s", "title screen"); break;
+                case 14: snprintf(val, sizeof val, " (%d found)", s->lan_n); break;
+                case 15: snprintf(val, sizeof val, "%s", "title screen"); break;
             }
             if (i == m->sel) *sel_line = n;
             char row[MENU_LINE_MAX];
@@ -164,6 +169,7 @@ static int menu_layout(const Menu *m, const MenuStatus *s, const char *(*list_te
     } else
         n = menu_append(lines, n, m->page == MP_MAPS ? "Maps  (Enter = travel, Left = back)%s" : m->page == MP_NPCS ? "NPCs  (Enter = spawn next to you, Left = back)%s" :
                                   m->page == MP_NPCGROUPS ? "NPC groups  (Enter = open, Left = back)%s" : m->page == MP_MODS ? "Mods  (F2 close, Up/Down scroll, Enter on a >> line runs it, Left = menu)%s" :
+                                  m->page == MP_LAN ? "LAN games  (Enter = join, Left = back)%s" :
                                   "Altars  (Enter = teleport, Left = back)%s", "", 0);
     int count = m->count[m->page];
     int first = m->sel - MENU_ROWS / 2; if (first > count - MENU_ROWS) first = count - MENU_ROWS; if (first < 0) first = 0;

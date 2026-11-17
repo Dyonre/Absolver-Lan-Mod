@@ -74,24 +74,4 @@ static int cfg_nth_line(const char *text, int nth, char *out, size_t cap) {
 }
 
 
-// Returns text with the (first) "key = value" line replaced by "key = value", or the line appended when the key is absent. Comments and other lines are kept as they are.
-// out receives the new text (CRLF if the text uses it). 1 = ok, 0 = out too small.
-static int cfg_set(const char *text, const char *key, const char *value, char *out, size_t cap) {
-    const char *p = cfg_skip_bom(text), *b, *e; size_t w = 0, klen = strlen(key); int done = 0, crlf = strstr(text, "\r\n") != NULL;
-    const char *nlz = crlf ? "\r\n" : "\n";
-    while (cfg_next_line(&p, &b, &e)) {
-        const char *tb = b, *te = e; cfg_trim(&tb, &te); int hit = 0;
-        if (!done && tb < te && *tb != '#') {
-            const char *eq = tb; while (eq < te && *eq != '=') eq++;
-            if (eq < te) { const char *kb = tb, *ke = eq; cfg_trim(&kb, &ke); size_t i = 0; if ((size_t)(ke - kb) == klen) { while (i < klen && tolower((unsigned char)kb[i]) == tolower((unsigned char)key[i])) i++; hit = i == klen; } }
-        }
-        char line[512]; int n;
-        if (hit) { n = snprintf(line, sizeof line, "%s = %s", key, value); done = 1; } else { n = (int)(e - b); if (n >= (int)sizeof line) n = (int)sizeof line - 1; memcpy(line, b, (size_t)n); line[n] = 0; }
-        if (n < 0 || w + (size_t)n + 2 >= cap) return 0;
-        memcpy(out + w, line, (size_t)n); w += (size_t)n; memcpy(out + w, nlz, strlen(nlz)); w += strlen(nlz);
-    }
-    if (!done) { char line[512]; int n = snprintf(line, sizeof line, "%s = %s", key, value); if (n < 0 || w + (size_t)n + 2 >= cap) return 0; memcpy(out + w, line, (size_t)n); w += (size_t)n; memcpy(out + w, nlz, strlen(nlz)); w += strlen(nlz); }
-    out[w] = 0; return 1;
-}
-
 #endif

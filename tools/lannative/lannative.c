@@ -130,7 +130,7 @@ static void lm_selftest(void);
 static void jg_announce_host(void);
 static JoinGuard g_jg;
 static void toast_show(char lines[][LM_LINE_MAX], int n, unsigned seconds);
-static int jg_key_for_url(wchar_t *out, size_t cap);
+static const char *ld_menu_line(int i); static void ld_menu_join(int index, uint64_t now); static void ld_tick(uint64_t now); static void ld_install(void); static int ld_found(void);   // landisc.inc (LAN finder)
 static void toast_draw(void *canvas);
 static int toast_active(void);
 static void md_draw(void *canvas); static int md_draw_active(void);                    // modes.inc
@@ -773,7 +773,6 @@ static int read_join_url(wchar_t *out, int cap) {
         if (lm_join_suffix(&g_lm_me, suffix, sizeof suffix / sizeof suffix[0]) && wcslen(out) + wcslen(suffix) + 1 < (size_t)cap) { wcscat(out, suffix); logf_("join: added the mod check (%ls)", suffix); }
         else logf_("join: the mod check did not fit in the URL and was left out");
     }
-    { wchar_t ks[60]; if (jg_key_for_url(ks, 60) && wcslen(out) + wcslen(ks) + 1 < (size_t)cap) wcscat(out, ks); }       // join protection: the host's key
     return 1;
 }
 
@@ -1324,6 +1323,7 @@ static int modsui_back(int sel); static int modsui_open_section(void); static vo
 static const char *menu_list_text(int page, int i) {
     static char label[MENU_LINE_MAX];
     if (page == MP_MODS) return modsui_line(i);
+    if (page == MP_LAN) return ld_menu_line(i);
     if (page == MP_ALTARS) return g_altar_label[i];
     if (page == MP_NPCGROUPS) { snprintf(label, sizeof label, "%s (%d)", g_npc_group_name[i], g_npc_group_count[i]); return label; }
     if (page == MP_NPCS) return g_npc_label[(g_menu.ngroups > 0 ? g_menu.gstart[g_menu.group] : 0) + i];
@@ -1393,6 +1393,7 @@ static void menu_do(MenuAct a, uint64_t now) {
     switch (a.action) {
     case MA_MODS_ACT: modsui_action(a.index); break;
     case MA_MODS_BACK: g_menu.sel = modsui_back(a.index); break;
+    case MA_LAN_JOIN: ld_menu_join(a.index, now); break;
     case MA_EDIT_IP: ti_clear(&g_ti); ti_prime(); g_ti_active = 1; logf_("menu: join address box opened"); break;
     case MA_HOST: if (L_guard_leave(&g_armed6, now, "menu Host")) do_travel(MAP_URL); else g_menu.open = 1; break;
     // quit without a function key; the same travel the game's own Quit ends in (UGameplayStatics::OpenLevel StartMap)
@@ -1559,7 +1560,7 @@ static void menu_tick(int focus, uint64_t now) {
         g_menu.mods_sub = g_menu.open && g_menu.page == MP_MODS && modsui_open_section();
         if (!g_menu.open) modsui_collapse();                                      // the Mods page always opens with its sections closed
         if (g_menu.open) {
-            MenuStatus st = { g_autoleave_on, g_perteam_cfg, !L_is_joiner(), g_maps_n, g_altars_n, g_hostips[g_hostip_sel], g_npc_on ? g_npcs_n : 0, L_npc_live(), g_solo_cfg, g_joinaddr_text };
+            MenuStatus st = { g_autoleave_on, g_perteam_cfg, !L_is_joiner(), g_maps_n, g_altars_n, g_hostips[g_hostip_sel], g_npc_on ? g_npcs_n : 0, L_npc_live(), g_solo_cfg, g_joinaddr_text, ld_found() };
             g_menu_nlines = g_ti_active ? ti_layout(g_menu_lines, &g_menu_sel) : menu_layout(&g_menu, &st, menu_list_text, g_menu_lines, &g_menu_sel);
         } else g_menu_nlines = 0;
 #ifdef LN_OVERLAY
@@ -1692,6 +1693,7 @@ static void on_tick(float dt) {
     }
     room_spawn_tick();
     int focus = game_has_focus();
+    ld_tick(GetTickCount64());                              // LAN finder: answers while hosting, searches at an altar / F1 > LAN games (landisc.inc)
     menu_tick(focus, GetTickCount64());
     modsui_tick(focus);
     if (!focus) { k10 = k9 = k11 = 0; return; }
@@ -1878,6 +1880,7 @@ static uint64_t image_size(const uint8_t *base) {          // PE SizeOfImage of 
 #include "modglue.inc"
 #include "crashrep.inc"
 #include "lanmods.inc"
+#include "landisc.inc"
 #include "rowedit.inc"
 #include "plugins.inc"
 #include "secore.inc"
@@ -1956,6 +1959,7 @@ static void init(HMODULE self) {
     } else logf_("mods: -NoMods on the command line - the mod loader is off");
     g_lm_me.present = 1;                                              // until the mod loader fills it in: "no gameplay mods"
     lanmods_install();
+    ld_install();
     servermode_install();
     if (!cmdline_has_flag(GetCommandLineW(), L"nomods")) rowedit_install();
     int lan_on = read_lan();

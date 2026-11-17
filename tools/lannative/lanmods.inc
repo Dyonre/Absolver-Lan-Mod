@@ -21,7 +21,7 @@ static int g_lm_faults;
 static char g_toast[8][LM_LINE_MAX]; static int g_toast_n; static uint64_t g_toast_until;
 static void toast_show(char lines[][LM_LINE_MAX], int n, unsigned seconds) {
     if (n > 8) n = 8;
-    for (int i = 0; i < n; i++) { memcpy(g_toast[i], lines[i], LM_LINE_MAX); if (!strstr(lines[i], "JOIN KEY") && !strstr(lines[i], "joinkey =")) logf_("mods: WARNING %s", lines[i]); }   /* the join key is shown on screen only, never logged */
+    for (int i = 0; i < n; i++) { memcpy(g_toast[i], lines[i], LM_LINE_MAX); logf_("mods: WARNING %s", lines[i]); }
     g_toast_until = GetTickCount64() + (uint64_t)seconds * 1000; g_toast_n = n;
 }
 static int toast_active(void) { return g_toast_n > 0 && GetTickCount64() < g_toast_until; }
@@ -67,60 +67,37 @@ static void lm_refuse(void *err, const char *text) {
     if (e->data) ((void (*)(void *))(g_base + RVA_FMEMORY_FREE))(e->data);
     e->data = buf; e->num = e->max = n;
 }
-// ----- join protection (joinguard.h): decides before the mod check, whatever modmismatch says
-static char g_jg_keyfile_note[40];
-static int jg_rnd(unsigned *v) { return rand_s(v); }
-static int jg_read_first_line(const wchar_t *path, char *out, size_t cap) {
-    char t[256]; if (!read_text_file(path, t, sizeof t)) return 0;
-    const char *p = cfg_skip_bom(t), *b, *e; if (!cfg_next_line(&p, &b, &e)) return 0; cfg_trim(&b, &e); cfg_copy(b, e, out, cap); return 1;
-}
+// ----- optional address allow list (joinguard.h): decides before the mod check, whatever modmismatch says. No allow lines = nothing is checked.
+// There is no join key, joiner limit or lock-out; old config lines with those keys are ignored with a log line.
 static void jg_config_load(void) {
-    char v[96] = ""; wchar_t path[MAX_PATH], keyfile[MAX_PATH];
-    memset(&g_jg, 0, sizeof g_jg); g_jg.need_key = 1; g_jg.maxpeers = 4;
-    if (setting_get("joinprotect", L"joinprotect.txt", 0, v, sizeof v, path) && !_strnicmp(v, "open", 4)) g_jg.need_key = 0;
-    swprintf(keyfile, MAX_PATH, L"%sjoinkey.txt", g_dir);
-    int have = 0;
-    if (g_cfg_present && cfg_get(g_cfg_text, "joinkey", 0, v, sizeof v)) {
-        if (jg_key_valid(v)) { strcpy(g_jg.key, v); have = 1; snprintf(g_jg_keyfile_note, sizeof g_jg_keyfile_note, "config.txt"); }
-        else logf_("join protection: joinkey in config.txt must be 4-32 characters A-Z a-z 0-9 - _ ; ignored");
-    }
-    if (!have && jg_read_first_line(keyfile, v, sizeof v) && jg_key_valid(v)) { strcpy(g_jg.key, v); have = 1; snprintf(g_jg_keyfile_note, sizeof g_jg_keyfile_note, "joinkey.txt"); }
-    if (!have) {
-        jg_make_key(g_jg.key, jg_rnd);
-        FILE *f = _wfopen(keyfile, L"wb"); if (f) { fprintf(f, "%s\r\n", g_jg.key); fclose(f); }
-        snprintf(g_jg_keyfile_note, sizeof g_jg_keyfile_note, "joinkey.txt (new)");
-    }
+    char v[96] = ""; wchar_t path[MAX_PATH];
+    memset(&g_jg, 0, sizeof g_jg);
     for (int k = 0; g_jg.nallow < JG_ALLOW_MAX && setting_get("allow", L"allow.txt", k, v, sizeof v, path); k++) {
-        if (jg_parse_rule(v, &g_jg.allow[g_jg.nallow])) g_jg.nallow++; else logf_("join protection: allow rule '%.40s' is not a.b.c.d or a.b.c.d/bits - ignored", v);
+        if (jg_parse_rule(v, &g_jg.allow[g_jg.nallow])) g_jg.nallow++; else logf_("join check: allow rule '%.40s' is not a.b.c.d or a.b.c.d/bits - ignored", v);
     }
-    if (setting_get("maxpeers", L"maxpeers.txt", 0, v, sizeof v, path)) {
-        if (!_strnicmp(v, "off", 3) || !_strnicmp(v, "unlimited", 9)) g_jg.maxpeers = 0;
-        else { int n = atoi(v); if (n >= 0 && n <= 64) g_jg.maxpeers = n; else logf_("join protection: maxpeers must be 0-64 or off; using 4"); }
-    }
-    logf_("join protection: %s; %d allow rule(s)%s; at most %d joiner(s) (key source: %s - the key itself is never logged)", g_jg.need_key ? "a join key is required" : "OPEN (no key)", g_jg.nallow,
-          g_jg.nallow ? "" : " (any address)", g_jg.maxpeers, g_jg_keyfile_note);
+    char old[64];
+    if (g_cfg_present && jg_obsolete_keys(g_cfg_text, old, sizeof old)) logf_("config: '%s' in config.txt no longer exist(s) - the join key was removed; those lines are ignored and can be deleted", old);
+    static const wchar_t *const legacy[] = { L"joinkey.txt", L"joinprotect.txt", L"maxpeers.txt" };
+    for (int i = 0; i < 3; i++) { swprintf(path, MAX_PATH, L"%s%ls", g_dir, legacy[i]); if (GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES) logf_("config: %ls is no longer used (the join key was removed) - ignored; you can delete it", path); }
+    if (g_jg.nallow) logf_("join check: %d allow rule(s) - only those addresses may join or see this game in the LAN list", g_jg.nallow);
+    else logf_("join check: open - anybody who can reach this PC may join (add 'allow = 26.0.0.0/8' lines to config.txt to limit it)");
 }
 // 1 = refuse this login (the error text is already set)
-static int jg_on_prelogin(const char *which, void *options, void *address, void *err) {
-    const FStringView *o = options, *a = address;
-    int olen = (o && o->data && o->num > 1 && o->num < 4000) ? o->num - 1 : 0;
+static int jg_on_prelogin(const char *which, void *address, void *err) {
+    if (!g_jg.nallow) return 0;
+    const FStringView *a = address;
     char addr[80] = "?"; if (a && a->data && a->num > 1 && a->num < 200) narrow(a->data, a->num - 1, addr, sizeof addr);
-    JgVerdict v = jg_check(&g_jg, o && o->data ? o->data : L"", olen, addr, T_peers_now(), GetTickCount64());
     char masked[40]; jg_mask_addr(addr, masked, sizeof masked);
-    if (v == JG_OK) { logf_("join protection (%s): login from %s accepted", which, masked); return 0; }
-    logf_("join protection (%s): login from %s REFUSED: %s", which, masked, jg_verdict_name(v));
-    lm_refuse(err, jg_refusal_text(v));
-    { char lines[2][LM_LINE_MAX]; snprintf(lines[0], LM_LINE_MAX, "JOIN REFUSED (%s) from %s", jg_verdict_name(v), masked); lines[1][0] = 0; toast_show(lines, 1, 8); }
+    if (jg_allowed(&g_jg, addr)) { logf_("join check (%s): login from %s accepted (allow list)", which, masked); return 0; }
+    logf_("join check (%s): login from %s REFUSED: not on the allow list", which, masked);
+    lm_refuse(err, "Join refused: your address is not on the host's allow list.");
+    { char lines[1][LM_LINE_MAX]; snprintf(lines[0], LM_LINE_MAX, "JOIN REFUSED (not on the allow list) from %s", masked); toast_show(lines, 1, 8); }
     return 1;
 }
-// shown on the host's screen when a listen server starts: the key to give to friends
+// shown on the host's screen when a listen server starts (lannative.c hostip_on_travel, servermode.inc)
 static void jg_announce_host(void) {
-    if (!g_jg.need_key) { char l1[1][LM_LINE_MAX]; snprintf(l1[0], LM_LINE_MAX, "HOSTING WITHOUT A JOIN KEY (joinprotect = open)"); toast_show(l1, 1, 15); return; }
-    char lines[3][LM_LINE_MAX];
-    snprintf(lines[0], LM_LINE_MAX, "JOIN KEY: %s", g_jg.key);
-    snprintf(lines[1], LM_LINE_MAX, "Friends put  joinkey = %s  in LanNative\\config.txt", g_jg.key);
-    snprintf(lines[2], LM_LINE_MAX, "(keep it private; change it by editing joinkey.txt)");
-    toast_show(lines, 3, 40);
+    char l1[1][LM_LINE_MAX]; snprintf(l1[0], LM_LINE_MAX, "HOSTING - players on your LAN / VPN find this game at an altar (F1 > LAN games)");
+    toast_show(l1, 1, 12);
 }
 static void lm_on_prelogin(const char *which, void *options, void *address, void *err) {
     if (!g_lm_mode || !g_lm_me.present) return;
@@ -142,9 +119,9 @@ static void lm_on_prelogin(const char *which, void *options, void *address, void
     }
 }
 static void jg_guarded(const char *which, void *o, void *a, void *e, int *refused) {
-    *refused = 0;
-    __try { *refused = jg_on_prelogin(which, o, a, e); }
-    __except (EXCEPTION_EXECUTE_HANDLER) { *refused = 1; lm_refuse(e, "Join refused: internal error in the host's join protection."); logf_("join protection: EXCEPTION 0x%08lX - the login was refused (fail closed)", GetExceptionCode()); }
+    (void)o; *refused = 0;
+    __try { *refused = jg_on_prelogin(which, a, e); }
+    __except (EXCEPTION_EXECUTE_HANDLER) { *refused = 1; lm_refuse(e, "Join refused: internal error in the host's allow-list check."); logf_("join check: EXCEPTION 0x%08lX - the login was refused (allow list set: fail closed)", GetExceptionCode()); }
 }
 static void hk_prelogin_base(void *self, void *o, void *a, void *u, void *e) {
     g_orig_prelogin_base(self, o, a, u, e);
@@ -236,13 +213,10 @@ static void lm_selftest(void) {
 static void lanmods_install(void) {
     g_lm_mode = read_modmismatch();
     jg_config_load();
-    g_orig_prelogin_base = (PreLogin_t)hook(IDX_PRELOGIN_BASE, (void *)hk_prelogin_base);       // the join protection needs these even when the mod check is off
+    g_orig_prelogin_base = (PreLogin_t)hook(IDX_PRELOGIN_BASE, (void *)hk_prelogin_base);       // the allow list needs these even when the mod check is off
     g_orig_prelogin_adv = (PreLogin_t)hook(IDX_PRELOGIN_ADV, (void *)hk_prelogin_adv);
-    if (!g_orig_prelogin_base || !g_orig_prelogin_adv) logf_("join protection: PreLogin hook NOT installed (%s) - anybody who can reach this PC can join while you host", g_orig_prelogin_base ? "pvp game mode" : "game mode");
+    if (!g_orig_prelogin_base || !g_orig_prelogin_adv) logf_("join check: PreLogin hook NOT installed (%s) - the allow list and the mod check are not applied", g_orig_prelogin_base ? "pvp game mode" : "game mode");
     if (!g_lm_mode) return;
     g_orig_clientmsg = (ClientMsg_t)hook(IDX_CLIENTMSG, (void *)hk_clientmsg);
     logf_("mod check: host check %s, joiner display %s", g_orig_prelogin_base && g_orig_prelogin_adv ? "installed" : "PARTLY MISSING", g_orig_clientmsg ? "installed" : "NOT installed");
 }
-
-// the joiner's key for the URL: same setting as the host's key
-static int jg_key_for_url(wchar_t *out, size_t cap) { return jg_join_suffix(g_jg.key, out, cap); }
