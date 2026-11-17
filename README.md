@@ -14,19 +14,21 @@ Much of the code and documentation was written with the help of AI tools.
 
 * **Mods**: one folder per mod in `<game>\Mods\`: `rows.json` edits of game tables, new items / powers / NPCs / styles / map scenes from
   JSON, paks, Lua scripts and native C plugins. Dependencies and load order from `mod.json`; conflicts are listed.
-* **In game**: **F1** menu (hosting, joining, options), **F2** Mods page (switch mods on and off, reorder, settings, conflicts, reload).
+* **In game**: **F1** menu (hosting, joining, LAN games list, kick, map list with categories and search, options), **F2** Mods page
+  (switch mods on and off, reorder, settings, conflicts, reload, Net Inspector, key owners). Keyboard, mouse or gamepad.
   `-NoMods` starts without mods.
 * **Plugin API**: hooks on game functions, calls by name, properties, events, spawning, timers, menus, an ImGui overlay.
-* **LAN play**: host and join from the F1 menu over a LAN or VPN, LAN duels, a join key by default, an address allow list, a player limit,
-  a mod check when a player joins.
+* **LAN play**: host and join from the F1 menu over a LAN or VPN, a list of LAN games at every altar, LAN duels, an optional address
+  allow list, a player limit, a host kick, a mod check when a player joins and a download of the host's shareable pak mods.
 * **Fixes**: the Forsaken "cursed parry" fix, on by default.
 
 ## Multiplayer and VPNs
 
 The official online mode is not supported and almost certainly will not work with this loader (it needs EasyAntiCheat off). Do not use mods
 online; choose Vanilla when the game starts to play online without the loader. To play with friends use a private LAN, or a VPN /
-virtual LAN over the internet. That is your responsibility: only play with people you trust, keep the join key private, never
-port-forward the game to the internet, and read the terms of the VPN software you choose.
+virtual LAN over the internet. That is your responsibility: only play with people you trust, never port-forward the game to the
+internet, and read the terms of the VPN software you choose. There is no join key: on a shared or public VPN network set `allow` lines
+so that only your friends can join.
 See `docs/HOSTING.md`.
 
 ## Installation
@@ -36,8 +38,11 @@ See `docs/HOSTING.md`.
    creates a `Mods` folder. It also asks GitHub whether a newer release exists (nothing is downloaded; `Install.bat -NoUpdateCheck` skips
    it). The loader itself never goes online.
 3. Press Play in Steam as usual. A window asks how to start: **Modded** (the loader and your mods, offline and private LAN only) or
-   **Vanilla** (the unmodified game with EasyAntiCheat, for the official online mode). Paks in `Content\Paks` load either way and are never
-   moved. Tick "Remember my choice" to skip the window; hold Shift while the game starts to see it again (`docs/SETTINGS.md`).
+   **Vanilla** (the unmodified game with EasyAntiCheat, for the official online mode). Tick "Remember my choice" to skip the window; hold Shift while the game starts to see it again (`docs/SETTINGS.md`).
+
+**Mod paks placed directly in `Content\Paks` do not load in Modded starts**: the loader mounts only the game's own paks and the `Mods`
+folder. Put each one in its own folder under `Mods\` (`AbsolverModLauncher.exe --migrate` moves them), or set `content_paks = all` in
+`LanNative\config.txt` to load them as before. They still load in Vanilla starts.
 
 To uninstall, run `Uninstall.bat`. Steam's "Verify integrity of game files" also undoes the install.
 

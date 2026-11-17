@@ -18,6 +18,11 @@ Mods\MyMod\
   *.pak                 packed game files (cooked for UE 4.18.3), mounted by the loader
 ```
 
+Paks placed directly in `Absolver\Content\Paks` (or a subfolder of it) are not mods of the loader: in Modded starts it mounts only the
+game's own `pakchunk0`-`2` from there, and the Mods page counts the skipped ones (`LanNative\mods.txt` lists them). Put each one in its own folder under `Mods\`
+(`AbsolverModLauncher.exe --migrate` moves the ones directly in `Content\Paks`; move paks in subfolders by hand), or set `content_paks = all` in `LanNative\config.txt` to load them as well. Vanilla
+starts load them as before.
+
 ## mod.json
 ```json
 { "id": "MyMod", "name": "My Mod", "version": "1.0.0", "api": 2, "author": "...", "description": "...",
@@ -34,6 +39,7 @@ Mods\MyMod\
 | `incompatible_with` | mod ids that must not load together with this one |
 | `supersedes` | pak file names of other mods that this mod replaces; they are not mounted while this mod ships a pak |
 | `affects_gameplay` | `false` = cosmetic only (looks, textures); left out of the LAN mod check. Default `true` |
+| `shareable` | `true` = a host may offer this mod's `.pak` files to joiners whose mods differ (pak-only gameplay mods: `affects_gameplay` not `false`; `docs/HOSTING.md` section 4). Default `false` |
 | `settings` | fields shown as a form on the Mods page (F2); the values go to the mod's `plugin.cfg` |
 | `name`, `author`, `description` | display only |
 
@@ -66,6 +72,9 @@ are dropped at the next save. Plugins keep their own data outside the game's sav
 ## LAN
 Paks, `rows.json`, `content\` and allowed `plugin.dll` files of every mod with `affects_gameplay` true form a fingerprint that host and joiner compare (`modmismatch`,
 `docs/SETTINGS.md`). A plugin runs only on the PC that has it; other players see its effects only where the game itself sends them.
+Pak-only gameplay mods marked `shareable` can be downloaded from the host (`docs/HOSTING.md` section 4). The Net Inspector rows on the Mods page show,
+for every character in the world, the body, animations and outfit pieces it uses and which mod or pak provides them; a joiner also sees
+the host's view and which of those assets it is missing.
 
 ## Starter mod
 A data mod: `Mods\FasterJab\rows.json` (`examples/FastJab` also adds a new move)
