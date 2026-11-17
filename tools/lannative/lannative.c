@@ -1067,6 +1067,13 @@ static void hostip_on_travel(const wchar_t *url) {
 // In-game menu (state machine and layout: menu.h; this gathers key edges, runs the chosen action and draws the text)
 static int g_menu_on = 1, g_menu_faults, g_draw_faults, g_perteam_cfg = 1, g_autoleave_on = 1, g_solo_cfg;
 static Menu g_menu;
+#if !defined(LN_MINIMAL) && defined(LN_TRAVELX)                 // travelx.inc: plugin travel entries in the Map list (API add_travel_entry; PENDING until the AbsApi field lands after net_role)
+static int travelx_urls(char (*urls)[MENU_URL_MAX], int cap); static const char *travelx_label(const char *url); static int travelx_run(const char *url);
+#else
+static int travelx_urls(char (*urls)[MENU_URL_MAX], int cap) { (void)urls; (void)cap; return 0; }
+static const char *travelx_label(const char *url) { (void)url; return NULL; }
+static int travelx_run(const char *url) { (void)url; return 0; }
+#endif
 static char g_maps[MENU_LIST_MAX][MENU_URL_MAX], g_altar_label[MENU_LIST_MAX][MENU_LINE_MAX];
 static float g_altar_pos[MENU_LIST_MAX][3];
 static int g_maps_n, g_altars_n;
@@ -1190,6 +1197,7 @@ static DWORD WINAPI discover_maps_worker(void *unused) {
             int duplicate = 0; for (int j = 0; j < d->shown; j++) { size_t n = strcspn(d->urls[j], "?"); if (strlen(d->paths[i]) == n && !_strnicmp(d->paths[i], d->urls[j], n)) duplicate = 1; }
             if (!duplicate) { if (d->shown < MENU_LIST_MAX) snprintf(d->urls[d->shown++], MENU_URL_MAX, "%s?listen", d->paths[i]); else d->dropped++; }
         }
+        d->shown += travelx_urls(&d->urls[d->shown], MENU_LIST_MAX - d->shown);   // plugin travel entries ("plugin-travel:<k>:<map path>": the path sorts them into its category)
         MapRow *rows = calloc(d->shown ? (size_t)d->shown : 1, sizeof *rows);
         for (int i = 0; rows && i < d->shown; i++) {                           // a map that is on disk but not mounted: its pak was added after the game started
             char base[MENU_URL_MAX]; snprintf(base, sizeof base, "%.*s", (int)strcspn(d->urls[i], "?"), d->urls[i]);
@@ -1396,6 +1404,7 @@ static const char *menu_list_text(int page, int i) {
     if (page == MP_NPCS) return i >= 0 && i < g_npcs_n ? g_npc_label[i] : "";                    // i = whole-list index (menu_entry)
     if (page == MP_MAPGROUPS) { if (i < 0 || i >= g_mapgrps) return ""; snprintf(label, sizeof label, "%s (%d)", MC_NAME[g_mapgrp_cat[i]], g_mapgrp_n[i]); return label; }
     if (i < 0 || i >= g_maps_n) return "";
+    { const char *tl = travelx_label(g_maps[i]); if (tl) { snprintf(label, sizeof label, "%s: %s", MC_SHORT[map_menu_category(g_maps[i], 0)], tl); return label; } }   // a plugin's travel entry
     char short_[MENU_LINE_MAX]; map_menu_display(g_maps[i], g_maps_mod[i], short_, sizeof short_);
     snprintf(label, sizeof label, "%s%s", short_, g_maps_new[i] ? "   (new: restart the game first)" : "");
     return label;
@@ -1510,6 +1519,7 @@ static void menu_do(MenuAct a, uint64_t now) {
         if (a.index < 0 || a.index >= g_maps_n) break;
         const char *url = g_maps[a.index];
         if (!L_guard_leave(&g_armed_menu, now, "menu travel")) { g_menu.open = 1; break; }
+        if (travelx_run(url)) break;                                             // a plugin's travel entry: the plugin travels itself
         wchar_t wide[MENU_URL_MAX];
         int n = MultiByteToWideChar(CP_UTF8, 0, url, -1, wide, MENU_URL_MAX);
         if (n > 0) do_travel(wide);
@@ -1690,7 +1700,7 @@ static void menu_tick(int focus, uint64_t now) {
     // pad to it; F1 / F2 still work. Esc and Space are menu keys only while the overlay draws the menu (it keeps them from the game then; the text menu does not).
     int ov_menu = 0, plugin_keys = 0;
 #ifdef LN_OVERLAY
-    ov_menu = g_menu.open && ov_text_hidden(); plugin_keys = g_ov_on && ov_focus_owner() >= 0;
+    ov_menu = g_menu.open && ov_text_hidden(); plugin_keys = g_ov_on && (ov_focus_owner() >= 0 || ov_text_input());   // a focused plugin window, or typing in a text box (log filter, settings form)
     { static int was = -9; int fo = g_ov_on ? ov_focus_owner() : -2; if (fo != was) { if (g_menu.open || was != -9) logf_("menu: keyboard / pad owner: %s", fo >= 0 ? "a plugin window (the menu ignores its keys)" : fo == -1 ? "the loader menu" : "nobody (no focused window)"); was = fo; } }
 #endif
     if (!ov_menu) esc = spc = 0;

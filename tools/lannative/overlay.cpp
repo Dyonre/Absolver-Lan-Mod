@@ -518,6 +518,62 @@ static void update_focus_owner(void) {
     LONG old = InterlockedExchange(&g_focus_owner, owner);
     if (old != owner) LOG("overlay: focus %s", owner >= 0 ? owner_name(owner) : owner == -1 ? "loader menu" : "nobody");
 }
+/* ---------- log window: the last lines of lannative.log, filter + "errors only", mod tags; read-only. Drawn beside the loader's
+ * window while a loader menu is open (F2 row "Log window"); the file is read here on the render thread, incrementally, twice a second while shown. ---------- */
+#include "logview.h"
+static LogView g_lv; static wchar_t g_lv_path[MAX_PATH]; static volatile LONG g_lv_shown, g_text_input; static ULONGLONG g_lv_next; static long long g_lv_off = -1;
+static char g_lv_filter[64]; static bool g_lv_err;
+extern "C" void ov_log_window(const wchar_t *path, int on) {
+    if (path) { wcsncpy(g_lv_path, path, MAX_PATH - 1); g_lv_path[MAX_PATH - 1] = 0; }
+    InterlockedExchange(&g_lv_shown, on); g_lv_next = 0;
+    LOG("overlay: log window %s", on ? "shown (lannative.log, last 3000 lines)" : "hidden");
+}
+extern "C" int ov_log_window_shown(void) { return (int)g_lv_shown; }
+extern "C" int ov_text_input(void) { return (int)g_text_input; }  // 1 = an overlay text box has the keyboard (the menus leave the keys alone)
+static void lv_poll(void) {
+    ULONGLONG now = GetTickCount64(); if (now < g_lv_next || !g_lv_path[0]) return; g_lv_next = now + 500;
+    if (!g_lv.l && !lv_init(&g_lv)) return;
+    HANDLE h = CreateFileW(g_lv_path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (h == INVALID_HANDLE_VALUE) return;
+    LARGE_INTEGER sz; int fresh = 0;
+    if (GetFileSizeEx(h, &sz)) {
+        if (g_lv_off < 0 || sz.QuadPart < g_lv_off) { lv_clear(&g_lv); g_lv_off = sz.QuadPart > 512 * 1024 ? sz.QuadPart - 512 * 1024 : 0; fresh = g_lv_off > 0; }   // first look or a restarted log
+        static char buf[64 * 1024];
+        while (g_lv_off < sz.QuadPart) {
+            LARGE_INTEGER at; at.QuadPart = g_lv_off; DWORD got = 0;
+            if (!SetFilePointerEx(h, at, NULL, FILE_BEGIN) || !ReadFile(h, buf, sizeof buf, &got, NULL) || !got) break;
+            const char *p = buf; DWORD n = got;
+            if (fresh) { const char *nl = (const char *)memchr(buf, '\n', got); if (!nl) { g_lv_off += got; continue; } n -= (DWORD)(nl + 1 - buf); p = nl + 1; fresh = 0; }   // started mid-line: skip to the next line
+            lv_feed(&g_lv, p, n); g_lv_off += got;
+        }
+    }
+    CloseHandle(h);
+}
+static void draw_log(int w, int h) {
+    bool open = true; float ww = 900.f * g_scale, wh = 520.f * g_scale; if (ww > w - 40) ww = (float)(w - 40); if (wh > h - 40) wh = (float)(h - 40);
+    ImGui::SetNextWindowPos(ImVec2((float)w - ww - 20.f, (float)h - wh - 20.f), ImGuiCond_Appearing); ImGui::SetNextWindowSize(ImVec2(ww, wh), ImGuiCond_Appearing);
+    ImGui::SetNextWindowBgAlpha(0.90f);
+    if (ImGui::Begin("Log - lannative.log###lnlog", &open, ImGuiWindowFlags_NoSavedSettings)) {
+        ImGui::SetNextItemWidth(260.f * g_scale); ImGui::InputTextWithHint("##lvf", "filter: text or mod name", g_lv_filter, sizeof g_lv_filter);
+        ImGui::SameLine(); ImGui::Checkbox("Errors only", &g_lv_err);
+        static int idx[LV_MAX]; int m = 0;
+        for (int i = 0; i < g_lv.n; i++) if (lv_match(lv_at(&g_lv, i), g_lv_filter, g_lv_err)) idx[m++] = i;
+        ImGui::SameLine(); ImGui::TextDisabled("%d of the last %d lines", m, g_lv.n);
+        ImGui::BeginChild("##lvl", ImVec2(0, 0), 0, ImGuiWindowFlags_HorizontalScrollbar);
+        bool at_end = ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 2.f;
+        ImGuiListClipper clip; clip.Begin(m);
+        while (clip.Step()) for (int r = clip.DisplayStart; r < clip.DisplayEnd; r++) {
+            const LvLine *l = lv_at(&g_lv, idx[r]); if (!l) continue;
+            if (l->tag[0]) { ImGui::TextColored(ImVec4(0.55f, 0.80f, 1.f, 1.f), "[%s]", l->tag); ImGui::SameLine(); }
+            if (l->err) ImGui::TextColored(ImVec4(1.f, 0.45f, 0.40f, 1.f), "%s", l->text); else ImGui::TextUnformatted(l->text);
+        }
+        if (at_end) ImGui::SetScrollHereY(1.f);                      // follows new lines while scrolled to the bottom
+        ImGui::EndChild();
+    }
+    ImGui::End();
+    if (!open) ov_log_window(NULL, 0);
+}
+
 static void draw_ui(int w, int h) {
     const OvSnap &s = g_cur;
     g_cw = w; g_ch = h;
@@ -542,6 +598,7 @@ static void draw_ui(int w, int h) {
         ImGui::PopStyleColor(2);
         if (!open) post(OVC_TOGGLE, 0);
         if (s.kind == OV_MODS && s.form_mod >= 0) draw_form(s);
+        if (g_lv_shown) { lv_poll(); draw_log(w, h); }               // beside the loader's window, only while a loader menu is open
     }
     last_kind = s.kind;
     tag_windows(-1);
@@ -611,6 +668,7 @@ static void frame(IDXGISwapChain *sc) {
     if (g_state == OV_STARTING) { InterlockedExchange(&g_state, OV_READY); LOG("overlay: first frame drawing - ImGui menus active"); }   // before the first callback, so overlay_info works in frame 1
     draw_ui(w, h);
     InterlockedExchange(&g_want_keys, io.WantCaptureKeyboard || io.WantTextInput);
+    InterlockedExchange(&g_text_input, io.WantTextInput ? 1 : 0);  // ov_text_input: typing in a text box (log filter, settings form) is not menu navigation
     InterlockedExchange(&g_mouse_on_ui, io.WantCaptureMouse ? 1 : 0);  // gcp_hook: the game does not see the cursor over an overlay window
     ImGui::Render();
     ID3D11RenderTargetView *old_rtv[D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT] = { 0 }; ID3D11DepthStencilView *old_dsv = NULL;
@@ -672,7 +730,7 @@ static HRESULT STDMETHODCALLTYPE hk_present_body(IDXGISwapChain *sc, UINT sync, 
             LOG("overlay: EXCEPTION in the overlay frame (%ld of 3)%s", n, n >= 3 ? " - overlay switched off for this run, the text menu takes over" : "");
         }
     } else if (g_was_vis) {                                          // hidden again: release whatever the overlay still holds
-        g_was_vis = 0; InterlockedExchange(&g_mouse_on_ui, 0);
+        g_was_vis = 0; InterlockedExchange(&g_mouse_on_ui, 0); InterlockedExchange(&g_text_input, 0);
         if (g_imgui) { EnterCriticalSection(&g_cs); ImGui::GetIO().ClearInputKeys(); ImGui::GetIO().ClearInputMouse(); LeaveCriticalSection(&g_cs); }
     }
     return o_present(sc, sync, flags);
