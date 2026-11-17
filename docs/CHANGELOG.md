@@ -1,5 +1,24 @@
 # Changes
 
+## 5.3.0
+
+**Mods page (F2)**
+* Key binding: every plugin action and every `on_key` key can be moved to another key, mouse button or gamepad button from the Keys rows (Esc cancels, Delete unbinds, Backspace restores the default). Inputs used twice in an overlapping context are warned about, not refused. Changes are saved in `LanNative\binds.txt`.
+* Mod profiles: named copies of the on / off + order set in `Mods\profiles\<name>.txt`. A Profile box saves the current set under a typed name or updates an existing profile (the old file is kept as `.bak`); the profile rows switch to a profile after a restart.
+* Log window: the last 3000 lines of `lannative.log` beside the menu, with a filter, `Errors only` and each line's mod tag. The menus ignore keys while a text box has the keyboard.
+* `mod.json` `"net"` (`host_only`, `local`, `vanilla_visible`, `all`) and `"joiners_need": false` are shown as tags in the Holds column; `"joiners_need": false` also leaves a mod out of the LAN mod check and the host mod download. The Holds column wraps long tag lists.
+* The menu window is titled "Gleam Loader".
+
+**Plugin API**
+* 2.24: `bind_action`, `bind_state`, `bind_name` (bindable actions with contexts).
+* 2.25: `add_travel_entry` (a plugin's own row in the F1 Map list).
+* 2.26: `net_role` (standalone, host, joined client or loading).
+
+**Fixes**
+* Steam Play starts (with the Steam overlay) no longer crash a few seconds after start-up when a plugin registers an overlay window while it loads: the overlay's Present hook is installed at the first game tick, and a re-entry guard stops a hook chain from recursing.
+* While the game shows its own cursor (Esc menu), its buttons under a loader window no longer react to the mouse.
+* A line of 256 or more characters in `loadorder.txt` (or a profile) no longer splits into two mod lines.
+
 ## 5.2.0
 
 **LAN play: no join key any more.** 5.2.0 has no join key, no failed-login lock-out and no `maxpeers` limit; anybody who can reach a host on the network can find and join its game. On a shared or public VPN network (a public Radmin or Hamachi room) set `allow` lines in `LanNative\config.txt` so that only your friends can join (`docs/HOSTING.md`). An `allow` line that is not valid now closes the host (every join refused, the line named on screen) instead of being skipped; `#` starts a comment and up to 64 lines are read. Old `joinkey`, `joinprotect` and `maxpeers` lines and `joinkey.txt` are ignored with a log line.
