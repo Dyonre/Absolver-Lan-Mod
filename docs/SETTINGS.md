@@ -60,7 +60,7 @@ Keys of individual features (`wp_*`, `anim_sets*`, `bot_ai_*`, `clone_spawn`, `d
 | Key | Action |
 |---|---|
 | F1 | loader menu: host, join, LAN games, kick, maps (categories; type to search), NPCs, options |
-| F2 | Mods page: load order, switch mods on / off, settings, conflicts, plugin faults, reload, skipped `Content\Paks` paks, host mod download, Net Inspector, key owners |
+| F2 | Mods page: load order, switch mods on / off, profiles, settings, conflicts, plugin faults, reload, skipped `Content\Paks` paks, host mod download, Net Inspector, key binding, log window (`docs/MODS.md`) |
 | Back + Start (gamepad) | opens the F1 menu (`pad_menu`) |
 | F9 / F10 / F11 | developer keys, only while `LanNative\devkeys.txt` exists: free camera, teleport, developer commands (`docs/ADVANCED.md`) |
 

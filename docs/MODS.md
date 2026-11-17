@@ -40,6 +40,8 @@ starts load them as before.
 | `supersedes` | pak file names of other mods that this mod replaces; they are not mounted while this mod ships a pak |
 | `affects_gameplay` | `false` = cosmetic only (looks, textures); left out of the LAN mod check. Default `true` |
 | `shareable` | `true` = a host may offer this mod's `.pak` files to joiners whose mods differ (pak-only gameplay mods: `affects_gameplay` not `false`; `docs/HOSTING.md` section 4). Default `false` |
+| `net` | who needs the mod in a LAN game, shown as a tag on the Mods page: `host_only` (only the host runs it), `local` (it affects only the player who has it), `vanilla_visible` (players without it still see its effect through the game's own sync) or `all` (every player needs it). A label only: the loader enforces nothing; a plugin can check `net_role` itself |
+| `joiners_need` | `false` = joiners can play without this mod: it is left out of the LAN mod check and not offered by the host mod download, like a cosmetic mod, but stays a gameplay mod everywhere else. Default `true` |
 | `settings` | fields shown as a form on the Mods page (F2); the values go to the mod's `plugin.cfg` |
 | `name`, `author`, `description` | display only |
 
@@ -65,12 +67,29 @@ skipped mods and their reason are also shown on screen.
 The Mods page and `mods.txt` list paks that overwrite each other's files, `rows.json` fields set by several mods (the later mod wins that field)
 and duplicate content ids (the later mod wins). Content and `rows.json` reload without a restart from the first line of the Mods page.
 
+## Mods page (F2)
+* **Profiles**: a profile is a named copy of the on / off + order set, `Mods\profiles\<name>.txt` in `loadorder.txt`'s format. Type a name in the
+  Profile box at the top of the page and choose `Save as` (a new profile) or `Update` (the name of an existing profile: it is overwritten, the old
+  file is kept as `<name>.txt.bak`); the box starts with the current profile, else the last one used since the game started. The profile rows switch to a profile (`loadorder.txt` is rewritten,
+  the old one kept as `loadorder.txt.bak`; it takes effect after a restart) or save the current set under a suggested name. Names: letters,
+  digits, space, `-`, `_`, up to 40 characters, no space at either end. A profile applies to the mods installed now: mods it does not name keep
+  their state and go last, names of mods that are not installed are left out. Up to 32 profiles are listed. No profile exists by default;
+  rename or delete a profile by its file.
+* **Keys**: every action a plugin declares with `bind_action`, and every `on_key` key, has a row. Choose it and press the new key, mouse button
+  or gamepad button (Esc cancels, Delete unbinds, Backspace restores the default). An input that another action uses in an overlapping context
+  is shown as a warning, never refused. Changed binds are saved in `LanNative\binds.txt`, one line each: `Mod/action = K` (`Mod` = the plugin's folder name; or `F8`, `Mouse 4`,
+  `Pad A`, `none`). Keys that the loader, the game, Steam or a mod read directly are listed below as fixed keys.
+* **Log window**: the Log window row shows the last 3000 lines of `LanNative\lannative.log` beside the menu, with a filter box (text or mod
+  name), `Errors only` and each line's mod tag. It is read-only and drawn while F1 / F2 is open. While a text box has the keyboard, the menus
+  ignore keys.
+* **Tags**: the Holds column lists what a mod contains and its `net` / `joiners_need` tags (hover for their meaning).
+
 ## Saves
 Objects a mod creates live under `/Game/Mods/<mod id>/`. Items granted to a character are saved by that path; when the mod is removed they
 are dropped at the next save. Plugins keep their own data outside the game's save files (`kv_get` / `kv_set`, `sidecar_get` / `sidecar_set`).
 
 ## LAN
-Paks, `rows.json`, `content\` and allowed `plugin.dll` files of every mod with `affects_gameplay` true form a fingerprint that host and joiner compare (`modmismatch`,
+Paks, `rows.json`, `content\` and allowed `plugin.dll` files of every mod with `affects_gameplay` true and `joiners_need` not `false` form a fingerprint that host and joiner compare (`modmismatch`,
 `docs/SETTINGS.md`). A plugin runs only on the PC that has it; other players see its effects only where the game itself sends them.
 Pak-only gameplay mods marked `shareable` can be downloaded from the host (`docs/HOSTING.md` section 4). The Net Inspector rows on the Mods page show,
 for every character in the world, the body, animations and outfit pieces it uses and which mod or pak provides them; a joiner also sees

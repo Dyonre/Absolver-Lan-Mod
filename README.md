@@ -15,7 +15,7 @@ Much of the code and documentation was written with the help of AI tools.
 * **Mods**: one folder per mod in `<game>\Mods\`: `rows.json` edits of game tables, new items / powers / NPCs / styles / map scenes from
   JSON, paks, Lua scripts and native C plugins. Dependencies and load order from `mod.json`; conflicts are listed.
 * **In game**: **F1** menu (hosting, joining, LAN games list, kick, map list with categories and search, options), **F2** Mods page
-  (switch mods on and off, reorder, settings, conflicts, reload, Net Inspector, key owners). Keyboard, mouse or gamepad.
+  (switch mods on and off, reorder, profiles, settings, conflicts, reload, Net Inspector, key binding, log window). Keyboard, mouse or gamepad.
   `-NoMods` starts without mods.
 * **Plugin API**: hooks on game functions, calls by name, properties, events, spawning, timers, menus, an ImGui overlay.
 * **LAN play**: host and join from the F1 menu over a LAN or VPN, a list of LAN games at every altar, LAN duels, an optional address
