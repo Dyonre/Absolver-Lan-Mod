@@ -211,7 +211,7 @@ function Run {
     if (Test-Path -LiteralPath $paks) {
         $extra = @(Get-ChildItem -LiteralPath $paks -Recurse -File -Filter *.pak | Where-Object { $_.Name -notmatch '^pakchunk[0-2]-' })
         if ($extra.Count) {
-            Say ('Note: {0} extra .pak file(s) in Content\Paks (not moved). Put each mod in its own folder under Mods instead:' -f $extra.Count)
+            Say ('Note: {0} extra .pak file(s) in Content\Paks (not moved). They load in Vanilla starts only: Modded starts load the Mods folder (or set content_paks = all in LanNative\config.txt). AbsolverModLauncher.exe --migrate moves them into Mods:' -f $extra.Count)
             foreach ($p in $extra) { Say ('  ' + $p.FullName) }
         }
     }

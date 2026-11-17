@@ -7,8 +7,8 @@ Asks how to start Absolver each time you press Play:
            never use it for the official online mode.
   Vanilla  the unmodified game: the original EasyAntiCheat launcher, EasyAntiCheat on, no loader, no Mods folder. Online play works.
 
-Paks placed directly in Absolver\Content\Paks load in both modes (the engine reads that folder itself). Only the Mods folder needs
-the loader.
+Mod paks placed directly in Absolver\Content\Paks load only in Vanilla starts (the engine reads that folder itself). In Modded starts
+the loader mounts the game's own paks and the Mods folder only; content_paks = all in LanNative\config.txt mounts them as well.
 
 Remember the choice: tick "Remember my choice" in the question window. It is saved in
 Absolver\Binaries\Win64\LanNative\launch.txt ("modded" or "vanilla"). To see the question again, hold Shift while the game starts

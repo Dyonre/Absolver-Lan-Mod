@@ -18,7 +18,9 @@ Install
 Use
   Press Play in Steam. A window asks how to start:
     Modded   the loader and your mods (offline and private LAN only).
-    Vanilla  the unmodified game with EasyAntiCheat, for the official online mode. Paks in Absolver\Content\Paks still load.
+    Vanilla  the unmodified game with EasyAntiCheat, for the official online mode.
+  Mod paks placed directly in Absolver\Content\Paks load only in Vanilla starts; Modded starts load the Mods folder
+  (AbsolverModLauncher.exe --migrate moves them there, or content_paks = all in LanNative\config.txt loads them too).
   Tick "Remember my choice" to skip the question; hold Shift while the game starts to see it again.
   To add a mod, put its folder in <game folder>\Mods\.
   If a mod stops the game from starting, add -NoMods to the game's Steam launch options.

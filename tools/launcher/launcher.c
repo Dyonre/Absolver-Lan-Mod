@@ -2,7 +2,8 @@
 // Modded: starts the game exe directly with -NoEAC so proxy-DLL mods (the loader's version.dll etc.) load. Steam's Play button
 // normally runs Absolver.exe, the EasyAntiCheat launcher, which refuses modded DLLs; the game exe has its own offline switch (-NoEAC).
 // Vanilla: renames Binaries\Win64\version.dll to version.dll.off (so the game loads no loader) and runs the original EasyAntiCheat
-// launcher (Absolver.exe.eac, kept by the installer) with EasyAntiCheat on; Modded renames it back. Paks in Content\Paks load in both.
+// launcher (Absolver.exe.eac, kept by the installer) with EasyAntiCheat on; Modded renames it back. Extra paks in Content\Paks load in Vanilla starts; in Modded starts
+// the loader mounts only the game's own paks and the Mods folder (its setting content_paks = all mounts them as well).
 // The choice can be remembered (LanNative\launch.txt: "vanilla" or "modded"); holding Shift while the game starts asks again.
 // Use: double-click it in the game folder, or Steam > Properties > Launch options:  "<path>\AbsolverModLauncher.exe" %command%
 // Flags: -Modded / -Vanilla (skip the question), --setup (copy the Steam launch option to the clipboard),
@@ -59,7 +60,7 @@ static int ask_mode(int *remember) {
     c.pszMainInstruction = L"How do you want to start Absolver?";
     c.pButtons = b; c.cButtons = 2; c.nDefaultButton = 100 + MODE_MODDED;   // ids 1/2 are IDOK/IDCANCEL: closing the window must not pick a mode
     c.pszVerificationText = L"Remember my choice (hold Shift while starting the game to see this again)";
-    c.pszFooter = L"Paks in Absolver\\Content\\Paks load either way.";
+    c.pszFooter = L"Mod paks in Absolver\\Content\\Paks load only in Vanilla starts. Modded loads the Mods folder.";
     int pressed = 0; BOOL ver = FALSE;
     HRESULT hr = TaskDialogIndirect(&c, &pressed, NULL, &ver);
     if (FAILED(hr)) { logf_(L"prompt: TaskDialogIndirect failed (0x%08lX)", (unsigned long)hr); return MODE_ASK; }
@@ -140,7 +141,8 @@ static const char MODS_README[] =
     "(a .sig file is not needed; the loader creates one next to the pak).\r\n\r\n"
     "Load order is Mods\\loadorder.txt, which the loader creates and keeps up to date. The LAST line wins when two mods change the same file.\r\n"
     "Put a - in front of a name to switch that mod off. LanNative\\mods.txt (written every start) lists conflicts between your mods.\r\n\r\n"
-    "Paks in Absolver\\Content\\Paks still load, also in Vanilla starts. AbsolverModLauncher.exe --migrate moves them here.\r\n"
+    "Mod paks in Absolver\\Content\\Paks load only in Vanilla starts; in Modded starts the loader mounts only the game's own paks and this folder\r\n"
+    "(LanNative\\config.txt: content_paks = all mounts them as well). AbsolverModLauncher.exe --migrate moves them here.\r\n"
     "Start the game with -NoMods to run without any of them.\r\n";
 static void ensure_mods_dir(const wchar_t *root) {
     wchar_t mods[MAX_PATH], readme[MAX_PATH];
@@ -198,7 +200,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, LPWSTR cmd, int show) {
     swprintf(g_log, MAX_PATH, L"%ls\\launcher.log", logdir);
     logf_(L"start: self=%ls root=%ls args=%d", self, root, argc - 1);
     ensure_mods_dir(root);
-    if (has_arg(argc, argv, L"--migrate")) {       // tidy up and exit without starting the game (never automatic: Vanilla starts load Content\Paks)
+    if (has_arg(argc, argv, L"--migrate")) {       // tidy up and exit without starting the game (never automatic: Vanilla starts load the paks in Content\Paks)
         logf_(L"migrate: done, %d pak(s) moved", migrate_foreign_paks(root)); return 0;
     }
 
