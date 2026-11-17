@@ -17,8 +17,8 @@
 #define BIND_RT  0x111
 #define BIND_MAX_CODE 0x111
 enum { BIND_FIXED = 1 };                                             // flags: a key the loader or a mod reads itself; listed for conflicts, not rebindable here
-typedef struct { char mod[48], id[48], label[64], ctx[24]; int def, code, flags; } BindAct;
-typedef struct { char key[100]; int code; } BindOverride;            // "Mod/id" -> input (0 = unbound by the player)
+typedef struct { char mod[96], id[48], label[64], ctx[48]; int def, code, flags; } BindAct;   // mod: a folder name (MOD_NAME_MAX 96); longer ids / contexts are refused
+typedef struct { char key[160]; int code; } BindOverride;            // "Mod/id" -> input (0 = unbound by the player)
 typedef struct { BindAct *a; int n, cap; BindOverride *o; int no, ocap; } BindReg;
 
 static const char *const g_bind_pad_names[18] = { "Pad Up", "Pad Down", "Pad Left", "Pad Right", "Pad Start", "Pad Back", "Pad LS", "Pad RS",
@@ -51,13 +51,14 @@ static int bindreg_find(const BindReg *r, const char *mod, const char *id) {
     return -1;
 }
 static int bindreg_override_of(const BindReg *r, const char *mod, const char *id) {   // index in r->o, -1 none
-    char k[100]; snprintf(k, sizeof k, "%s/%s", mod, id);
+    char k[160]; snprintf(k, sizeof k, "%s/%s", mod, id);
     for (int i = 0; i < r->no; i++) if (!_stricmp(r->o[i].key, k)) return i;
     return -1;
 }
 // Declares an action (or updates label / default / context of one already declared). Returns its index, -1 = bad arguments / no memory.
 static int bindreg_add(BindReg *r, const char *mod, const char *id, const char *label, int def, const char *ctx, int flags) {
-    if (!r || !mod || !mod[0] || !id || !id[0] || def < 0 || def > BIND_MAX_CODE || strchr(id, '=') || strchr(id, '/') || strchr(mod, '/')) return -1;
+    if (!r || !mod || !mod[0] || !id || !id[0] || def < 0 || def > BIND_MAX_CODE || strchr(id, '=') || strchr(id, '/') || strchr(mod, '/') || strchr(mod, '=')
+        || strlen(mod) >= sizeof r->a[0].mod || strlen(id) >= sizeof r->a[0].id || (ctx && strlen(ctx) >= sizeof r->a[0].ctx)) return -1;   // a cut name would never match again
     int i = bindreg_find(r, mod, id);
     if (i < 0) {
         if (r->n == r->cap) { int cap = r->cap ? r->cap * 2 : 32; BindAct *na = (BindAct *)realloc(r->a, (size_t)cap * sizeof *na); if (!na) return -1; r->a = na; r->cap = cap; }
