@@ -153,6 +153,7 @@ static int hs_recv_line(SOCKET c, char *out, int cap) {
     int n = 0; for (;;) { char ch; int k = recv(c, &ch, 1, 0); if (k <= 0) return 0; if (ch == '\n') break; if (ch == '\r') continue; if (n >= cap - 1) return 0; out[n++] = ch; }
     out[n] = 0; return 1;
 }
+static void ni_serve(SOCKET c, const char *masked);         // netinspect.inc: answers "NI" (the host's character list for the joiner's Net Inspector)
 static void hs_serve(SOCKET c, uint32_t ip) {
     char masked[40]; { char a[24]; snprintf(a, sizeof a, "%u.%u.%u.%u", ip >> 24, (ip >> 16) & 255, (ip >> 8) & 255, ip & 255); jg_mask_addr(a, masked, sizeof masked); }
     if (!jg_allowed_ip(&g_jg, ip)) { logf_("host mods: request from %s REFUSED (allow list)", masked); return; }
@@ -165,6 +166,7 @@ static void hs_serve(SOCKET c, uint32_t ip) {
     if (g_hm_mode == HM_OFF) { hs_send_all(c, "ERR this host does not share mods\n", 34); return; }
     if (g_hs_n < 0) hs_build();
     char buf[400];
+    if (!strcmp(cmd, "NI") && nf == 1) { ni_serve(c, masked); return; }
     if (!strcmp(cmd, "LIST") && nf == 1) {
         hm_format_header(g_lm_me.fp, g_hs_n, g_hsns_n, buf, sizeof buf); int ok = hs_send_all(c, buf, (int)strlen(buf));
         for (int i = 0; ok && i < g_hs_n; i++) { hm_format_line(&g_hs[i].e, buf, sizeof buf); ok = hs_send_all(c, buf, (int)strlen(buf)); }
