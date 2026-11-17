@@ -25,7 +25,7 @@ static void modlist_parse(ModList *l, const char *text) {
         const char *e = strpbrk(p, "\r\n"); size_t n = e ? (size_t)(e - p) : strlen(p);
         char line[256]; if (n >= sizeof line) n = sizeof line - 1;
         memcpy(line, p, n); line[n] = 0;
-        p += e ? n + 1 : n; if (e && *p == '\n' && e[0] == '\r') p++;
+        p = e ? e + 1 : p + strlen(p); if (e && e[0] == '\r' && *p == '\n') p++;   // to the end of the line, not by the clipped length
         char *s = line; while (*s == ' ' || *s == '\t') s++;
         char *end = s + strlen(s); while (end > s && (end[-1] == ' ' || end[-1] == '\t')) *--end = 0;
         if (!*s || *s == '#') continue;
