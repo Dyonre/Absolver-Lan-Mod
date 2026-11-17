@@ -330,6 +330,9 @@ struct AbsApi {
     int   (*overlay_raw_mouse)(const AbsApi *self, int *dx, int *dy);                      /* any thread: raw mouse movement collected since the last call while a plugin has ABS_OV_RAWMOUSE (the accumulator is shared: use it from one plugin at a time). 0 = ok (zeros when nobody has the mode), 1 = bad arguments / unavailable */
     /* ---- v2.22: property listing. Reads class data only; use it on the game thread or in a draw callback. The strings in AbsPropInfo live only during the callback. */
     int   (*for_each_property)(const AbsApi *self, void *cls, int (*cb)(const struct AbsPropInfo *p, void *user), void *user);   /* every property of a class or struct type (object_class(obj), find_class(...), or AbsPropInfo.struct_type to list a struct's members): the type's own properties first, then its parents'. cb returns nonzero to stop. Returns the number visited, -1 on bad arguments */
+    /* ---- v2.23: key ownership and input focus (keys.inc, docs/API-REFERENCE.md). Check self->size before using these. */
+    int   (*declare_key)(const AbsApi *self, int vk, const char *what);   /* a key you read yourself (GetAsyncKeyState): it goes into the loader's key list (log, F2 page "Keys"), and an F key is then kept from the game's window procedure (F11 is also the game's fullscreen toggle). on_key registers its key by itself. 0 = noted, 1 = noted but someone else uses it too (a clash, logged), 2 = you noted it already, -1 = bad arguments */
+    int   (*input_owner)(const AbsApi *self);                              /* who has the keyboard and the pad now: 0 the game, 1 a loader menu (F1 / F2), 2 another mod's window, 3 your window (it has the focus and you hold ABS_OV_KEYS or ABS_OV_BLOCK_GAME). Act on keys you read yourself only on 0 (or 3 for keys your window uses) */
 };
 
 /* for_each_property: one property. Read / write it by name with get_property_text / set_property_text ("name[N]" for array_dim > 1). */

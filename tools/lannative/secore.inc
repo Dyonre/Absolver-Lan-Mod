@@ -510,13 +510,24 @@ static void se_tick(float dt) {
 typedef struct { int plugin, vk, down; void (*cb)(int vk, void *); void *user; } SeKeyCb;
 static SeKeyCb g_keycb[32]; static int g_keycb_n;
 static int api_p_on_key(const AbsApi *self, int vk, void (*cb)(int, void *), void *user) {
-    int p = plug_of(self); if (p < 0 || !cb || vk < 1 || vk > 254 || g_keycb_n >= 32) return 1;
-    EnterCriticalSection(&g_lock); SeKeyCb *k = &g_keycb[g_keycb_n++]; k->plugin = p; k->vk = vk; k->down = 0; k->cb = cb; k->user = user; LeaveCriticalSection(&g_lock); return 0;
+    int p = plug_of(self); if (p < 0 || !cb || vk < 1 || vk > 254) return 1;
+    if (g_keycb_n >= 32) { logf_("plugin %s: on_key(0x%02X) refused - the loader holds 32 key callbacks in all", plug_name_of(p), vk); return 1; }
+    EnterCriticalSection(&g_lock); SeKeyCb *k = &g_keycb[g_keycb_n++]; k->plugin = p; k->vk = vk; k->down = 0; k->cb = cb; k->user = user; LeaveCriticalSection(&g_lock);
+    keys_note(vk, KR_ON_KEY, plug_name_of(p), "on_key");                       // key ownership (keyreg.h): clashes are logged and shown on the F2 page
+    return 0;
 }
 static void se_poll_keys(void) {                                  // key-down edges, only while the game window has the focus
     if (!g_keycb_n) return; DWORD pid = 0; HWND fg = GetForegroundWindow(); if (fg) GetWindowThreadProcessId(fg, &pid); int focus = pid == GetCurrentProcessId();
+    // one input owner: while the F1 / F2 menu is open, or another plugin's window has the keyboard, only F keys reach on_key callbacks
+    // (typing a search in the F1 list must not fire a mod's letter key)
+    int menu_keys = g_menu.open, focus_owner = -2;
+#ifdef LN_OVERLAY
+    focus_owner = ov_state() == OV_READY ? ov_focus_owner() : -2;
+#endif
     for (int i = 0; i < g_keycb_n; i++) {
         SeKeyCb *k = &g_keycb[i]; int d = focus && (GetAsyncKeyState(k->vk) & 0x8000) ? 1 : 0; int edge = d && !k->down; k->down = d;
+        int fkey = k->vk >= VK_F1 && k->vk <= VK_F24;
+        if (edge && !fkey && (menu_keys || (focus_owner >= 0 && focus_owner != k->plugin))) { logf_("keys: %s's on_key 0x%02X held back (%s has the keyboard)", plug_name_of(k->plugin), k->vk, menu_keys ? "the loader menu" : "another mod's window"); continue; }
         if (edge && plug_guard(k->plugin)) { __try { k->cb(k->vk, k->user); } __except (EXCEPTION_EXECUTE_HANDLER) { plug_fault(k->plugin, "on_key", GetExceptionCode()); } }
     }
 }

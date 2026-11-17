@@ -1,7 +1,7 @@
 # AbsolverSE API reference
 
 Generated from `tools/lannative/AbsolverSE.h` (`python tools/sdk/gen_api_reference.py`). This page may lag the header: the header is the source of truth.  
-`ABS_API_VERSION` = 2; 146 functions. Every function takes `self` (the `const AbsApi *` you were given) as its first argument. Fields are only ever appended: check `api->size >= offsetof(AbsApi, <field>) + sizeof(void *)` before using a field newer than the version you built against.  
+`ABS_API_VERSION` = 2; 148 functions. Every function takes `self` (the `const AbsApi *` you were given) as its first argument. Fields are only ever appended: check `api->size >= offsetof(AbsApi, <field>) + sizeof(void *)` before using a field newer than the version you built against.  
 How a mod is loaded: `docs/MODS.md`. Notes for larger plugins: `docs/ADVANCED.md`.
 
 ## Header fields
@@ -70,6 +70,8 @@ Grouped by topic. Since = the API minor version that added the function (check `
 | `overlay_unregister` | `int overlay_unregister(const AbsApi *self, void (*draw)(void *user), void *user)` | 0 = removed (may still run once in the frame in progress), 1 = not found | 2.21 |
 | `overlay_set_mode` | `int overlay_set_mode(const AbsApi *self, unsigned flags)` | your input needs, ABS_OV_*; 0 = nothing. Modes are per plugin and ORed with the other plugins'; frames run while any mode is set or a loader menu is open. 0 = ok, 1 = bad arguments, 2 = unavailable | 2.21 |
 | `overlay_raw_mouse` | `int overlay_raw_mouse(const AbsApi *self, int *dx, int *dy)` | any thread: raw mouse movement collected since the last call while a plugin has ABS_OV_RAWMOUSE (the accumulator is shared: use it from one plugin at a time). 0 = ok (zeros when nobody has the mode), 1 = bad arguments / unavailable | 2.21 |
+| `declare_key` | `int declare_key(const AbsApi *self, int vk, const char *what)` | a key you read yourself (GetAsyncKeyState): it goes into the loader's key list (log, F2 page "Keys"), and an F key is then kept from the game's window procedure (F11 is also the game's fullscreen toggle). on_key registers its key by itself. 0 = noted, 1 = noted but someone else uses it too (a clash, logged), 2 = you noted it already, -1 = bad arguments | 2.23 |
+| `input_owner` | `int input_owner(const AbsApi *self)` | who has the keyboard and the pad now: 0 the game, 1 a loader menu (F1 / F2), 2 another mod's window, 3 your window (it has the focus and you hold ABS_OV_KEYS or ABS_OV_BLOCK_GAME). Act on keys you read yourself only on 0 (or 3 for keys your window uses) | 2.23 |
 
 ### Events
 

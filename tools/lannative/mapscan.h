@@ -48,6 +48,37 @@ static void map_menu_label(const char *url, char *out, size_t cap) {
              snprintf(grp, sizeof grp, "Downfall T%c%s%s%s", t[7], kind[0] ? " " : "", kind, strstr(path, "/Rotate/") ? " (rotated)" : ""); }
     snprintf(out, cap, "%s: %s", grp, name);
 }
+// F1 map categories (1v1 duel maps, 3v3, PvE themes / rooms, custom maps from Mods\Maps, menus / intro). `custom` = the map comes from a pak
+// under <game>\Mods (map discovery tags it). Order = the order of the category page.
+enum { MC_CUSTOM = 0, MC_1V1, MC_3V3, MC_PVE1, MC_PVE2, MC_PVE3, MC_PVE, MC_WORLD, MC_MENUS, MC_OTHER, MC_COUNT };
+static const char *const MC_NAME[MC_COUNT] = { "Custom maps (Mods folder)", "1v1 duel maps", "3v3 maps", "Downfall theme 1 rooms", "Downfall theme 2 rooms",
+    "Downfall theme 3 rooms", "Downfall, other", "Open world, tutorial, training", "Menus, intro, cinematics", "Other" };
+static const char *const MC_SHORT[MC_COUNT] = { "Custom", "1v1", "3v3", "Downfall T1", "Downfall T2", "Downfall T3", "Downfall", "World", "Menus", "Other" };
+static int map_menu_category(const char *url, int custom) {
+    if (custom) return MC_CUSTOM;
+    int g = map_menu_group(url);
+    if (g == 0) return MC_1V1;
+    if (g == 1) return MC_3V3;
+    if (g == 2) { const char *t = strstr(url, "/Theme_"); return t && t[7] == '1' ? MC_PVE1 : t && t[7] == '2' ? MC_PVE2 : t && t[7] == '3' ? MC_PVE3 : MC_PVE; }
+    if (g == 3 || strstr(url, "/StartMap/") || strstr(url, "/Menu")) return MC_MENUS;
+    if (g == 4) return MC_WORLD;
+    return MC_OTHER;
+}
+// readable map name: the file name without the usual prefixes (OPTI_ / GM_ / 1v1_ / 3v3_ / PVE_Tn_), underscores as spaces; rotated room copies say so
+static void map_menu_pretty(const char *url, char *out, size_t cap) {
+    char path[400]; snprintf(path, sizeof path, "%.*s", (int)strcspn(url, "?"), url);
+    const char *n = strrchr(path, '/'); n = n ? n + 1 : path;
+    static const char *const pre[] = { "OPTI_", "GM_", "1v1_", "3v3_", "PVE_" };
+    for (int again = 1; again; ) { again = 0; for (size_t i = 0; i < sizeof pre / sizeof pre[0]; i++) { size_t l = strlen(pre[i]); if (!_strnicmp(n, pre[i], l) && n[l]) { n += l; again = 1; } } }
+    if ((n[0] == 'T' || n[0] == 't') && n[1] >= '1' && n[1] <= '9' && n[2] == '_' && n[3]) n += 3;   // PVE_T2_Simple... -> Simple...
+    size_t w = 0; for (; *n && w + 1 < cap; n++) out[w++] = *n == '_' ? ' ' : *n;
+    out[w] = 0;
+    if (strstr(path, "/Rotate/") && w + 11 < cap) strcat(out, " (rotated)");
+}
+// "<short category>: <readable name>" - what a map row shows (and what the search matches)
+static void map_menu_display(const char *url, int custom, char *out, size_t cap) {
+    char p[200]; map_menu_pretty(url, p, sizeof p); snprintf(out, cap, "%s: %s", MC_SHORT[map_menu_category(url, custom)], p);
+}
 static int map_menu_compare(const void *a, const void *b) {
     int ga = map_menu_group(a), gb = map_menu_group(b); if (ga != gb) return ga - gb;
     char la[200], lb[200]; map_menu_label(a, la, sizeof la); map_menu_label(b, lb, sizeof lb); return _stricmp(la, lb);

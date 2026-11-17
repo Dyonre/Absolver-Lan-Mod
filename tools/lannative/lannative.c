@@ -1067,8 +1067,10 @@ static char g_maps[MENU_LIST_MAX][MENU_URL_MAX], g_altar_label[MENU_LIST_MAX][ME
 static float g_altar_pos[MENU_LIST_MAX][3];
 static int g_maps_n, g_altars_n;
 static char g_maps_new[MENU_LIST_MAX];            // 1 = found in a pak the game has not mounted yet (needs a restart)
+static char g_maps_mod[MENU_LIST_MAX];            // 1 = the map comes from a pak under <game>\Mods (category "Custom maps")
 #include "mapscan.h"
-typedef struct { char paths[2048][MENU_URL_MAX], urls[MENU_LIST_MAX][MENU_URL_MAX]; int count, shown, paks, skipped, dropped, mounted_ok, mounted_count; char urlnew[MENU_LIST_MAX]; } MapDiscovery;
+static int g_mapgrp_cat[MC_COUNT], g_mapgrp_n[MC_COUNT], g_mapgrps;   // non-empty map categories in page order: category id, entries
+typedef struct { char paths[2048][MENU_URL_MAX], urls[MENU_LIST_MAX][MENU_URL_MAX]; int count, shown, paks, skipped, dropped, mounted_ok, mounted_count, modpaks, modmaps; char urlnew[MENU_LIST_MAX], urlmod[MENU_LIST_MAX]; unsigned char pmod[2048]; } MapDiscovery;
 static MapDiscovery *g_discovered;
 static volatile LONG g_discovery_state;
 static void map_discovered(const char *path, void *context) {
@@ -1102,6 +1104,30 @@ static void discover_directory(const wchar_t *dir, const char *relative, int dep
         }
     } while (FindNextFileW(search, &item));
     FindClose(search);
+}
+// <game>\Mods\**\*.pak: tags maps already found (mounted) as coming from a mod folder; adds nothing (a switched-off mod's maps are not mounted, so not offered)
+static void map_mark_mod(const char *path, void *context) {
+    MapDiscovery *d = context;
+    for (int i = 0; i < d->count; i++) if (!_stricmp(d->paths[i], path)) { if (!d->pmod[i]) d->modmaps++; d->pmod[i] = 1; return; }
+}
+static void discover_mod_paks(const wchar_t *dir, int depth, MapDiscovery *d) {
+    wchar_t pattern[MAX_PATH]; if (depth > 8 || swprintf(pattern, MAX_PATH, L"%s\\*", dir) < 0) return;
+    WIN32_FIND_DATAW it; HANDLE s = FindFirstFileW(pattern, &it); if (s == INVALID_HANDLE_VALUE) return;
+    do {
+        if (it.cFileName[0] == '.' || (it.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) continue;
+        wchar_t f[MAX_PATH]; if (swprintf(f, MAX_PATH, L"%s\\%s", dir, it.cFileName) < 0) continue;
+        if (it.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) { if (_wcsicmp(it.cFileName, L"_FromHost") != 0) discover_mod_paks(f, depth + 1, d); continue; }
+        size_t n = wcslen(it.cFileName); if (n < 5 || _wcsicmp(it.cFileName + n - 4, L".pak") != 0) continue;
+        FILE *fp = _wfopen(f, L"rb"); int k = fp ? mapscan_pak(fp, map_mark_mod, d) : -1; if (fp) fclose(fp);
+        d->modpaks++; logf_("discovery: mod package %ls (%s, %d maps)", f, k < 0 ? "unsupported/unreadable index" : "indexed", k < 0 ? 0 : k);
+    } while (FindNextFileW(s, &it));
+    FindClose(s);
+}
+typedef struct { char url[MENU_URL_MAX]; char nw, mod; } MapRow;
+static int map_row_cmp(const void *a, const void *b) {                             // by category, then readable name (digit runs as numbers)
+    const MapRow *x = a, *y = b; int ca = map_menu_category(x->url, x->mod), cb = map_menu_category(y->url, y->mod); if (ca != cb) return ca - cb;
+    char la[200], lb[200]; map_menu_pretty(x->url, la, sizeof la); map_menu_pretty(y->url, lb, sizeof lb); int c = menu_label_cmp(la, lb);
+    return c ? c : _stricmp(x->url, y->url);
 }
 static int discover_mounted_maps(MapDiscovery *d) {
     // Stock indexes are encrypted; ask the already-mounted engine filesystem, never embed a key.
@@ -1143,6 +1169,7 @@ static DWORD WINAPI discover_maps_worker(void *unused) {
         wchar_t exe[MAX_PATH], content[MAX_PATH]; GetModuleFileNameW(NULL, exe, MAX_PATH);
         wchar_t *slash = wcsrchr(exe, '\\'); if (slash) *slash = 0;
         if (slash && swprintf(content, MAX_PATH, L"%s\\..\\..\\Content", exe) >= 0) discover_directory(content, "", 0, d);
+        wchar_t mods[MAX_PATH]; if (slash && swprintf(mods, MAX_PATH, L"%s\\..\\..\\..\\Mods", exe) >= 0) discover_mod_paks(mods, 0, d);
         // Custom URL options survive only when the referenced map is actually installed.
         wchar_t config[MAX_PATH]; swprintf(config, MAX_PATH, L"%smaps.txt", g_dir);
         FILE *f = _wfopen(config, L"r"); char line[1024], url[MENU_URL_MAX];
@@ -1159,13 +1186,19 @@ static DWORD WINAPI discover_maps_worker(void *unused) {
             int duplicate = 0; for (int j = 0; j < d->shown; j++) { size_t n = strcspn(d->urls[j], "?"); if (strlen(d->paths[i]) == n && !_strnicmp(d->paths[i], d->urls[j], n)) duplicate = 1; }
             if (!duplicate) { if (d->shown < MENU_LIST_MAX) snprintf(d->urls[d->shown++], MENU_URL_MAX, "%s?listen", d->paths[i]); else d->dropped++; }
         }
-        qsort(d->urls, d->shown, sizeof d->urls[0], map_menu_compare);   // by group, then label (mapscan.h)
-        for (int i = 0; i < d->shown; i++) {                                   // a map that is on disk but not mounted: its pak was added after the game started
+        MapRow *rows = calloc(d->shown ? (size_t)d->shown : 1, sizeof *rows);
+        for (int i = 0; rows && i < d->shown; i++) {                           // a map that is on disk but not mounted: its pak was added after the game started
             char base[MENU_URL_MAX]; snprintf(base, sizeof base, "%.*s", (int)strcspn(d->urls[i], "?"), d->urls[i]);
             int idx = -1; for (int k = 0; k < d->count; k++) if (!_stricmp(d->paths[k], base)) { idx = k; break; }
-            d->urlnew[i] = d->mounted_ok && idx >= d->mounted_count;
+            strcpy(rows[i].url, d->urls[i]); rows[i].nw = (char)(d->mounted_ok && idx >= d->mounted_count); rows[i].mod = (char)(idx >= 0 && d->pmod[idx]);
         }
-        logf_("discovery: %d packages, %d skipped indexes, %d installed maps, %d travel entries, %d capacity/path drops", d->paks, d->skipped, d->count, d->shown, d->dropped);
+        if (rows) {
+            qsort(rows, d->shown, sizeof *rows, map_row_cmp);                  // by category (mapscan.h map_menu_category), then readable name
+            for (int i = 0; i < d->shown; i++) { strcpy(d->urls[i], rows[i].url); d->urlnew[i] = rows[i].nw; d->urlmod[i] = rows[i].mod; }
+            free(rows);
+        } else { qsort(d->urls, d->shown, sizeof d->urls[0], map_menu_compare); logf_("discovery: out of memory sorting by category - plain order"); }
+        for (int i = 0; i < d->shown; i++) { char lab[200]; map_menu_display(d->urls[i], d->urlmod[i], lab, sizeof lab); logf_("discovery: map %d: %s%s  [%s]", i + 1, lab, d->urlnew[i] ? " (new: restart)" : "", d->urls[i]); }
+        logf_("discovery: %d packages, %d skipped indexes, %d installed maps, %d travel entries, %d capacity/path drops; %d mod package(s) hold %d of the maps", d->paks, d->skipped, d->count, d->shown, d->dropped, d->modpaks, d->modmaps);
     }
     g_discovered = d; InterlockedExchange(&g_discovery_state, 2); return 0;
 }
@@ -1179,18 +1212,48 @@ static char g_menu_lines[MENU_LINES_MAX][MENU_LINE_MAX];
 static int g_menu_nlines, g_menu_sel = -1;
 static uint64_t g_armed6, g_armed7, g_armed_menu;
 
+// The F1 lists' data: LanNative\<name> when it is there (a player's own list), else a copy built into the loader as resource 201 / 202 when the
+// build has one (this source tree ships none: the lists are made from the game's own data). Returns a malloc'd NUL-terminated text (caller frees) and says in `from` where it came from; NULL = neither.
+#define LN_RES_NPCS   201
+#define LN_RES_ALTARS 202
+static char *menu_data_load(const wchar_t *name, int res, char *from, size_t fcap) {
+    wchar_t path[MAX_PATH]; swprintf(path, MAX_PATH, L"%s%s", g_dir, name);
+    FILE *f = _wfopen(path, L"rb");
+    if (f) {
+        fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET);
+        char *t = n >= 0 && n < 16 * 1024 * 1024 ? malloc((size_t)n + 1) : NULL;
+        if (t) { size_t got = fread(t, 1, (size_t)n, f); t[got] = 0; }
+        fclose(f);
+        if (t) { snprintf(from, fcap, "%ls", path); return t; }
+        logf_("menu: %ls could not be read (%ld bytes) - using the built-in list", path, n);
+    }
+    HMODULE self = NULL; GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCWSTR)(void *)menu_data_load, &self);
+    HRSRC r = self ? FindResourceW(self, MAKEINTRESOURCEW(res), (LPCWSTR)RT_RCDATA) : NULL; HGLOBAL h = r ? LoadResource(self, r) : NULL;
+    DWORD sz = r ? SizeofResource(self, r) : 0; const void *p = h ? LockResource(h) : NULL;
+    if (!p || !sz) { snprintf(from, fcap, "nowhere (no %ls, no built-in copy %d)", path, res); return NULL; }
+    char *t = malloc((size_t)sz + 1); if (!t) return NULL;
+    memcpy(t, p, sz); t[sz] = 0; snprintf(from, fcap, "the loader's built-in list (%lu bytes; %ls not there)", (unsigned long)sz, path);
+    return t;
+}
+// next line of a text buffer into `line` (cut to cap); 0 at the end
+static int menu_next_line(const char **p, char *line, size_t cap) {
+    const char *s = *p; if (!*s) return 0;
+    size_t n = strcspn(s, "\n"); size_t k = n < cap - 1 ? n : cap - 1; memcpy(line, s, k); line[k] = 0;
+    *p = s[n] ? s + n + 1 : s + n; return 1;
+}
 // altars.tsv (shipped; made from the game's own MainMap_Main.umap): label, class, zone, subzone, x, y, z, root
 static void menu_load_altars(const wchar_t *name) {
-    wchar_t path[MAX_PATH];
-    swprintf(path, MAX_PATH, L"%s%s", g_dir, name);
-    g_altars_n = 0;
-    FILE *f = _wfopen(path, L"r");
-    if (!f) { logf_("menu: %ls not found - the altar list is empty", path); return; }
-    char line[512];
-    while (g_altars_n < MENU_LIST_MAX && fgets(line, sizeof line, f))
-        if (menu_parse_altar_line(line, g_altar_label[g_altars_n], MENU_LINE_MAX, g_altar_pos[g_altars_n])) g_altars_n++;
-    fclose(f);
-    logf_("menu: %d altar positions from %ls", g_altars_n, path);
+    char from[400]; g_altars_n = 0;
+    char *text = menu_data_load(name, LN_RES_ALTARS, from, sizeof from);
+    if (!text) { logf_("menu: altar list from %s - the altar list is empty", from); return; }
+    char line[512], lab[MENU_LINE_MAX]; float xyz[3]; int skipped = 0;
+    for (const char *p = text; menu_next_line(&p, line, sizeof line); ) {
+        if (!menu_parse_altar_line(line, lab, MENU_LINE_MAX, xyz)) continue;
+        if (g_altars_n >= MENU_LIST_MAX) { skipped++; continue; }
+        memcpy(g_altar_label[g_altars_n], lab, MENU_LINE_MAX); memcpy(g_altar_pos[g_altars_n], xyz, sizeof xyz); g_altars_n++;
+    }
+    free(text);
+    logf_("menu: %d altar positions from %s%s", g_altars_n, from, skipped ? " (more altars than the list holds were left out)" : "");
 }
 
 // NPCs: npcs.txt, one entry per line, TAB separated: group, label, archetype asset path[, character class path] (menu.h has the parser). Entries are
@@ -1240,37 +1303,35 @@ static void npc_finish_list(void) {
 }
 
 static void npc_load_list(const wchar_t *name) {
-    wchar_t path[MAX_PATH];
-    swprintf(path, MAX_PATH, L"%s%s", g_dir, name);
+    char from[400];
     g_npcs_n = 0; g_npc_ngroups = 0; memset(g_npc_group_count, 0, sizeof g_npc_group_count);
-    FILE *f = _wfopen(path, L"r");
-    if (!f) {
+    char *text = menu_data_load(name, LN_RES_NPCS, from, sizeof from);
+    if (!text) {
         npc_group_index("Open world");
         snprintf(g_npc_label[0], NPC_LABEL_MAX, "Trickster"); snprintf(g_npc_path[0], NPC_PATH_MAX, "/Game/DB/AI/NPCs/Trickster/Trickster.Trickster"); g_npc_class[0][0] = 0;
         g_npc_group_count[0] = 1; g_npcs_n = 1;
-        logf_("menu: %ls not found - the NPC list has only the built-in Trickster (plus the Mods content entries)", path);
+        logf_("menu: NPC list from %s - only Trickster (plus the Mods content entries)", from);
         npc_finish_list();
         return;
     }
     char line[1024], grp[NPC_LABEL_MAX], lab[NPC_LABEL_MAX], pth[NPC_PATH_MAX], cls[NPC_CLASS_MAX];
     int dropped = 0, start[MENU_GROUPS_MAX] = { 0 }, fill[MENU_GROUPS_MAX] = { 0 };
-    while (fgets(line, sizeof line, f))                                           // pass 1: groups and how many entries each has
+    for (const char *p = text; menu_next_line(&p, line, sizeof line); )          // pass 1: groups and how many entries each has
         if (menu_parse_npc_line(line, grp, sizeof grp, lab, sizeof lab, pth, sizeof pth, cls, sizeof cls)) {
             int g = npc_group_index(grp);
             if (g < 0 || g_npc_group_count[g] >= MENU_LIST_MAX || g_npcs_n >= NPC_MAX) { dropped++; continue; }
             g_npc_group_count[g]++; g_npcs_n++;
         }
     for (int g = 1; g < g_npc_ngroups; g++) start[g] = start[g - 1] + g_npc_group_count[g - 1];
-    rewind(f);
-    while (fgets(line, sizeof line, f))                                           // pass 2: put every entry into its group's range
+    for (const char *p = text; menu_next_line(&p, line, sizeof line); )          // pass 2: put every entry into its group's range
         if (menu_parse_npc_line(line, grp, sizeof grp, lab, sizeof lab, pth, sizeof pth, cls, sizeof cls)) {
             int g = npc_group_index(grp);
             if (g < 0 || fill[g] >= g_npc_group_count[g]) continue;               // exactly the entries pass 1 kept
             int at = start[g] + fill[g]++;
             snprintf(g_npc_label[at], NPC_LABEL_MAX, "%s", lab); snprintf(g_npc_path[at], NPC_PATH_MAX, "%s", pth); snprintf(g_npc_class[at], NPC_CLASS_MAX, "%s", cls);
         }
-    fclose(f);
-    logf_("menu: %d NPC types in %d groups from %ls%s", g_npcs_n, g_npc_ngroups, path, dropped ? " (some entries were dropped: too many groups, more than 192 in a group, or more than 512 in total)" : "");
+    free(text);
+    logf_("menu: %d NPC types in %d groups from %s%s", g_npcs_n, g_npc_ngroups, from, dropped ? " (some entries were dropped: too many groups, more than 192 in a group, or more than 512 in total)" : "");
     npc_finish_list();
 }
 
@@ -1320,16 +1381,34 @@ static int read_menu_cfg(void) {
 
 static int modsui_count(void); static const char *modsui_line(int i); static void modsui_action(int index);   // modsui.inc
 static int modsui_back(int sel); static int modsui_open_section(void); static void modsui_collapse(void);
+static int modsui_form_close_if_open(void);                                       // 1 = a settings form was open and is closed now (Esc / Left / B close the form first)
 static const char *menu_list_text(int page, int i) {
     static char label[MENU_LINE_MAX];
     if (page == MP_MODS) return modsui_line(i);
     if (page == MP_LAN) return ld_menu_line(i);
     if (page == MP_ALTARS) return g_altar_label[i];
-    if (page == MP_NPCGROUPS) { snprintf(label, sizeof label, "%s (%d)", g_npc_group_name[i], g_npc_group_count[i]); return label; }
-    if (page == MP_NPCS) return g_npc_label[(g_menu.ngroups > 0 ? g_menu.gstart[g_menu.group] : 0) + i];
-    char short_[MENU_LINE_MAX]; map_menu_label(g_maps[i], short_, sizeof short_);
+    if (page == MP_NPCGROUPS) { if (i < 0 || i >= g_npc_ngroups) return ""; snprintf(label, sizeof label, "%s (%d)", g_npc_group_name[i], g_npc_group_count[i]); return label; }
+    if (page == MP_NPCS) return i >= 0 && i < g_npcs_n ? g_npc_label[i] : "";                    // i = whole-list index (menu_entry)
+    if (page == MP_MAPGROUPS) { if (i < 0 || i >= g_mapgrps) return ""; snprintf(label, sizeof label, "%s (%d)", MC_NAME[g_mapgrp_cat[i]], g_mapgrp_n[i]); return label; }
+    if (i < 0 || i >= g_maps_n) return "";
+    char short_[MENU_LINE_MAX]; map_menu_display(g_maps[i], g_maps_mod[i], short_, sizeof short_);
     snprintf(label, sizeof label, "%s%s", short_, g_maps_new[i] ? "   (new: restart the game first)" : "");
     return label;
+}
+// the map list changed (discovery): categories = runs of the same category in the sorted list
+static void map_apply_categories(void) {
+    g_mapgrps = 0;
+    for (int i = 0; i < g_maps_n; i++) {
+        int c = map_menu_category(g_maps[i], g_maps_mod[i]);
+        if (!g_mapgrps || g_mapgrp_cat[g_mapgrps - 1] != c) { if (g_mapgrps >= MC_COUNT) break; g_mapgrp_cat[g_mapgrps] = c; g_mapgrp_n[g_mapgrps++] = 0; }
+        g_mapgrp_n[g_mapgrps - 1]++;
+    }
+    g_menu.total[MP_MAPS] = g_maps_n; g_menu.count[MP_MAPS] = g_maps_n;
+    menu_set_map_groups(&g_menu, g_mapgrps > 1 ? g_mapgrps : 0, g_mapgrp_n);     // one category only: the flat list as before
+    if (g_menu.page == MP_MAPS) menu_refilter(&g_menu);
+    if (g_menu.page == MP_MAPS && g_menu.sel >= g_menu.count[MP_MAPS]) g_menu.sel = g_menu.count[MP_MAPS] ? g_menu.count[MP_MAPS] - 1 : 0;
+    char s[300]; int w = 0; for (int g = 0; g < g_mapgrps && w < (int)sizeof s - 40; g++) w += snprintf(s + w, sizeof s - (size_t)w, "%s%s %d", g ? ", " : "", MC_SHORT[g_mapgrp_cat[g]], g_mapgrp_n[g]);
+    logf_("menu: map list %d entries in %d categories: %s", g_maps_n, g_mapgrps, g_mapgrps ? s : "-");
 }
 
 // ---- join settings from the menu: the address and the key come from the clipboard (nothing to type in the game)
@@ -1495,7 +1574,13 @@ static void ov_publish_menu(void) {
         o->kind = OV_MENU; o->sel = g_menu.sel; o->has_back = g_menu.page != MP_MAIN;
         snprintf(o->title, OV_LINE, "%s", g_menu_lines[0]);
         if (g_menu.page == MP_MAIN) { o->count = g_menu_nlines - 1 < OV_ROWS ? g_menu_nlines - 1 : OV_ROWS; for (int i = 0; i < o->count; i++) snprintf(o->label[i], OV_LINE, "%s", g_menu_lines[i + 1]); }
-        else { o->count = g_menu.count[g_menu.page] < OV_ROWS ? g_menu.count[g_menu.page] : OV_ROWS; for (int i = 0; i < o->count; i++) snprintf(o->label[i], OV_LINE, "%s", menu_list_text(g_menu.page, i)); }
+        else {
+            o->count = g_menu.count[g_menu.page] < OV_ROWS ? g_menu.count[g_menu.page] : OV_ROWS;
+            for (int i = 0; i < o->count; i++) snprintf(o->label[i], OV_LINE, "%s", menu_list_text(g_menu.page, menu_is_list(g_menu.page) ? menu_entry(&g_menu, i) : i));
+            o->searchable = menu_is_list(g_menu.page) || g_menu.page == MP_MAPGROUPS || g_menu.page == MP_NPCGROUPS;
+            snprintf(o->filter, sizeof o->filter, "%s", g_menu.filter);
+            if (!o->count) snprintf(o->empty, sizeof o->empty, "%s", g_menu.filter[0] ? "No match. Backspace deletes a letter, Esc ends the search." : "This list is empty.");
+        }
     }
     ov_publish(o);
 }
@@ -1504,8 +1589,68 @@ static void ov_publish_menu(void) {
 #endif
 
 
+// ---- key ownership (keyreg.h): the loader's keys, every plugin on_key / declare_key, keys the game and Steam take. A key with two owners is a
+// clash: logged once and listed on the F2 page (keys.inc). F keys a mod owns are kept from the game's window procedure (F11 also toggles the game's fullscreen).
+#include "keyreg.h"
+static KeyReg g_keys;
+static int keys_note(int vk, int kind, const char *who, const char *what) {
+    EnterCriticalSection(&g_lock);
+    int rc = keyreg_add(&g_keys, vk, kind, who, what), first = -1; char other[48] = "", otherwhat[64] = "";
+    if (rc == 1) { keyreg_others(&g_keys, vk, who, &first); if (first >= 0) { snprintf(other, sizeof other, "%s", g_keys.u[first].who); snprintf(otherwhat, sizeof otherwhat, "%s", g_keys.u[first].what); } }
+    LeaveCriticalSection(&g_lock);
+    char kn[24]; keyreg_vk_name(vk, kn, sizeof kn);
+    if (rc == 1) logf_("keys: CLASH: %s is used by %s (%s) and also by %s (%s) - change one of them (Mods page > Settings, or the mod's plugin.cfg)", kn, who, what ? what : "", other, otherwhat);
+    else if (rc == 0) logf_("keys: %s = %s: %s", kn, who, what ? what : "");
+    else if (rc < 0) logf_("keys: could not note %s for %s (bad key or out of memory)", kn, who ? who : "?");
+#ifdef LN_OVERLAY
+    if (rc >= 0 && rc != 2 && vk >= VK_F1 && vk <= VK_F24 && kind != KR_RESERVED) ov_keep_key(vk, 1);   // a mod's F key: the game does not get it as well
+#endif
+    return rc;
+}
+static void keys_boot(void) {                                                       // once, at the first menu tick
+    static int done; if (done) return; done = 1;
+    keys_note(VK_F1, KR_LOADER, "Loader", "F1 menu (open / close)");
+    keys_note(VK_F2, KR_LOADER, "Loader", "F2 Mods page (open / close)");
+    keys_note(VK_F11, KR_RESERVED, "Game", "toggle fullscreen (engine key)");
+    keys_note(VK_F12, KR_RESERVED, "Steam", "screenshot (Steam overlay default)");
+    wchar_t p[MAX_PATH]; swprintf(p, MAX_PATH, L"%sdevkeys.txt", g_dir);
+    if (GetFileAttributesW(p) != INVALID_FILE_ATTRIBUTES) { keys_note(VK_F9, KR_LOADER, "Loader", "test key: cam.txt (devkeys.txt)"); keys_note(VK_F10, KR_LOADER, "Loader", "test key: goto.txt (devkeys.txt)"); keys_note(VK_F11, KR_LOADER, "Loader", "test key: lmtest.txt (devkeys.txt)"); }
+    // keep_keys = F11 (default): keys the game never gets in a Modded start, whoever uses them. F11 = the engine's fullscreen toggle.
+    char v[128] = "F11", shown[128]; wchar_t src[MAX_PATH]; int set = setting_get("keep_keys", L"", 0, v, sizeof v, src);
+    int kept = 0; snprintf(shown, sizeof shown, "%s", v);
+    for (char *t = strtok(v, ", "); t; t = strtok(NULL, ", ")) {
+        if (!_stricmp(t, "none") || !_stricmp(t, "off")) break;
+        int vk = keyreg_vk_parse(t); if (!vk) { logf_("keys: keep_keys: '%s' is not a key name - ignored", t); continue; }
+#ifdef LN_OVERLAY
+        ov_keep_key(vk, 1);
+#endif
+        kept++;
+    }
+    logf_("keys: keep_keys = %s%s: %d key(s) kept from the game in Modded starts (the loader's and mods' F keys are kept as well)", shown, set ? "" : " (default)", kept);
+}
+
+// ---- gamepad for the F1 / F2 menus (menupad.h): read here on the game thread through XInput's own export (not the game's import, which the overlay may neutralise)
+#include "menupad.h"
+typedef DWORD (WINAPI *MenuXiGet_t)(DWORD, void *);
+static int g_padmenu_on = 1;                                                       // config pad_menu = on (default) / off: Back + Start opens the F1 menu, d-pad / A / B navigate
+static int menu_pad_read(unsigned *buttons, float *ly) {                          // 1 = a pad is connected; first connected pad, disconnected slots re-checked every 2 s
+    static MenuXiGet_t get; static int tried, user = -1; static uint64_t rescan_at;
+    *buttons = 0; *ly = 0.f;
+    if (!tried) {
+        tried = 1; static const wchar_t *dll[] = { L"xinput1_3.dll", L"xinput1_4.dll", L"xinput9_1_0.dll" };
+        for (int k = 0; k < 3 && !get; k++) { HMODULE m = GetModuleHandleW(dll[k]); if (!m) m = LoadLibraryW(dll[k]); if (m) get = (MenuXiGet_t)(void *)GetProcAddress(m, "XInputGetState"); if (get) logf_("menu: gamepad read through %ls", dll[k]); }
+        if (!get) logf_("menu: no XInputGetState found - the menus have no gamepad");
+    }
+    if (!get) return 0;
+    struct { DWORD packet; WORD buttons; BYTE lt, rt; SHORT lx, ly, rx, ry; } st;
+    if (user >= 0) { if (get((DWORD)user, &st) == ERROR_SUCCESS) { *buttons = st.buttons; *ly = st.ly / 32767.f; return 1; } logf_("menu: gamepad %d disconnected", user); user = -1; }
+    uint64_t now = GetTickCount64(); if (now < rescan_at) return 0; rescan_at = now + 2000;
+    for (int u = 0; u < 4; u++) if (get((DWORD)u, &st) == ERROR_SUCCESS) { user = u; logf_("menu: gamepad %d connected (Back + Start = F1 menu; d-pad / A / B in the menus)", u); *buttons = st.buttons; *ly = st.ly / 32767.f; return 1; }
+    return 0;
+}
 static void menu_tick(int focus, uint64_t now) {
-    static int kf1, kf2, kup, kdn, ken, krt, klf, kbs, loaded;
+    static int kf1, kf2, kup, kdn, ken, krt, klf, kbs, kesc, kspc, loaded, kty[TI_KEY_COUNT];
+    static MenuPad pad; static uint64_t pad_last;
     if (!g_menu_on || g_menu_faults >= 2) { g_menu.open = 0; g_menu_nlines = 0;
 #ifdef LN_OVERLAY
         if (g_ov_on) ov_publish(NULL);
@@ -1518,30 +1663,62 @@ static void menu_tick(int focus, uint64_t now) {
         npc_load_list(L"npcs.txt");
         joinaddr_refresh();
         menu_init_n(&g_menu, g_maps_n, g_altars_n, g_npcs_n);
+        g_menu.label = menu_list_text;                                            // type-to-search reads the labels the page shows
+        keys_boot();
         menu_set_npc_groups(&g_menu, g_npc_ngroups, g_npc_group_count);
+        { char v[16] = ""; wchar_t src[MAX_PATH]; if (setting_get("pad_menu", L"", 0, v, sizeof v, src) && !_strnicmp(v, "off", 3)) g_padmenu_on = 0;
+          logf_("menu: gamepad %s (pad_menu = %s)", g_padmenu_on ? "on: Back + Start opens / closes the F1 menu, d-pad or left stick moves, A selects, B goes back" : "off", g_padmenu_on ? "on" : "off");
+#ifdef LN_OVERLAY
+          if (g_padmenu_on && g_ov_on) ov_pad_chord_guard(1);                       // the game does not see Start while Back is held (no pause menu from the chord)
+#endif
+        }
     }
-    if (!focus) { kf1 = kf2 = kup = kdn = ken = krt = klf = kbs = 0; return; }
+    if (!focus) { kf1 = kf2 = kup = kdn = ken = krt = klf = kbs = kesc = kspc = 0; memset(kty, 0, sizeof kty); memset(&pad, 0, sizeof pad); return; }
     int f2 = key_edge(VK_F2, &kf2);
     int f1 = key_edge(VK_F1, &kf1), up = key_edge(VK_UP, &kup), dn = key_edge(VK_DOWN, &kdn), en = key_edge(VK_RETURN, &ken);
-    int rt = key_edge(VK_RIGHT, &krt), lf = key_edge(VK_LEFT, &klf), bs = key_edge(VK_BACK, &kbs);
-    if (InterlockedCompareExchange(&g_discovery_state, 2, 2) == 2 && (!g_menu.open || g_menu.page == MP_MAIN || g_menu.page == MP_MAPS)) {
-        if (g_discovered) { g_maps_n = g_discovered->shown; memcpy(g_maps, g_discovered->urls, sizeof g_maps); memcpy(g_maps_new, g_discovered->urlnew, sizeof g_maps_new); free(g_discovered); g_discovered = NULL; }
-        g_menu.count[MP_MAPS] = g_maps_n; if (g_menu.page == MP_MAPS && g_menu.sel >= g_maps_n) g_menu.sel = g_maps_n ? g_maps_n - 1 : 0; InterlockedExchange(&g_discovery_state, 0);
+    int rt = key_edge(VK_RIGHT, &krt), lf = key_edge(VK_LEFT, &klf), bs = key_edge(VK_BACK, &kbs), esc = key_edge(VK_ESCAPE, &kesc), spc = key_edge(VK_SPACE, &kspc);
+    int typed = 0; for (int i = 0; i < TI_KEY_COUNT; i++) if (key_edge(ti_keys[i], &kty[i])) { char c = ti_vk_char(ti_keys[i], 0); if (c && c != ':') typed = c; }
+    if (!focus) f1 = f2 = up = dn = en = rt = lf = bs = esc = spc = typed = 0;
+    // One input owner at a time. When a plugin's ImGui window has the focus (opened or clicked last), the menu leaves the keyboard and the
+    // pad to it; F1 / F2 still work. Esc and Space are menu keys only while the overlay draws the menu (it keeps them from the game then; the text menu does not).
+    int ov_menu = 0, plugin_keys = 0;
+#ifdef LN_OVERLAY
+    ov_menu = g_menu.open && ov_text_hidden(); plugin_keys = g_ov_on && ov_focus_owner() >= 0;
+    { static int was = -9; int fo = g_ov_on ? ov_focus_owner() : -2; if (fo != was) { if (g_menu.open || was != -9) logf_("menu: keyboard / pad owner: %s", fo >= 0 ? "a plugin window (the menu ignores its keys)" : fo == -1 ? "the loader menu" : "nobody (no focused window)"); was = fo; } }
+#endif
+    if (!ov_menu) esc = spc = 0;
+    if (plugin_keys) up = dn = en = rt = lf = bs = esc = spc = typed = 0;
+    int padk = MPK_NONE;
+    if (g_padmenu_on) {
+        unsigned pb = 0; float ly = 0.f; menu_pad_read(&pb, &ly);
+        float dt = pad_last ? (float)(now - pad_last) / 1000.f : 0.f; pad_last = now; if (dt > 0.25f) dt = 0.25f;
+        padk = menupad_step(&pad, pb, ly, dt);
+        if (padk && padk != MPK_TOGGLE && (!g_menu.open || plugin_keys)) padk = MPK_NONE;
+        if (padk) logf_("menu: gamepad key %d", padk);
     }
-    if (f1 && !g_menu.open) {
+    if (InterlockedCompareExchange(&g_discovery_state, 2, 2) == 2 && (!g_menu.open || g_menu.page == MP_MAIN || g_menu.page == MP_MAPS || g_menu.page == MP_MAPGROUPS)) {
+        if (g_discovered) { g_maps_n = g_discovered->shown; memcpy(g_maps, g_discovered->urls, sizeof g_maps); memcpy(g_maps_new, g_discovered->urlnew, sizeof g_maps_new); memcpy(g_maps_mod, g_discovered->urlmod, sizeof g_maps_mod); free(g_discovered); g_discovered = NULL; }
+        map_apply_categories(); InterlockedExchange(&g_discovery_state, 0);
+    }
+    if ((f1 || padk == MPK_TOGGLE) && !g_menu.open) {
         joinaddr_refresh();
         request_map_discovery(); menu_load_altars(L"altars.tsv"); npc_load_list(L"npcs.txt");
-        g_menu.count[MP_ALTARS] = g_altars_n; g_menu.count[MP_NPCS] = menu_clamp_list(g_npcs_n);
+        g_menu.count[MP_ALTARS] = g_menu.total[MP_ALTARS] = g_altars_n; g_menu.count[MP_NPCS] = menu_clamp_list(g_npcs_n); g_menu.total[MP_NPCS] = g_npcs_n < MENU_VIEW_MAX ? g_npcs_n : MENU_VIEW_MAX;
         menu_set_npc_groups(&g_menu, g_npc_ngroups, g_npc_group_count);
     }
     if (g_ti_active && !g_menu.open) g_ti_active = 0;
     if (g_menu.open && !g_ti_active) paks_watch(now);
-    int in_box = ti_step(en, bs, f1);
-    int key = in_box ? 0 : f1 ? MK_TOGGLE : f2 ? MK_MODS : !g_menu.open ? 0 : up ? MK_UP : dn ? MK_DOWN : (en || rt) ? MK_SELECT : (lf || bs) ? MK_BACK : 0;
+    int in_box = ti_step(en, bs, f1 || esc);                                      // Esc (overlay) cancels the join-address box like F1
+    int searchable = g_menu.open && !in_box && (menu_is_list(g_menu.page) || g_menu.page == MP_MAPGROUPS || g_menu.page == MP_NPCGROUPS);
+    if (searchable && spc && g_menu.filter[0] && menu_is_list(g_menu.page)) { typed = ' '; spc = 0; }   // Space inside a search is a space; otherwise it selects
+    if (searchable && typed && !in_box) { __try { menu_type(&g_menu, typed); logf_("menu: search '%s' -> %d row(s)", g_menu.filter, g_menu.count[g_menu.page]); } __except (EXCEPTION_EXECUTE_HANDLER) { logf_("menu: EXCEPTION 0x%08lX in the search", GetExceptionCode()); g_menu.filter[0] = 0; } }
+    int key = in_box ? 0 : (f1 || padk == MPK_TOGGLE) ? MK_TOGGLE : f2 ? MK_MODS : !g_menu.open ? 0 : (up || padk == MPK_UP) ? MK_UP : (dn || padk == MPK_DOWN) ? MK_DOWN :
+              (en || rt || spc || padk == MPK_SELECT) ? MK_SELECT : (lf || esc || padk == MPK_BACK) ? MK_BACK : bs ? MK_ERASE : 0;
 #ifdef LN_OVERLAY
     { OvCmd oc;                                                                   // a click in the overlay runs as the key that does the same
         if (g_ov_on && ov_poll(&oc) && g_menu.open && !g_ti_active) {
-            if (oc.cmd >= OVC_MODS_ENABLE) { __try { modsui_command(&oc); } __except (EXCEPTION_EXECUTE_HANDLER) { logf_("mods page: EXCEPTION 0x%08lX in command %d", GetExceptionCode(), oc.cmd); } }
+            if (oc.cmd == OVC_MENU_HOVER) { if (oc.index >= 0 && oc.index < g_menu.count[g_menu.page]) g_menu.sel = oc.index; }   // the mouse moved onto a row: it is the selected row now (no log: it follows the mouse)
+            else if (oc.cmd >= OVC_MODS_ENABLE) { __try { modsui_command(&oc); } __except (EXCEPTION_EXECUTE_HANDLER) { logf_("mods page: EXCEPTION 0x%08lX in command %d", GetExceptionCode(), oc.cmd); } }
             else if (oc.cmd == OVC_TOGGLE) key = MK_TOGGLE;
             else if (oc.cmd == OVC_MENU_BACK) key = MK_BACK;
             else if ((oc.cmd == OVC_MENU_SELECT || oc.cmd == OVC_MODS_ACT) && oc.index >= 0 && oc.index < g_menu.count[g_menu.page]) { g_menu.sel = oc.index; key = MK_SELECT; }
@@ -1550,6 +1727,7 @@ static void menu_tick(int focus, uint64_t now) {
     }
 #endif
     __try {
+        if (key == MK_BACK && g_menu.open && g_menu.page == MP_MODS && modsui_form_close_if_open()) key = 0;   // Back closes an open settings form first
         if (key) {
             int was = g_menu.open;
             MenuAct a = menu_key(&g_menu, key);

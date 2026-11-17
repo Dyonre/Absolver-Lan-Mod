@@ -16,7 +16,8 @@ enum { OVC_NONE = 0, OVC_MENU_SELECT, OVC_MENU_BACK, OVC_TOGGLE, OVC_MODS_ACT,  
        OVC_MODS_MOVE,          // index = row, arg -1 = earlier in the load order, +1 = later
        OVC_MODS_RESTART,       // quit the game cleanly so it can be started again
        OVC_MODS_FORM,          // index = row whose settings form opens; -1 closes the form
-       OVC_MODS_APPLY };       // index = row, text = "key<TAB>value<LF>" for every setting of the form
+       OVC_MODS_APPLY,         // index = row, text = "key<TAB>value<LF>" for every setting of the form
+       OVC_MENU_HOVER };       // the mouse moved onto row `index` of an F1 list page / the Mods page rows: it becomes the selected row (one highlight for mouse and keys)
 
 #define OV_LINE 96
 #define OV_ROWS 192                                                     // rows of a list page
@@ -63,6 +64,8 @@ typedef struct OvSnap {
     int pending_n; char pending_text[160];           // load order changes that wait for a restart
     int form_mod; unsigned form_serial;              // row whose settings form is open (-1 = none); the serial changes whenever the values below were reloaded
     char form_title[96], form_msg[200]; int form_ok, form_live, nform; OvSetting form[OV_SETTINGS];   // form_live: the mod's plugin takes changes without a restart
+    // OV_MENU: type-to-search state of a list / category page; text shown instead of rows when the page has none
+    int searchable; char filter[32]; char empty[96];
 } OvSnap;
 
 typedef struct OvCmd { int cmd, index, arg; char text[1536]; } OvCmd;
@@ -93,6 +96,11 @@ int  ov_state(void);
 int  ov_shows_menu(void);                                               // 1 = the overlay draws (or is about to): the loader's text menu stays hidden; 0 = draw the text menu
 void ov_publish(const OvSnap *s);                                       // s == NULL or kind OV_NONE hides the overlay. Copies s.
 int  ov_poll(OvCmd *c);                                                 // game thread: next queued command, 0 = none
+// input focus and the cursor
+int  ov_focus_owner(void);                                              // who has ImGui's focus (keyboard / pad): -2 nobody, -1 a loader window, >= 0 that plugin's window
+void ov_pad_chord_guard(int on);                                        // 1: the game does not see Start while Back is held (the Back + Start menu chord); installs the gamepad hook
+void ov_keep_key(int vk, int on);                                       // 1: key presses of vk (an F key a mod uses) are kept from the game's window procedure (the release too)
+int  ov_cursor_mode(void);                                              // 0 none drawn, 1 the overlay's virtual cursor, 2 the game's own OS cursor is used (one cursor)
 
 #ifdef __cplusplus
 }

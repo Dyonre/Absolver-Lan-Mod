@@ -34,6 +34,7 @@
 #include "animsets.inc"                     // kind "anim_sets": runtime animation sets (padded style tables + wired clips)
 #include "hostmods.inc"                     // host mod download + max players
 #include "netinspect.inc"                   // Net Inspector: F2 Mods page rows, host list over the host-mods side channel
+#include "keys.inc"                         // key ownership: F2 "Keys" rows, API 2.23 declare_key / input_owner
 #include "modsui.inc"
 #if defined(__has_include)
 #if __has_include("servermode.inc")

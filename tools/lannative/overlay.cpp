@@ -50,6 +50,12 @@ static CRITICAL_SECTION g_cs;                                      // guards the
 static OvSnap g_pub, g_cur; static unsigned g_pub_seq, g_cur_seq;
 #define CMDQ 8
 static OvCmd g_q[CMDQ]; static int g_qn;
+// input focus and the cursor
+static volatile unsigned char g_keep[256];                         // F keys a mod uses: kept from the game's window procedure (ov_keep_key)
+static volatile LONG g_chord_guard;                                // the game does not see Start while Back is held (Back + Start = the loader menu)
+static volatile LONG g_focus_owner = -2;                           // ov_focus_owner: -2 nobody, -1 a loader window, >= 0 a plugin window that takes keys
+static volatile LONG g_cursor_mode;                                // 0 none, 1 virtual cursor, 2 the game's OS cursor
+static ImGuiStorage g_win_owner, g_win_frame;                      // window id -> owner + 2, frame it was last seen (render thread)
 
 extern "C" void ov_set_log(void (*fn)(const char *fmt, ...)) { g_log = fn; }
 extern "C" void ov_set_guard(int (*alive)(int), void (*fault)(int, unsigned long), const char *(*name)(int)) { g_alive = alive; g_fault = fault; g_name = name; }
@@ -130,13 +136,26 @@ static void post(int cmd, int index, int arg = 0, const char *text = NULL) {   /
 }
 extern "C" void ov_publish(const OvSnap *s) {
     if (!g_installed) return;
+    int shown = 0;
     EnterCriticalSection(&g_cs);
     if (!s || s->kind == OV_NONE) { g_pub.kind = OV_NONE; InterlockedExchange(&g_vis, 0); }
     else {
         if (memcmp(&g_pub, s, sizeof g_pub) != 0) { memcpy(&g_pub, s, sizeof g_pub); g_pub_seq++; }
-        InterlockedExchange(&g_vis, g_state == OV_DEAD ? 0 : 1);
+        InterlockedExchange(&g_vis, g_state == OV_DEAD ? 0 : 1); shown = g_state != OV_DEAD;
     }
     LeaveCriticalSection(&g_cs);
+    if (shown) xi_install();                                         // a loader menu on screen: the game gets a neutral gamepad (the menu reads the pad itself)
+}
+extern "C" int ov_focus_owner(void) { return (int)g_focus_owner; }
+extern "C" int ov_cursor_mode(void) { return (int)g_cursor_mode; }
+extern "C" void ov_keep_key(int vk, int on) {
+    if (vk <= 0 || vk > 255) return;
+    if (!!g_keep[vk] != !!on) LOG("overlay: key 0x%02X %s the game's window procedure", vk, on ? "is now kept from" : "reaches again");
+    g_keep[vk] = (unsigned char)(on != 0);
+}
+extern "C" void ov_pad_chord_guard(int on) {
+    if (on) xi_install();
+    if (InterlockedExchange(&g_chord_guard, on ? 1 : 0) != (on ? 1 : 0)) LOG("overlay: gamepad chord guard %s (the game %s Start while Back is held)", on ? "on" : "off", on ? "does not see" : "sees");
 }
 
 /* ---------- input: while the overlay takes input, the game window's messages go to ImGui first ---------- */
@@ -173,6 +192,7 @@ static int route(HWND h, UINT m, WPARAM w, LPARAM l, void (*feed)(HWND, UINT, WP
     }
     int down, btn = mouse_button(m, w, &down);
     if (down == 0 && (g_kept_btn & btn)) { g_kept_btn &= (unsigned char)~btn; if (feed) feed(h, m, w, l); return R_SWALLOW; }   // same for a mouse button
+    if (g_focus && (m == WM_KEYDOWN || m == WM_SYSKEYDOWN) && w < 256 && g_keep[w]) { g_swallowed[w] = 1; return R_SWALLOW; }   // an F key a mod owns (F11 = the game's fullscreen toggle too): the game never sees it
     LONG menu = g_vis, any = g_any;
     LONG block = any & OVM_BLOCK;                                    // keep every key and mouse message from the game
     LONG mouse_on = menu || (any & OVM_MOUSE), keys_on = menu || (any & OVM_KEYS), raw_on = any & OVM_RAW;
@@ -213,7 +233,11 @@ static void xi_neutral(void *state) { memset((char *)state + sizeof(DWORD), 0, 1
 static DWORD WINAPI xi_get_state(DWORD user, void *state) {
     DWORD rc = g_xi_orig ? g_xi_orig(user, state) : ERROR_DEVICE_NOT_CONNECTED;
     InterlockedIncrement(&g_xi_calls);
-    if (rc == ERROR_SUCCESS && state && (g_any & OVM_BLOCK) && g_focus) { xi_neutral(state); InterlockedIncrement(&g_xi_zeroed); }
+    if (rc == ERROR_SUCCESS && state) {
+        WORD *b = (WORD *)((char *)state + sizeof(DWORD));             // XINPUT_GAMEPAD.wButtons
+        if (g_chord_guard && (*b & 0x0020)) *b &= (WORD)~0x0010;       // Back held: Start is the loader menu chord, not the game's pause menu
+        if (((g_any & OVM_BLOCK) || g_vis) && g_focus) { xi_neutral(state); InterlockedIncrement(&g_xi_zeroed); }   // a loader menu or a BLOCK_GAME window has the pad
+    }
     return rc;
 }
 // The game imports XInputGetState by ordinal (xinput1_3 ordinal 2): replace its slot in the executable's import address table. Once; 1 = in place.
@@ -248,19 +272,34 @@ static void draw_lines(const OvSnap &s) {
         if (i == 0) ImGui::TextColored(ImVec4(0.55f, 0.8f, 1.f, 1.f), "%s", s.label[i]); else ImGui::TextUnformatted(s.label[i]);
     }
 }
+// One highlight for mouse and keyboard: moving the mouse onto a row makes it the selected row (OVC_MENU_HOVER), so the next Enter / A acts on what is
+// under the cursor. A selection moved by the keys or the pad scrolls into view; one that came from the mouse does not (the list would move under it).
+static int g_hover_posted = -1;
+static void row_hover(int i, int sel) {
+    if (ImGui::IsItemHovered() && (ImGui::GetIO().MouseDelta.x != 0.f || ImGui::GetIO().MouseDelta.y != 0.f) && i != sel && g_hover_posted != i) { g_hover_posted = i; post(OVC_MENU_HOVER, i); }
+}
 static void draw_menu(const OvSnap &s) {
-    static int last_sel = -1; int scroll_to = s.sel != last_sel; last_sel = s.sel;
+    static int last_sel = -1; int scroll_to = s.sel != last_sel && s.sel != g_hover_posted; if (s.sel != last_sel && s.sel != g_hover_posted) g_hover_posted = -1; last_sel = s.sel;
     ImGui::TextDisabled("%s", s.title);
-    float foot = ImGui::GetFrameHeightWithSpacing() + 4.f;
+    if (s.searchable) {
+        if (s.filter[0]) ImGui::TextColored(ImVec4(1.f, 0.85f, 0.35f, 1.f), "Search: %s_", s.filter);
+        else ImGui::TextDisabled("Type to search");
+    }
+    float foot = ImGui::GetFrameHeightWithSpacing() * 2.f + 4.f;
     ImGui::BeginChild("rows", ImVec2(0, -foot), ImGuiChildFlags_Borders);
+    if (!s.count && s.empty[0]) ImGui::TextDisabled("%s", s.empty);
     for (int i = 0; i < s.count; i++) {
-        if (ImGui::Selectable(s.label[i], i == s.sel)) post(OVC_MENU_SELECT, i);
+        if (i == s.sel) ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImGui::GetStyleColorVec4(ImGuiCol_Header));   // the selected row stays strong under a resting mouse
+        bool hit = ImGui::Selectable(s.label[i], i == s.sel);
+        if (i == s.sel) ImGui::PopStyleColor();
+        if (hit) post(OVC_MENU_SELECT, i);
+        row_hover(i, s.sel);
         if (i == s.sel && scroll_to) ImGui::SetScrollHereY(0.5f);
     }
     ImGui::EndChild();
     if (s.has_back) { if (ImGui::Button("Back")) post(OVC_MENU_BACK, 0); ImGui::SameLine(); }
     if (ImGui::Button("Close")) post(OVC_TOGGLE, 0);
-    ImGui::SameLine(); ImGui::TextDisabled("Up/Down + Enter, or click. F1 closes.");
+    ImGui::TextDisabled("Up/Down + Enter (or click)   Esc / Left = back   F1 closes   Pad: d-pad, A, B");
 }
 
 static void content_text(const OvMod &m, char *out, size_t cap) {
@@ -280,14 +319,20 @@ static void draw_mods(const OvSnap &s) {
     ImGui::Text("Mods: %d loaded, %d off, %d skipped", on, off, skipped);
     ImGui::TextWrapped("Load order: %s", s.order[0] ? s.order : "(none)");
     if (s.info[0]) { ImGui::PushStyleColor(ImGuiCol_Text, grey); ImGui::TextWrapped("%s", s.info); ImGui::PopStyleColor(); }
+    ImGui::TextDisabled("Rows: Up/Down + Enter, or click   Esc / F2 close   Pad: d-pad, A, B");
     ImGui::Separator();
-    for (int i = 0; i < s.nactions; i++) {                           // actions: the reload line, then one line per plugin section / item
-        if (s.action_kind[i] == 0) { if (ImGui::Button(s.action[i])) post(OVC_MODS_ACT, i); }
-        else {
-            if (s.action_kind[i] == 2) ImGui::Indent(16.f);
-            if (ImGui::Selectable(s.action[i], i == s.sel)) post(OVC_MODS_ACT, i);
-            if (s.action_kind[i] == 2) ImGui::Unindent(16.f);
-        }
+    static int last_sel = -1; int scroll_to = s.sel != last_sel && s.sel != g_hover_posted; if (s.sel != last_sel && s.sel != g_hover_posted) g_hover_posted = -1; last_sel = s.sel;
+    for (int i = 0; i < s.nactions; i++) {                           // actions: the reload line, plugin sections / items, the units' rows - all the same kind of row, so the keyboard selection shows on each
+        ImGui::PushID(1000 + i);
+        if (s.action_kind[i] == 2) ImGui::Indent(16.f);
+        if (i == s.sel) ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImGui::GetStyleColorVec4(ImGuiCol_Header));
+        bool hit = ImGui::Selectable(s.action[i], i == s.sel);
+        if (i == s.sel) ImGui::PopStyleColor();
+        if (hit) post(OVC_MODS_ACT, i);
+        row_hover(i, s.sel);
+        if (i == s.sel && scroll_to) ImGui::SetScrollHereY(0.3f);
+        if (s.action_kind[i] == 2) ImGui::Unindent(16.f);
+        ImGui::PopID();
     }
     if (s.nactions) ImGui::Separator();
     if (s.nwarn && ImGui::CollapsingHeader("Warnings", ImGuiTreeNodeFlags_DefaultOpen)) for (int i = 0; i < s.nwarn; i++) ImGui::TextColored(yellow, "%s", s.warn[i]), ImGui::Spacing();
@@ -406,6 +451,9 @@ static int unbalanced(const ImGuiErrorRecoveryState &a, const ImGuiErrorRecovery
 // so a plugin cannot corrupt the loader's windows or the plugins drawn after it.
 static void call_draw(const DrawReg &r) {
     if (g_alive && !g_alive(r.owner)) return;
+    // Frames run while ANY plugin holds a mode; a plugin that holds none is drawn only while a loader menu is open,
+    // so a window that does not track its own visibility no longer shows up because another plugin keeps a HUD.
+    if (!g_vis && r.owner >= 0 && r.owner < 64 && !g_mode[r.owner]) return;
     ImGuiErrorRecoveryState before, after; ImGui::ErrorRecoveryStoreState(&before);
     unsigned long code = 0; int ok = guarded_draw(r.draw, r.user, &code);
     if (!ok && g_fault) g_fault(r.owner, code);
@@ -416,26 +464,55 @@ static void call_draw(const DrawReg &r) {
         if (n > 0 && r.owner >= 0 && r.owner < 64 && (++seen[r.owner] == 1 || seen[r.owner] % 1000 == 0)) LOG("overlay: plugin %s left %d unbalanced ImGui stack entr%s%s - recovered (%u time(s) so far)", owner_name(r.owner), n, n == 1 ? "y" : "ies", ok ? "" : " after an exception", seen[r.owner]);
     }
 }
+// windows that were drawn this frame and have no owner yet belong to `owner` (-1 the loader): the focus owner is looked up from them (window id -> owner)
+static void tag_windows(int owner) {
+    ImGuiContext &g = *GImGui;
+    for (int i = 0; i < g.Windows.Size; i++) {
+        ImGuiWindow *wn = g.Windows[i]; if (wn->LastFrameActive != g.FrameCount) continue;
+        if (g_win_frame.GetInt(wn->ID, -1) == g.FrameCount) continue;
+        g_win_frame.SetInt(wn->ID, g.FrameCount); g_win_owner.SetInt(wn->ID, owner + 2);
+    }
+}
+// who gets the keys and the pad this frame: the plugin whose window has ImGui's focus, if that plugin takes keys (ABS_OV_KEYS / BLOCK_GAME); else the loader menu
+static void update_focus_owner(void) {
+    ImGuiContext &g = *GImGui; int owner = -2;
+    for (ImGuiWindow *wn = g.NavWindow; wn; wn = wn->ParentWindow)
+        if (wn->LastFrameActive == g.FrameCount && g_win_frame.GetInt(wn->ID, -1) == g.FrameCount) { owner = g_win_owner.GetInt(wn->ID, 1) - 2; break; }
+    if (owner >= 0 && (owner > 63 || !(g_mode[owner] & (OVM_KEYS | OVM_BLOCK)))) owner = g_vis ? -1 : -2;   // a HUD / mouse-only plugin window does not take the keys
+    if (owner == -2 && g_vis) owner = -1;
+    LONG old = InterlockedExchange(&g_focus_owner, owner);
+    if (old != owner) LOG("overlay: focus %s", owner >= 0 ? owner_name(owner) : owner == -1 ? "loader menu" : "nobody");
+}
 static void draw_ui(int w, int h) {
     const OvSnap &s = g_cur;
-    ImGuiIO &io = ImGui::GetIO(); io.MouseDrawCursor = g_vis || ((g_any & OVM_MOUSE) && !(g_any & OVM_HIDECURSOR)); g_cw = w; g_ch = h;
+    g_cw = w; g_ch = h;
+    static int last_kind = OV_NONE;
     if (s.kind != OV_NONE) {                                         // the loader's own windows first, balanced by construction
         bool open = true;
         float ww = s.kind == OV_MODS ? 860.f * g_scale : 560.f * g_scale, wh = s.kind == OV_MODS ? 620.f * g_scale : 470.f * g_scale;
         if (ww > w - 40) ww = (float)(w - 40); if (wh > h - 40) wh = (float)(h - 40);
-        ImGui::SetNextWindowPos(ImVec2(s.kind == OV_MODS ? 40.f : 60.f, s.kind == OV_MODS ? 40.f : 80.f), ImGuiCond_Appearing);
-        ImGui::SetNextWindowSize(ImVec2(ww, wh), ImGuiCond_Appearing);
+        ImGuiCond cond = s.kind != last_kind ? ImGuiCond_Always : ImGuiCond_Appearing;   // F1 <-> F2 share one window: each page gets its own size and place
+        ImGui::SetNextWindowPos(ImVec2(s.kind == OV_MODS ? 40.f : 60.f, s.kind == OV_MODS ? 40.f : 80.f), cond);
+        ImGui::SetNextWindowSize(ImVec2(ww, wh), cond);
         ImGui::SetNextWindowBgAlpha(0.88f);
         const char *name = s.kind == OV_MODS ? "Mods###lnwin" : "LanNative###lnwin";
+        // one clear highlight: the selected row (keys, pad, or the row the mouse moved onto) is strong, a row the cursor only rests on is faint
+        // (ImGui's default style paints hover brighter than selection, so a resting mouse looked like a second selection - UX-B1 key_b05)
+        const ImVec4 hl = ImGui::GetStyleColorVec4(ImGuiCol_HeaderHovered);
+        ImGui::PushStyleColor(ImGuiCol_Header, hl); ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(hl.x, hl.y, hl.z, hl.w * 0.30f));
         if (ImGui::Begin(name, &open, ImGuiWindowFlags_NoSavedSettings | (s.kind == OV_MODS && s.form_mod >= 0 ? ImGuiWindowFlags_NoBringToFrontOnFocus : 0))) {   // an open settings form stays above the page
             if (s.kind == OV_MODS) draw_mods(s); else if (s.kind == OV_MENU) draw_menu(s); else draw_lines(s);
         }
         ImGui::End();
+        ImGui::PopStyleColor(2);
         if (!open) post(OVC_TOGGLE, 0);
         if (s.kind == OV_MODS && s.form_mod >= 0) draw_form(s);
     }
+    last_kind = s.kind;
+    tag_windows(-1);
     DrawReg list[DRAWMAX]; int n = g_nreg; memcpy(list, g_reg, sizeof(DrawReg) * (size_t)n);   // a callback may register or unregister: iterate a copy, in registration order
-    for (int i = 0; i < n; i++) call_draw(list[i]);
+    for (int i = 0; i < n; i++) { call_draw(list[i]); tag_windows(list[i].owner); }
+    update_focus_owner();
 }
 
 /* ---------- Present ---------- */
@@ -479,8 +556,20 @@ static void frame(IDXGISwapChain *sc) {
     if (InterlockedExchange(&g_clear, 0)) { io.ClearInputKeys(); io.ClearInputMouse(); }
     ImGui_ImplDX11_NewFrame(); ImGui_ImplWin32_NewFrame();
     if (g_vx < 0) { g_vx = w * 0.5f; g_vy = h * 0.5f; }
-    g_vx += (float)InterlockedExchange(&g_dx, 0); g_vy += (float)InterlockedExchange(&g_dy, 0);
+    // One cursor: when the game shows its OWN cursor (pause / inventory / any UMG menu) the overlay uses
+    // that one - ImGui follows the OS cursor and draws none of its own. Only while the game hides it (gameplay: it pins the hidden cursor) the overlay draws
+    // its virtual cursor, moved by raw mouse input.
+    int want_cursor = g_vis || ((g_any & OVM_MOUSE) && !(g_any & OVM_HIDECURSOR)), os_cursor = 0;
+    if (want_cursor && g_focus) {
+        CURSORINFO ci; ci.cbSize = sizeof ci; POINT p;
+        if (GetCursorInfo(&ci) && (ci.flags & CURSOR_SHOWING) && ci.hCursor && GetCursorPos(&p) && ScreenToClient(g_hwnd, &p) && p.x >= 0 && p.y >= 0 && p.x < w && p.y < h) {
+            os_cursor = 1; g_vx = (float)p.x; g_vy = (float)p.y; InterlockedExchange(&g_dx, 0); InterlockedExchange(&g_dy, 0);
+        }
+    }
+    if (!os_cursor) { g_vx += (float)InterlockedExchange(&g_dx, 0); g_vy += (float)InterlockedExchange(&g_dy, 0); }
     if (g_vx < 0) g_vx = 0; if (g_vy < 0) g_vy = 0; if (g_vx > w - 1) g_vx = (float)(w - 1); if (g_vy > h - 1) g_vy = (float)(h - 1);
+    io.MouseDrawCursor = want_cursor && !os_cursor;
+    { LONG cm = !want_cursor ? 0 : os_cursor ? 2 : 1; if (InterlockedExchange(&g_cursor_mode, cm) != cm) LOG("overlay: cursor = %s", cm == 2 ? "the game's own cursor (it shows one): no second cursor drawn" : cm == 1 ? "the overlay's cursor (the game hides its own)" : "none"); }
     io.AddMousePosEvent(g_vx, g_vy);                                 // after the backend's own (pinned) OS cursor position
     ImGui::NewFrame();
     if (g_state == OV_STARTING) { InterlockedExchange(&g_state, OV_READY); LOG("overlay: first frame drawing - ImGui menus active"); }   // before the first callback, so overlay_info works in frame 1

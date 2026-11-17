@@ -112,7 +112,7 @@ TOPICS = [
     ('Logging, settings, mod data', r'^(log|config_get|kv_get|kv_set|sidecar_get|sidecar_set)$'),
     ('Hooks and call interception', r'^(hook_\w+|find_symbol|on_call|replace_native|trace\w*|frame_peek_int)$'),
     ('Timers and threads', r'(timer|^run_on_game_thread$|^is_game_thread$)'),
-    ('UI: menus, text on screen, overlay', r'^(create_widget|add_to_viewport|remove_from_parent|add_menu_item|show_\w+|hud_score|overlay_\w+|on_menu|reload_content)$'),
+    ('UI: menus, text on screen, overlay', r'^(create_widget|add_to_viewport|remove_from_parent|add_menu_item|show_\w+|hud_score|overlay_\w+|on_menu|reload_content|declare_key|input_owner)$'),
     ('Events', r'^on_\w+$'),
     ('Reflection, memory, calling functions', r'^(find_\w+|load_object|object_\w+|class_name|is_a|\w*propert\w*|prop_ptr\w*|get_bool|set_bool|call_function\w*|for_each_\w+|dump_\w+|fname_\w+|make_text|text_to_string|set_text|char_info)$'),
     ('Spawning, objects, assets, tables', r'^(spawn_actor|construct_object|duplicate_object|create_asset|add_to_root|create_texture|texture_from_file|get_world|get_local_player_controller|table_\w+|row_set_text|register_content_kind|inventory_\w+)$'),

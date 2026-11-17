@@ -9,10 +9,10 @@
 #include <string.h>
 #include <stdlib.h>
 
-enum { MK_TOGGLE = 1, MK_UP, MK_DOWN, MK_SELECT, MK_BACK, MK_MODS };   // MK_MODS = F2: open the menu straight on the Mods page (or close it when it is already there)
+enum { MK_TOGGLE = 1, MK_UP, MK_DOWN, MK_SELECT, MK_BACK, MK_MODS, MK_ERASE };   // MK_MODS = F2: open the menu straight on the Mods page (or close it when it is already there); MK_ERASE = Backspace: deletes a search character, else Back
 enum { MA_NONE = 0, MA_HOST, MA_JOIN, MA_SUMMON, MA_STATE, MA_MARK, MA_AUTOLEAVE, MA_PERTEAM, MA_HOSTIP, MA_OPEN_MAPS, MA_OPEN_ALTARS, MA_TRAVEL, MA_TELEPORT,
        MA_OPEN_NPCS, MA_SPAWN_NPC, MA_REMOVE_NPCS, MA_SOLODUEL, MA_EDIT_IP, MA_MODS_ACT, MA_MODS_BACK, MA_QUIT, MA_OPEN_LAN, MA_LAN_JOIN };   // MA_MODS_ACT: index = line of the Mods page (the first lines are actions: reload, plugin menu items); MA_MODS_BACK: Left on the Mods page while a section is open (index = line)
-enum { MP_MAIN = 0, MP_MAPS, MP_ALTARS, MP_NPCS, MP_NPCGROUPS, MP_MODS, MP_LAN, MP_COUNT };   // MP_LAN: hosts found by the LAN finder (landisc.inc; MA_LAN_JOIN index = host)
+enum { MP_MAIN = 0, MP_MAPS, MP_ALTARS, MP_NPCS, MP_NPCGROUPS, MP_MODS, MP_LAN, MP_MAPGROUPS, MP_COUNT };   // MP_LAN: hosts found by the LAN finder (landisc.inc; MA_LAN_JOIN index = host); MP_MAPGROUPS: map categories
 
 #define MENU_MAIN_COUNT   16
 #define MENU_MAIN_LAN     14      // "LAN games..." entry (Back from the LAN page lands here)
@@ -22,14 +22,23 @@ enum { MP_MAIN = 0, MP_MAPS, MP_ALTARS, MP_NPCS, MP_NPCGROUPS, MP_MODS, MP_LAN, 
 #define MENU_ROWS         12      // lines drawn for a list page
 #define MENU_LINE_MAX     96
 #define MENU_LINES_MAX    (MENU_ROWS + 8)
+#define MENU_FILTER_MAX   32      // search text on a list / category page (typed letters)
+#define MENU_VIEW_MAX     512     // rows a search can show (the largest list: 512 NPC entries)
 
 typedef struct {
     int open, page, sel;
     int count[MP_COUNT];                 // items on each page (MENU_MAIN_COUNT, maps, altars, NPCs in the open group (all of them without groups), NPC groups, Mods page lines)
-    int ngroups, group;           // NPC groups: entries of group g are the contiguous range [gstart[g], gstart[g] + gcount[g]) of the NPC list; group = the open one
+    int ngroups, group;           // NPC groups: entries of group g are the contiguous range [gstart[g], gstart[g] + gcount[g]) of the NPC list; group = the open one (-1 = search over all)
     int gcount[MENU_GROUPS_MAX], gstart[MENU_GROUPS_MAX];
     int mem_page, mem_sel[MP_COUNT];     // where F1 reopens: the last main / map / altar page and line (kept by menu_init_n)
     int mods_sub;                 // set by the caller: a section of the Mods page is open, so Left closes it (MA_MODS_BACK) instead of leaving the page
+    // Map categories (same shape as the NPC groups) and type-to-search on the list / category pages. menu_init_n keeps mem_mgroup only.
+    int mgroups, mgroup, mgcount[MENU_GROUPS_MAX], mgstart[MENU_GROUPS_MAX];
+    int total[MP_COUNT];          // entries in a whole list (maps, altars, NPCs): what a search covers
+    const char *(*label)(int page, int entry);   // caller: label of list entry `entry` (whole-list index) of page MP_MAPS / MP_ALTARS / MP_NPCS; NULL = no search
+    char filter[MENU_FILTER_MAX]; // search text; "" = none. Rows of a list page with a filter = view[]
+    int nview, view[MENU_VIEW_MAX], vmore;   // matching entries (whole-list indices); vmore = matches that did not fit
+    int mem_mgroup;
 } Menu;
 
 typedef struct { int action, index; } MenuAct;   // index = list entry for MA_TRAVEL / MA_TELEPORT / MA_SPAWN_NPC
@@ -40,13 +49,13 @@ typedef struct { int autoleave_on, perteam, is_host_world, maps_n, altars_n; con
 static int menu_clamp_list(int n) { return n < 0 ? 0 : (n > MENU_LIST_MAX ? MENU_LIST_MAX : n); }
 
 static void menu_init_n(Menu *m, int maps_n, int altars_n, int npcs_n) {
-    int mp = m->mem_page, ms[MP_COUNT]; memcpy(ms, m->mem_sel, sizeof ms);
-    memset(m, 0, sizeof *m);
-    m->mem_page = mp; memcpy(m->mem_sel, ms, sizeof ms);
+    int mp = m->mem_page, ms[MP_COUNT], mg = m->mem_mgroup; memcpy(ms, m->mem_sel, sizeof ms);
+    memset(m, 0, sizeof *m);                   // the search text and the label callback start empty: the caller sets m->label after every init
+    m->mem_page = mp; memcpy(m->mem_sel, ms, sizeof ms); m->mem_mgroup = mg;
     m->count[MP_MAIN] = MENU_MAIN_COUNT;
-    m->count[MP_MAPS] = menu_clamp_list(maps_n);
-    m->count[MP_ALTARS] = menu_clamp_list(altars_n);
-    m->count[MP_NPCS] = menu_clamp_list(npcs_n);
+    m->count[MP_MAPS] = m->total[MP_MAPS] = menu_clamp_list(maps_n);
+    m->count[MP_ALTARS] = m->total[MP_ALTARS] = menu_clamp_list(altars_n);
+    m->count[MP_NPCS] = menu_clamp_list(npcs_n); m->total[MP_NPCS] = npcs_n < 0 ? 0 : npcs_n > MENU_VIEW_MAX ? MENU_VIEW_MAX : npcs_n;
     m->count[MP_LAN] = 1;                      // the caller keeps it at max(1, hosts found): line 0 says "searching" while the list is empty
 }
 static void menu_init(Menu *m, int maps_n, int altars_n) { menu_init_n(m, maps_n, altars_n, 0); }
@@ -62,20 +71,110 @@ static void menu_set_npc_groups(Menu *m, int n, const int *counts) {
     m->ngroups = n; m->count[MP_NPCGROUPS] = n;
 }
 
+// Map categories: counts[g] entries in category g, in list order (the caller sorts the map list by category). n = 0 keeps the flat list.
+static void menu_set_map_groups(Menu *m, int n, const int *counts) {
+    m->mgroups = 0; m->count[MP_MAPGROUPS] = 0;
+    if (n <= 0 || n > MENU_GROUPS_MAX) return;
+    int start = 0;
+    for (int g = 0; g < n; g++) { m->mgcount[g] = menu_clamp_list(counts[g]); m->mgstart[g] = start; start += counts[g] < 0 ? 0 : counts[g]; }
+    m->mgroups = n; m->count[MP_MAPGROUPS] = n;
+    if (m->mgroup >= n) m->mgroup = n - 1;
+    if (m->page == MP_MAPS && !m->filter[0] && m->mgroup >= 0) m->count[MP_MAPS] = m->mgcount[m->mgroup];
+}
+static int menu_is_list(int page) { return page == MP_MAPS || page == MP_ALTARS || page == MP_NPCS; }
+// the part of the whole list a list page covers now: a category / group, or everything (no groups, or a search over all of them)
+static void menu_range(const Menu *m, int page, int *start, int *n) {
+    *start = 0; *n = m->total[page];
+    if (page == MP_MAPS && m->mgroups > 0 && m->mgroup >= 0 && m->mgroup < m->mgroups) { *start = m->mgstart[m->mgroup]; *n = m->mgcount[m->mgroup]; }
+    if (page == MP_NPCS && m->ngroups > 0 && m->group >= 0 && m->group < m->ngroups) { *start = m->gstart[m->group]; *n = m->gcount[m->group]; }
+}
+// whole-list index of row `row` of a list page (-1 = none)
+static int menu_entry(const Menu *m, int row) {
+    if (row < 0) return -1;
+    if (menu_is_list(m->page) && m->filter[0]) return row < m->nview ? m->view[row] : -1;
+    if (m->page == MP_NPCS && m->ngroups > 0 && m->group >= 0) return m->gstart[m->group] + row;
+    if (m->page == MP_MAPS && m->mgroups > 0 && m->mgroup >= 0) return m->mgstart[m->mgroup] + row;
+    return row;
+}
+// case-insensitive: every space-separated word of the filter appears in the label
+static int menu_match(const char *label, const char *filter) {
+    if (!label) return 0;
+    const char *f = filter;
+    while (*f) {
+        while (*f == ' ') f++; if (!*f) break;
+        int wl = 0; while (f[wl] && f[wl] != ' ') wl++;
+        int found = 0;
+        for (const char *s = label; *s && !found; s++) {
+            int k = 0; while (k < wl && s[k]) { int a = s[k], b = f[k]; if (a >= 'A' && a <= 'Z') a += 32; if (b >= 'A' && b <= 'Z') b += 32; if (a != b) break; k++; }
+            if (k == wl) found = 1;
+        }
+        if (!found) return 0;
+        f += wl;
+    }
+    return 1;
+}
+// Rebuilds the rows of the current list page from the search text (call after the filter, the page, the group or the list changed).
+static void menu_refilter(Menu *m) {
+    if (!menu_is_list(m->page)) return;
+    int start, n; menu_range(m, m->page, &start, &n);
+    if (!m->filter[0] || !m->label) { m->nview = 0; m->vmore = 0; m->count[m->page] = m->page == MP_NPCS ? menu_clamp_list(n) : n; }
+    else {
+        m->nview = 0; m->vmore = 0;
+        for (int i = start; i < start + n; i++) if (menu_match(m->label(m->page, i), m->filter)) { if (m->nview < MENU_VIEW_MAX) m->view[m->nview++] = i; else m->vmore++; }
+        m->count[m->page] = m->nview;
+    }
+    if (m->sel >= m->count[m->page]) m->sel = m->count[m->page] ? m->count[m->page] - 1 : 0;
+    if (m->sel < 0) m->sel = 0;
+}
+// the list a category page opens
+static int menu_list_of(int page) { return page == MP_MAPGROUPS ? MP_MAPS : page == MP_NPCGROUPS ? MP_NPCS : page; }
+// A typed character on a list or category page: it goes into the search text. On a category page the search covers every category.
+static void menu_type(Menu *m, int c) {
+    if (!m->open || !m->label || c < 32 || c > 126) return;
+    int p = m->page; if (!menu_is_list(p) && p != MP_MAPGROUPS && p != MP_NPCGROUPS) return;
+    size_t n = strlen(m->filter); if (n + 1 >= MENU_FILTER_MAX) return;
+    if (n == 0 && c == ' ') return;                                                  // a leading space would match everything
+    if (p == MP_MAPGROUPS) { m->page = MP_MAPS; m->mgroup = -1; m->sel = 0; }        // search over all maps / all NPCs
+    else if (p == MP_NPCGROUPS) { m->page = MP_NPCS; m->group = -1; m->sel = 0; }
+    m->filter[n] = (char)c; m->filter[n + 1] = 0; m->sel = 0;
+    menu_refilter(m);
+}
+// the search ended (Esc / Left / Backspace on the last character): a search over all categories goes back to the category page
+static void menu_clear_filter(Menu *m) {
+    m->filter[0] = 0;
+    if (m->page == MP_MAPS && m->mgroups > 0 && m->mgroup < 0) { m->page = MP_MAPGROUPS; m->sel = 0; }
+    else if (m->page == MP_NPCS && m->ngroups > 0 && m->group < 0) { m->page = MP_NPCGROUPS; m->sel = 0; }
+    else { m->sel = 0; menu_refilter(m); }
+}
 static int menu_mem_sel(const Menu *m, int page) { int n = m->count[page]; int s = m->mem_sel[page]; return (n <= 0 || s < 0) ? 0 : (s >= n ? n - 1 : s); }
 static MenuAct menu_key_raw(Menu *m, int key);
 // F1 reopens on the page and line it was left on (main, map list or altar list); the other pages start at the top
 static MenuAct menu_key(Menu *m, int key) {
     MenuAct a = menu_key_raw(m, key);
-    if (m->open && (m->page == MP_MAIN || m->page == MP_MAPS || m->page == MP_ALTARS)) { m->mem_page = m->page; m->mem_sel[m->page] = m->sel; }
-    else if (a.action == MA_TRAVEL || a.action == MA_TELEPORT) { m->mem_page = a.action == MA_TRAVEL ? MP_MAPS : MP_ALTARS; m->mem_sel[m->mem_page] = a.index; }
+    if (m->open && (m->page == MP_MAIN || m->page == MP_MAPS || m->page == MP_ALTARS || m->page == MP_MAPGROUPS)) { m->mem_page = m->page; m->mem_sel[m->page] = m->sel; if (m->page == MP_MAPS) m->mem_mgroup = m->mgroup; }
+    else if (a.action == MA_TRAVEL || a.action == MA_TELEPORT) { m->mem_page = a.action == MA_TRAVEL ? MP_MAPS : MP_ALTARS; m->mem_sel[m->mem_page] = m->sel; if (a.action == MA_TRAVEL) m->mem_mgroup = m->mgroup; }
     return a;
 }
 static MenuAct menu_key_raw(Menu *m, int key) {
     MenuAct none = { MA_NONE, 0 };
     if (key == MK_TOGGLE) { m->open = !m->open;
-        if (m->open) { int p = m->mem_page; if ((p == MP_MAPS || p == MP_ALTARS || p == MP_LAN) && m->count[p] > 0) { m->page = p; m->sel = menu_mem_sel(m, p); } else { m->page = MP_MAIN; m->sel = menu_mem_sel(m, MP_MAIN); } }
+        if (m->open) {
+            int p = m->mem_page;
+            if (p == MP_MAPS && m->mgroups > 0) {                                     // back into the category (or the search) it was left in
+                m->mgroup = m->mem_mgroup < m->mgroups ? m->mem_mgroup : 0;
+                if (m->mgroup < 0 && !m->filter[0]) p = MP_MAPGROUPS; else { m->page = MP_MAPS; menu_refilter(m); }
+            }
+            if ((p == MP_MAPS || p == MP_ALTARS || p == MP_LAN || p == MP_MAPGROUPS) && m->count[p] > 0) { m->page = p; m->sel = menu_mem_sel(m, p); }
+            else { m->page = MP_MAIN; m->sel = menu_mem_sel(m, MP_MAIN); }
+        }
         return none; }
+    if (key == MK_ERASE && m->open && m->filter[0] && (menu_is_list(m->page))) {
+        size_t n = strlen(m->filter); m->filter[n - 1] = 0;
+        if (!m->filter[0]) menu_clear_filter(m); else menu_refilter(m);
+        return none;
+    }
+    if (key == MK_ERASE) key = MK_BACK;
+    if (key == MK_BACK && m->open && m->filter[0] && menu_is_list(m->page)) { menu_clear_filter(m); return none; }
     if (key == MK_MODS) {
         if (m->open && m->page == MP_MODS) { m->open = 0; return none; }
         m->open = 1; m->page = MP_MODS; m->sel = 0; return none;
@@ -87,8 +186,9 @@ static MenuAct menu_key_raw(Menu *m, int key) {
     if (key == MK_BACK) {
         if (m->page == MP_MODS && m->mods_sub) { MenuAct a = { MA_MODS_BACK, m->sel }; return a; }
         if (m->page == MP_MODS) { m->page = MP_MAIN; m->sel = 0; }
-        else if (m->page == MP_NPCS && m->ngroups > 0) { m->page = MP_NPCGROUPS; m->sel = m->group; }                                // back to the group list
-        else if (m->page != MP_MAIN) { m->sel = (m->page == MP_MAPS) ? 8 : (m->page == MP_ALTARS) ? 9 : (m->page == MP_LAN) ? MENU_MAIN_LAN : 10; m->page = MP_MAIN; }   // back to the entry that opened the list
+        else if (m->page == MP_NPCS && m->ngroups > 0) { m->page = MP_NPCGROUPS; m->sel = m->group >= 0 ? m->group : 0; }       // back to the group list
+        else if (m->page == MP_MAPS && m->mgroups > 0) { m->page = MP_MAPGROUPS; m->sel = m->mgroup >= 0 ? m->mgroup : 0; }      // back to the map categories
+        else if (m->page != MP_MAIN) { m->sel = (m->page == MP_MAPS || m->page == MP_MAPGROUPS) ? 8 : (m->page == MP_ALTARS) ? 9 : (m->page == MP_LAN) ? MENU_MAIN_LAN : 10; m->page = MP_MAIN; }   // back to the entry that opened the list
         else m->open = 0;
         return none;
     }
@@ -96,12 +196,14 @@ static MenuAct menu_key_raw(Menu *m, int key) {
         if (m->page == MP_MAIN) {
             static const int act[MENU_MAIN_COUNT] = { MA_HOST, MA_JOIN, MA_SUMMON, MA_STATE, MA_MARK, MA_AUTOLEAVE, MA_PERTEAM, MA_HOSTIP, MA_OPEN_MAPS, MA_OPEN_ALTARS, MA_OPEN_NPCS, MA_REMOVE_NPCS, MA_SOLODUEL, MA_EDIT_IP, MA_OPEN_LAN, MA_QUIT };
             MenuAct a = { act[m->sel], 0 };
-            if (a.action == MA_OPEN_MAPS)   { if (m->count[MP_MAPS]) { m->page = MP_MAPS; m->sel = menu_mem_sel(m, MP_MAPS); } a.action = MA_NONE; }
-            else if (a.action == MA_OPEN_ALTARS) { if (m->count[MP_ALTARS]) { m->page = MP_ALTARS; m->sel = menu_mem_sel(m, MP_ALTARS); } a.action = MA_NONE; }
+            if (a.action == MA_OPEN_MAPS && m->mgroups > 0) { m->filter[0] = 0; m->page = MP_MAPGROUPS; m->sel = menu_mem_sel(m, MP_MAPGROUPS); a.action = MA_NONE; }
+            else if (a.action == MA_OPEN_MAPS)   { if (m->count[MP_MAPS]) { m->filter[0] = 0; m->page = MP_MAPS; menu_refilter(m); m->sel = menu_mem_sel(m, MP_MAPS); } a.action = MA_NONE; }
+            else if (a.action == MA_OPEN_ALTARS) { if (m->count[MP_ALTARS]) { m->filter[0] = 0; m->page = MP_ALTARS; menu_refilter(m); m->sel = menu_mem_sel(m, MP_ALTARS); } a.action = MA_NONE; }
             else if (a.action == MA_OPEN_LAN) { if (m->count[MP_LAN] < 1) m->count[MP_LAN] = 1; m->page = MP_LAN; m->sel = 0; a.action = MA_NONE; }
             else if (a.action == MA_OPEN_NPCS) {
+                m->filter[0] = 0;
                 if (m->ngroups > 0) { m->page = MP_NPCGROUPS; m->sel = 0; }
-                else if (m->count[MP_NPCS]) { m->page = MP_NPCS; m->sel = 0; }
+                else if (m->count[MP_NPCS]) { m->page = MP_NPCS; m->sel = 0; menu_refilter(m); }
                 a.action = MA_NONE;
             }
             return a;
@@ -111,9 +213,14 @@ static MenuAct menu_key_raw(Menu *m, int key) {
             m->group = m->sel; m->count[MP_NPCS] = m->gcount[m->group]; m->page = MP_NPCS; m->sel = 0;
             return none;
         }
+        if (m->page == MP_MAPGROUPS) {                                                  // open a category: its maps become the map page
+            m->mgroup = m->sel; m->page = MP_MAPS; m->sel = 0; menu_refilter(m);
+            return none;
+        }
         if (m->page == MP_LAN) { MenuAct a = { MA_LAN_JOIN, m->sel }; return a; }          // stays open: the caller joins (or searches again on the 'searching' line)
-        if (m->page == MP_NPCS) { MenuAct a = { MA_SPAWN_NPC, (m->ngroups > 0 ? m->gstart[m->group] : 0) + m->sel }; return a; }   // stays open: several NPCs can be spawned in a row
-        MenuAct a = { m->page == MP_ALTARS ? MA_TELEPORT : MA_TRAVEL, m->sel };
+        int e = menu_entry(m, m->sel); if (e < 0) return none;
+        if (m->page == MP_NPCS) { MenuAct a = { MA_SPAWN_NPC, e }; return a; }           // stays open: several NPCs can be spawned in a row
+        MenuAct a = { m->page == MP_ALTARS ? MA_TELEPORT : MA_TRAVEL, e };
         m->open = 0;                                     // travelling / teleporting: the menu is not needed any more
         return a;
     }
@@ -162,22 +269,35 @@ static int menu_layout(const Menu *m, const MenuStatus *s, const char *(*list_te
         }
         return n;
     }
-    if (m->page == MP_NPCS && m->ngroups > 0) {
-        char title[MENU_LINE_MAX];
-        snprintf(title, sizeof title, "NPCs: %s  (Enter = spawn next to you, Left = back)", list_text(MP_NPCGROUPS, m->group));
+    char title[MENU_LINE_MAX];
+    if (menu_is_list(m->page) && m->filter[0]) {
+        const char *what = m->page == MP_MAPS ? "Maps" : m->page == MP_NPCS ? "NPCs" : "Altars";
+        int all = (m->page == MP_MAPS && m->mgroups > 0 && m->mgroup < 0) || (m->page == MP_NPCS && m->ngroups > 0 && m->group < 0);
+        const char *in = !all && m->page == MP_MAPS && m->mgroups > 0 ? list_text(MP_MAPGROUPS, m->mgroup) : !all && m->page == MP_NPCS && m->ngroups > 0 ? list_text(MP_NPCGROUPS, m->group) : "all";
+        snprintf(title, sizeof title, "%s, search in %.40s: %s_   (Backspace = delete, Esc / Left = end search)", what, in, m->filter);
+        n = menu_append(lines, n, "%s", title, 0);
+    } else if (m->page == MP_NPCS && m->ngroups > 0) {
+        snprintf(title, sizeof title, "NPCs: %s  (Enter = spawn next to you, Left = back, type to search)", list_text(MP_NPCGROUPS, m->group));
+        n = menu_append(lines, n, "%s", title, 0);
+    } else if (m->page == MP_MAPS && m->mgroups > 0) {
+        snprintf(title, sizeof title, "Maps: %s  (Enter = travel, Left = back, type to search)", list_text(MP_MAPGROUPS, m->mgroup));
         n = menu_append(lines, n, "%s", title, 0);
     } else
         n = menu_append(lines, n, m->page == MP_MAPS ? "Maps  (Enter = travel, Left = back)%s" : m->page == MP_NPCS ? "NPCs  (Enter = spawn next to you, Left = back)%s" :
-                                  m->page == MP_NPCGROUPS ? "NPC groups  (Enter = open, Left = back)%s" : m->page == MP_MODS ? "Mods  (F2 close, Up/Down scroll, Enter on a >> line runs it, Left = menu)%s" :
-                                  m->page == MP_LAN ? "LAN games  (Enter = join, Left = back)%s" :
+                                  m->page == MP_NPCGROUPS ? "NPC groups  (Enter = open, Left = back, type to search all NPCs)%s" : m->page == MP_MODS ? "Mods  (F2 close, Up/Down scroll, Enter on a >> line runs it, Left = menu)%s" :
+                                  m->page == MP_LAN ? "LAN games  (Enter = join, Left = back)%s" : m->page == MP_MAPGROUPS ? "Map categories  (Enter = open, Left = back, type to search all maps)%s" :
                                   "Altars  (Enter = teleport, Left = back)%s", "", 0);
     int count = m->count[m->page];
     int first = m->sel - MENU_ROWS / 2; if (first > count - MENU_ROWS) first = count - MENU_ROWS; if (first < 0) first = 0;
     for (int i = first; i < count && i < first + MENU_ROWS; i++) {
         if (i == m->sel) *sel_line = n;
-        n = menu_append(lines, n, "%s", list_text(m->page, i), 0);
+        n = menu_append(lines, n, "%s", list_text(m->page, menu_is_list(m->page) ? menu_entry(m, i) : i), 0);
     }
-    if (n < MENU_LINES_MAX) { snprintf(lines[n], MENU_LINE_MAX, "%d of %d", m->sel + 1, count); n++; }
+    if (n < MENU_LINES_MAX) {
+        if (!count && m->filter[0]) snprintf(lines[n], MENU_LINE_MAX, "no match for '%s'", m->filter);
+        else snprintf(lines[n], MENU_LINE_MAX, "%d of %d%s", count ? m->sel + 1 : 0, count, m->vmore ? " (more matches: type more)" : "");
+        n++;
+    }
     return n;
 }
 

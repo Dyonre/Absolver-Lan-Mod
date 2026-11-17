@@ -253,6 +253,7 @@ static int modsui_back(int sel) {
     return 0;
 }
 static int modsui_open_section(void) { return g_mui_open >= 0; }
+static int modsui_form_close_if_open(void) { if (g_form_row < 0) return 0; logf_("mods page: settings form closed (Back)"); mods_ui_form_close(); g_mui_at = 0; return 1; }
 static void modsui_collapse(void) { if (g_mui_open >= 0) { g_mui_open = -1; g_mui_at = 0; } }
 // called every game tick with the window focus state: LanNative\reload.txt
 static void modsui_tick(int focus) {
