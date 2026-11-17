@@ -357,6 +357,18 @@ static void draw_mods(const OvSnap &s) {
     ImGui::Text("Mods: %d loaded, %d off, %d skipped", on, off, skipped);
     ImGui::TextWrapped("Load order: %s", s.order[0] ? s.order : "(none)");
     if (s.info[0]) { ImGui::PushStyleColor(ImGuiCol_Text, grey); ImGui::TextWrapped("%s", s.info); ImGui::PopStyleColor(); }
+    {   // profile box: save the current on/off + order set under a typed name, or update (overwrite) the profile of that name
+        static char nm[44]; static unsigned seen = 0xFFFFFFFFu;
+        if (s.pf_serial != seen) { snprintf(nm, sizeof nm, "%s", s.pf_default); seen = s.pf_serial; }   // starts with the current / last used profile; kept while typing
+        int exists = 0; for (int k = 0; k < s.pf_n; k++) if (!_stricmp(nm, s.pf_names[k])) exists = 1;
+        ImGui::AlignTextToFramePadding(); ImGui::TextUnformatted("Profile:"); ImGui::SameLine(); ImGui::SetNextItemWidth(220.f * g_scale);
+        ImGui::InputTextWithHint("##pfname", "name (letters, digits, space, - _)", nm, sizeof nm);
+        ImGui::SameLine(); bool off = s.safe_mode || !nm[0]; if (off) ImGui::BeginDisabled();
+        char b[96]; snprintf(b, sizeof b, !nm[0] ? "Save as###pfsave" : exists ? "Update '%s'###pfsave" : "Save as '%s'###pfsave", nm);
+        if (ImGui::Button(b)) post(OVC_PROFILE_SAVE, 0, exists, nm);
+        if (off) ImGui::EndDisabled();
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) ImGui::SetTooltip("%s", s.safe_mode ? "Safe mode: nothing is written." : exists ? "Overwrites this profile with the current on/off + order set (the old file is kept as .bak)." : "Saves the current on/off + order set as a new profile in Mods\\profiles.");
+    }
     ImGui::TextDisabled("Rows: Up/Down + Enter, or click   Esc / F2 close   Pad: d-pad, A, B");
     ImGui::Separator();
     static int last_sel = -1; int scroll_to = s.sel != last_sel && s.sel != g_hover_posted; if (s.sel != last_sel && s.sel != g_hover_posted) g_hover_posted = -1; last_sel = s.sel;
@@ -564,8 +576,8 @@ static void draw_log(int w, int h) {
     ImGui::SetNextWindowPos(ImVec2((float)w - ww - 20.f, (float)h - wh - 20.f), ImGuiCond_Appearing); ImGui::SetNextWindowSize(ImVec2(ww, wh), ImGuiCond_Appearing);
     ImGui::SetNextWindowBgAlpha(0.90f);
     if (ImGui::Begin("Log - lannative.log###lnlog", &open, ImGuiWindowFlags_NoSavedSettings)) {
-        ImGui::SetNextItemWidth(260.f * g_scale); ImGui::InputTextWithHint("##lvf", "filter: text or mod name", g_lv_filter, sizeof g_lv_filter);
-        ImGui::SameLine(); ImGui::Checkbox("Errors only", &g_lv_err);
+        ImGui::SetNextItemWidth(260.f * g_scale); if (ImGui::InputTextWithHint("##lvf", "filter: text or mod name", g_lv_filter, sizeof g_lv_filter)) LOG("overlay: log filter = '%s'", g_lv_filter);
+        ImGui::SameLine(); if (ImGui::Checkbox("Errors only", &g_lv_err)) LOG("overlay: log window errors only = %s", g_lv_err ? "on" : "off");
         static int idx[LV_MAX]; int m = 0;
         for (int i = 0; i < g_lv.n; i++) if (lv_match(lv_at(&g_lv, i), g_lv_filter, g_lv_err)) idx[m++] = i;
         ImGui::SameLine(); ImGui::TextDisabled("%d of the last %d lines", m, g_lv.n);

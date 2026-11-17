@@ -17,7 +17,8 @@ enum { OVC_NONE = 0, OVC_MENU_SELECT, OVC_MENU_BACK, OVC_TOGGLE, OVC_MODS_ACT,  
        OVC_MODS_RESTART,       // quit the game cleanly so it can be started again
        OVC_MODS_FORM,          // index = row whose settings form opens; -1 closes the form
        OVC_MODS_APPLY,         // index = row, text = "key<TAB>value<LF>" for every setting of the form
-       OVC_MENU_HOVER };       // the mouse moved onto row `index` of an F1 list page / the Mods page rows: it becomes the selected row (one highlight for mouse and keys)
+       OVC_MENU_HOVER,         // the mouse moved onto row `index` of an F1 list page / the Mods page rows: it becomes the selected row (one highlight for mouse and keys)
+       OVC_PROFILE_SAVE };     // Mods page profile box: text = profile name, arg 1 = update (overwrite) that existing profile, 0 = save as a new one
 
 #define OV_LINE 96
 #define OV_ROWS 192                                                     // rows of a list page
@@ -67,6 +68,8 @@ typedef struct OvSnap {
     char form_title[96], form_msg[200]; int form_ok, form_live, nform; OvSetting form[OV_SETTINGS];   // form_live: the mod's plugin takes changes without a restart
     // OV_MENU: type-to-search state of a list / category page; text shown instead of rows when the page has none
     int searchable; char filter[32]; char empty[96];
+    // OV_MODS profile box (profiles.inc): saved profile names, the name the box starts with (current / last used profile), serial = reload the box
+    int pf_n; char pf_names[32][44]; char pf_default[44]; unsigned pf_serial;
 } OvSnap;
 
 typedef struct OvCmd { int cmd, index, arg; char text[1536]; } OvCmd;

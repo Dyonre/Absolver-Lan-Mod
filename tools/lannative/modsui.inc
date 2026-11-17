@@ -186,6 +186,7 @@ static void modsui_action(int index) {
     }
 }
 #ifdef LN_OVERLAY
+static void pf_command(const char *name, int overwrite); static void pf_snapshot(OvSnap *o);   // profiles.inc (included after this unit)
 static void modsui_command(const OvCmd *c) {
     char msg[200] = "";
     switch (c->cmd) {
@@ -206,6 +207,7 @@ static void modsui_command(const OvCmd *c) {
     case OVC_MODS_RESTART: logf_("mods page: restart requested - the game quits now"); md_console("quit"); break;
     case OVC_MODS_FORM: if (c->index < 0) mods_ui_form_close(); else mods_ui_form_open(c->index); break;
     case OVC_MODS_APPLY: mods_ui_form_apply(c->index, c->text); break;
+    case OVC_PROFILE_SAVE: pf_command(c->text, c->arg); break;
     default: break;
     }
     g_mui_at = 0;
@@ -243,6 +245,7 @@ static void modsui_snapshot(OvSnap *o) {
     snprintf(o->reload_status, sizeof o->reload_status, "%s", in->reload_status ? in->reload_status : "");
     o->nactions = in->nactions < OV_ACTIONS ? in->nactions : OV_ACTIONS;
     for (int i = 0; i < o->nactions; i++) { snprintf(o->action[i], OV_LINE, "%s", in->action[i]); o->action_kind[i] = i < g_mui_nref ? g_mui_ref[i].kind : 0; }
+    pf_snapshot(o);
 }
 #endif
 // Left on the Mods page while a section is open: close it; returns the line to select (the section's header)
