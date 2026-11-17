@@ -165,7 +165,13 @@ static void hs_serve(SOCKET c, uint32_t ip) {
     if (g_hm_mode == HM_OFF) { hs_send_all(c, "ERR this host does not share mods\n", 34); return; }
     if (g_hs_n < 0) hs_build();
     char buf[400];
-    if (nf == 1) LN_FOREACH(hsverb, LnVerb, v) if (!strcmp(cmd, v->verb)) { v->fn(c, masked); return; }   // the units' verbs (lnhooks.h LN_HS_VERB): NI
+    if (nf == 1) LN_FOREACH(hsverb, LnVerb, v) if (!strcmp(cmd, v->verb)) {          // the units' verbs (lnhooks.h LN_HS_VERB): NI
+        if (!strcmp(v->verb, "LIST") || !strcmp(v->verb, "GET")) {                // built-in verbs: a unit may not take them over (the built-in one answers below)
+            static volatile LONG said; if (!InterlockedExchange(&said, 1)) logf_("host mods: unit '%s' registered the built-in verb %s - REFUSED, the built-in %s answers (rename the unit's verb)", v->name, v->verb, v->verb);
+            continue;
+        }
+        v->fn(c, masked); return;
+    }
     if (!strcmp(cmd, "LIST") && nf == 1) {
         hm_format_header(g_lm_me.fp, g_hs_n, g_hsns_n, buf, sizeof buf); int ok = hs_send_all(c, buf, (int)strlen(buf));
         for (int i = 0; ok && i < g_hs_n; i++) { hm_format_line(&g_hs[i].e, buf, sizeof buf); ok = hs_send_all(c, buf, (int)strlen(buf)); }
