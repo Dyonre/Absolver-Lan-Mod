@@ -11,11 +11,12 @@
 
 enum { MK_TOGGLE = 1, MK_UP, MK_DOWN, MK_SELECT, MK_BACK, MK_MODS, MK_ERASE };   // MK_MODS = F2: open the menu straight on the Mods page (or close it when it is already there); MK_ERASE = Backspace: deletes a search character, else Back
 enum { MA_NONE = 0, MA_HOST, MA_JOIN, MA_SUMMON, MA_STATE, MA_MARK, MA_AUTOLEAVE, MA_PERTEAM, MA_HOSTIP, MA_OPEN_MAPS, MA_OPEN_ALTARS, MA_TRAVEL, MA_TELEPORT,
-       MA_OPEN_NPCS, MA_SPAWN_NPC, MA_REMOVE_NPCS, MA_SOLODUEL, MA_EDIT_IP, MA_MODS_ACT, MA_MODS_BACK, MA_QUIT, MA_OPEN_LAN, MA_LAN_JOIN };   // MA_MODS_ACT: index = line of the Mods page (the first lines are actions: reload, plugin menu items); MA_MODS_BACK: Left on the Mods page while a section is open (index = line)
-enum { MP_MAIN = 0, MP_MAPS, MP_ALTARS, MP_NPCS, MP_NPCGROUPS, MP_MODS, MP_LAN, MP_MAPGROUPS, MP_COUNT };   // MP_LAN: hosts found by the LAN finder (landisc.inc; MA_LAN_JOIN index = host); MP_MAPGROUPS: map categories
+       MA_OPEN_NPCS, MA_SPAWN_NPC, MA_REMOVE_NPCS, MA_SOLODUEL, MA_EDIT_IP, MA_MODS_ACT, MA_MODS_BACK, MA_QUIT, MA_OPEN_LAN, MA_LAN_JOIN, MA_OPEN_KICK, MA_KICK };   // MA_MODS_ACT: index = line of the Mods page (the first lines are actions: reload, plugin menu items); MA_MODS_BACK: Left on the Mods page while a section is open (index = line)
+enum { MP_MAIN = 0, MP_MAPS, MP_ALTARS, MP_NPCS, MP_NPCGROUPS, MP_MODS, MP_LAN, MP_MAPGROUPS, MP_KICK, MP_COUNT };   // MP_LAN: hosts found by the LAN finder (landisc.inc; MA_LAN_JOIN index = host); MP_MAPGROUPS: map categories
 
-#define MENU_MAIN_COUNT   16
+#define MENU_MAIN_COUNT   17
 #define MENU_MAIN_LAN     14      // "LAN games..." entry (Back from the LAN page lands here)
+#define MENU_MAIN_KICK    15      // "Kick player..." entry (host only; kick.inc; MA_KICK index = joiner row)
 #define MENU_LIST_MAX     192     // entries kept per file-backed list (found maps + maps.txt extras)
 #define MENU_URL_MAX      400     // longest URL kept (ASCII)
 #define MENU_GROUPS_MAX   16      // NPC groups
@@ -44,7 +45,7 @@ typedef struct {
 typedef struct { int action, index; } MenuAct;   // index = list entry for MA_TRAVEL / MA_TELEPORT / MA_SPAWN_NPC
 
 // what the labels show; filled by the caller each frame
-typedef struct { int autoleave_on, perteam, is_host_world, maps_n, altars_n; const char *hostip; int npcs_n, npc_live, solo; const char *joinaddr; int lan_n; } MenuStatus;
+typedef struct { int autoleave_on, perteam, is_host_world, maps_n, altars_n; const char *hostip; int npcs_n, npc_live, solo; const char *joinaddr; int lan_n, kick_n; } MenuStatus;   // kick_n: joiners connected (host), -1 = not hosting
 
 static int menu_clamp_list(int n) { return n < 0 ? 0 : (n > MENU_LIST_MAX ? MENU_LIST_MAX : n); }
 
@@ -57,6 +58,7 @@ static void menu_init_n(Menu *m, int maps_n, int altars_n, int npcs_n) {
     m->count[MP_ALTARS] = m->total[MP_ALTARS] = menu_clamp_list(altars_n);
     m->count[MP_NPCS] = menu_clamp_list(npcs_n); m->total[MP_NPCS] = npcs_n < 0 ? 0 : npcs_n > MENU_VIEW_MAX ? MENU_VIEW_MAX : npcs_n;
     m->count[MP_LAN] = 1;                      // the caller keeps it at max(1, hosts found): line 0 says "searching" while the list is empty
+    m->count[MP_KICK] = 1;                     // kick.inc keeps it at max(1, joiners): line 0 says "no joiners" / "host only"
 }
 static void menu_init(Menu *m, int maps_n, int altars_n) { menu_init_n(m, maps_n, altars_n, 0); }
 
@@ -188,17 +190,18 @@ static MenuAct menu_key_raw(Menu *m, int key) {
         if (m->page == MP_MODS) { m->page = MP_MAIN; m->sel = 0; }
         else if (m->page == MP_NPCS && m->ngroups > 0) { m->page = MP_NPCGROUPS; m->sel = m->group >= 0 ? m->group : 0; }       // back to the group list
         else if (m->page == MP_MAPS && m->mgroups > 0) { m->page = MP_MAPGROUPS; m->sel = m->mgroup >= 0 ? m->mgroup : 0; }      // back to the map categories
-        else if (m->page != MP_MAIN) { m->sel = (m->page == MP_MAPS || m->page == MP_MAPGROUPS) ? 8 : (m->page == MP_ALTARS) ? 9 : (m->page == MP_LAN) ? MENU_MAIN_LAN : 10; m->page = MP_MAIN; }   // back to the entry that opened the list
+        else if (m->page != MP_MAIN) { m->sel = (m->page == MP_MAPS || m->page == MP_MAPGROUPS) ? 8 : (m->page == MP_ALTARS) ? 9 : (m->page == MP_LAN) ? MENU_MAIN_LAN : (m->page == MP_KICK) ? MENU_MAIN_KICK : 10; m->page = MP_MAIN; }   // back to the entry that opened the list
         else m->open = 0;
         return none;
     }
     if (key == MK_SELECT && n > 0) {
         if (m->page == MP_MAIN) {
-            static const int act[MENU_MAIN_COUNT] = { MA_HOST, MA_JOIN, MA_SUMMON, MA_STATE, MA_MARK, MA_AUTOLEAVE, MA_PERTEAM, MA_HOSTIP, MA_OPEN_MAPS, MA_OPEN_ALTARS, MA_OPEN_NPCS, MA_REMOVE_NPCS, MA_SOLODUEL, MA_EDIT_IP, MA_OPEN_LAN, MA_QUIT };
+            static const int act[MENU_MAIN_COUNT] = { MA_HOST, MA_JOIN, MA_SUMMON, MA_STATE, MA_MARK, MA_AUTOLEAVE, MA_PERTEAM, MA_HOSTIP, MA_OPEN_MAPS, MA_OPEN_ALTARS, MA_OPEN_NPCS, MA_REMOVE_NPCS, MA_SOLODUEL, MA_EDIT_IP, MA_OPEN_LAN, MA_OPEN_KICK, MA_QUIT };
             MenuAct a = { act[m->sel], 0 };
             if (a.action == MA_OPEN_MAPS && m->mgroups > 0) { m->filter[0] = 0; m->page = MP_MAPGROUPS; m->sel = menu_mem_sel(m, MP_MAPGROUPS); a.action = MA_NONE; }
             else if (a.action == MA_OPEN_MAPS)   { if (m->count[MP_MAPS]) { m->filter[0] = 0; m->page = MP_MAPS; menu_refilter(m); m->sel = menu_mem_sel(m, MP_MAPS); } a.action = MA_NONE; }
             else if (a.action == MA_OPEN_ALTARS) { if (m->count[MP_ALTARS]) { m->filter[0] = 0; m->page = MP_ALTARS; menu_refilter(m); m->sel = menu_mem_sel(m, MP_ALTARS); } a.action = MA_NONE; }
+            else if (a.action == MA_OPEN_KICK) { if (m->count[MP_KICK] < 1) m->count[MP_KICK] = 1; m->page = MP_KICK; m->sel = 0; a.action = MA_NONE; }
             else if (a.action == MA_OPEN_LAN) { if (m->count[MP_LAN] < 1) m->count[MP_LAN] = 1; m->page = MP_LAN; m->sel = 0; a.action = MA_NONE; }
             else if (a.action == MA_OPEN_NPCS) {
                 m->filter[0] = 0;
@@ -217,7 +220,8 @@ static MenuAct menu_key_raw(Menu *m, int key) {
             m->mgroup = m->sel; m->page = MP_MAPS; m->sel = 0; menu_refilter(m);
             return none;
         }
-        if (m->page == MP_LAN) { MenuAct a = { MA_LAN_JOIN, m->sel }; return a; }          // stays open: the caller joins (or searches again on the 'searching' line)
+        if (m->page == MP_LAN) { MenuAct a = { MA_LAN_JOIN, m->sel }; return a; }
+        if (m->page == MP_KICK) { MenuAct a = { MA_KICK, m->sel }; return a; }              // stays open: first Enter arms, second kicks (kick.h)          // stays open: the caller joins (or searches again on the 'searching' line)
         int e = menu_entry(m, m->sel); if (e < 0) return none;
         if (m->page == MP_NPCS) { MenuAct a = { MA_SPAWN_NPC, e }; return a; }           // stays open: several NPCs can be spawned in a row
         MenuAct a = { m->page == MP_ALTARS ? MA_TELEPORT : MA_TRAVEL, e };
@@ -241,7 +245,7 @@ static int menu_layout(const Menu *m, const MenuStatus *s, const char *(*list_te
     if (!m->open) return 0;
     if (m->page == MP_MAIN) {
         n = menu_append(lines, n, "LanNative menu  (F1 close, F2 mods, Up/Down, Enter)%s", "", 0);
-        const char *items[MENU_MAIN_COUNT] = { "Host: %s", "Join: %s", "Bring joiners to me: %s", "State dump to log: %s", "Log marker: %s", "Auto-leave: %s", "3v3 players per team: %s", "Host address: %s", "Map list...%s", "Altar teleport...%s", "Spawn NPC...%s", "Remove all NPCs: %s", "Solo duel (test maps alone): %s", "Join address (Enter to type it): %s", "LAN games...%s", "Quit to main menu: %s" };
+        const char *items[MENU_MAIN_COUNT] = { "Host: %s", "Join: %s", "Bring joiners to me: %s", "State dump to log: %s", "Log marker: %s", "Auto-leave: %s", "3v3 players per team: %s", "Host address: %s", "Map list...%s", "Altar teleport...%s", "Spawn NPC...%s", "Remove all NPCs: %s", "Solo duel (test maps alone): %s", "Join address (Enter to type it): %s", "LAN games...%s", "Kick player...%s", "Quit to main menu: %s" };
         for (int i = 0; i < MENU_MAIN_COUNT; i++) {
             char val[32] = "";
             switch (i) {
@@ -260,7 +264,8 @@ static int menu_layout(const Menu *m, const MenuStatus *s, const char *(*list_te
                 case 12: snprintf(val, sizeof val, "%s", s->solo ? "ON" : "off"); break;
                 case 13: snprintf(val, sizeof val, "%.28s", s->joinaddr && s->joinaddr[0] ? s->joinaddr : "NOT SET"); break;
                 case 14: snprintf(val, sizeof val, " (%d found)", s->lan_n); break;
-                case 15: snprintf(val, sizeof val, "%s", "title screen"); break;
+                case 15: if (s->kick_n >= 0) snprintf(val, sizeof val, " (%d connected)", s->kick_n); else snprintf(val, sizeof val, "%s", " host only"); break;
+                case 16: snprintf(val, sizeof val, "%s", "title screen"); break;
             }
             if (i == m->sel) *sel_line = n;
             char row[MENU_LINE_MAX];
@@ -285,7 +290,7 @@ static int menu_layout(const Menu *m, const MenuStatus *s, const char *(*list_te
     } else
         n = menu_append(lines, n, m->page == MP_MAPS ? "Maps  (Enter = travel, Left = back)%s" : m->page == MP_NPCS ? "NPCs  (Enter = spawn next to you, Left = back)%s" :
                                   m->page == MP_NPCGROUPS ? "NPC groups  (Enter = open, Left = back, type to search all NPCs)%s" : m->page == MP_MODS ? "Mods  (F2 close, Up/Down scroll, Enter on a >> line runs it, Left = menu)%s" :
-                                  m->page == MP_LAN ? "LAN games  (Enter = join, Left = back)%s" : m->page == MP_MAPGROUPS ? "Map categories  (Enter = open, Left = back, type to search all maps)%s" :
+                                  m->page == MP_LAN ? "LAN games  (Enter = join, Left = back)%s" : m->page == MP_KICK ? "Kick player  (Enter twice = kick, Left = back)%s" : m->page == MP_MAPGROUPS ? "Map categories  (Enter = open, Left = back, type to search all maps)%s" :
                                   "Altars  (Enter = teleport, Left = back)%s", "", 0);
     int count = m->count[m->page];
     int first = m->sel - MENU_ROWS / 2; if (first > count - MENU_ROWS) first = count - MENU_ROWS; if (first < 0) first = 0;

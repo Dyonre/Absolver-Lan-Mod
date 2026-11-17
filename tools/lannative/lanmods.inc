@@ -154,6 +154,13 @@ static void hk_clientmsg(void *pc, void *msg, uint64_t type, float seconds) {
     if (!g_disabled && g_lm_mode && g_lm_faults < 3) {
         __try {
             const FStringView *m = msg; LmInfo host;
+            if (m && m->data && m->num > 7 && m->num < 300 && !wcsncmp(m->data, L"LNKICK|", 7)) {    // kick.inc on the host: shown here, the joiner then lands on its title screen
+                char why[200]; narrow(m->data + 7, m->num - 8, why, sizeof why);
+                logf_("join: KICKED by the host: %s", why);
+                char lines[2][LM_LINE_MAX]; snprintf(lines[0], LM_LINE_MAX, "KICKED: %s", why); snprintf(lines[1], LM_LINE_MAX, "You can join again from an altar (F1 > LAN games) if the host lets you.");
+                toast_show(lines, 2, 20);
+                return;                                                           // our own message: not passed to the game's chat/HUD
+            }
             if (m && m->data && m->num > 24 && m->num < 600 && lm_unpack_msg(m->data, m->num - 1, &host)) {
                 LmStatus st = lm_compare(&g_lm_me, &host);
                 logf_("mods: the host reported fp %016llX '%s'; mine is %016llX '%s' -> %s", (unsigned long long)host.fp, host.names, (unsigned long long)g_lm_me.fp, g_lm_me.names,

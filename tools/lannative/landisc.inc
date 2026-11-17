@@ -44,10 +44,15 @@ static SOCKET ld_open(unsigned short port, int broadcast) {
 static void ld_close(SOCKET *s) { if (*s != INVALID_SOCKET) { closesocket(*s); *s = INVALID_SOCKET; } }
 
 // ----- host side
-static int ld_hosting(void) {
+// 0 = single player, 1 = this PC hosts (listen server), 2 = joined someone (client). A client world can still show an authority game mode
+// while it loads (in game LJ-1d: the joiner then tried to answer LAN searches), so the net driver's server connection decides.
+static int ld_net_role(void) {
     void *w = world(); if (!w) return 0;
-    return *(void **)((uint8_t *)w + OFF_W_AUTHGM) && *(void **)((uint8_t *)w + OFF_W_NETDRIVER);     // server with a net driver = listen server
+    void *nd = *(void **)((uint8_t *)w + OFF_W_NETDRIVER); if (!nd) return 0;
+    if (*(void **)((uint8_t *)nd + OFF_ND_SERVERCONN)) return 2;
+    return *(void **)((uint8_t *)w + OFF_W_AUTHGM) ? 1 : 0;
 }
+static int ld_hosting(void) { return ld_net_role() == 1; }
 static void ld_fstring(const uint8_t *fs, char *out, int cap) {
     const wchar_t *d = *(wchar_t *const *)fs; int num = *(const int *)(fs + 8); out[0] = 0;
     if (d && num > 1 && num < 200) narrow(d, num - 1, out, cap);
@@ -171,6 +176,7 @@ static void ld_menu_join(int index, uint64_t now) {
     fprintf(f, "# found on the LAN: %s on %s\r\n%s\r\n%s", h->info.name, h->info.map, h->join, h->info.duel ? "none\r\n" : "");   // duel host: bare URL (no co-op CheckPoint)
     fclose(f); joinaddr_refresh();
     logf_("lan finder: join '%s' at %s (%s)", h->info.name, h->join, h->info.duel ? "duel map, bare URL" : "co-op, this save's CheckPoint");
+    g_menu.open = 0;                                                  // joining: the list is done (LJ-1d: an open LAN page kept the finder searching after the join); Join reopens it when it asks for a second press
     MenuAct a = { MA_JOIN, 0 }; menu_do(a, now);
 }
 
@@ -188,7 +194,7 @@ static void ld_tick(uint64_t now) {
                 else if (!g_menu.open && g_menu.mem_page == MP_LAN) g_menu.mem_page = MP_MAIN;
             }
         }
-        ld_find_step(now, g_ld_altar || (g_menu.open && g_menu.page == MP_LAN));
+        ld_find_step(now, (g_ld_altar && ld_net_role() != 2) || (g_menu.open && g_menu.page == MP_LAN));   // a joined player's altar does not search (the F1 LAN page still does)
         ld_list_expire(&g_ld_list, now);
         g_menu.count[MP_LAN] = g_ld_list.n ? g_ld_list.n : 1;
         if (g_menu.page == MP_LAN && g_menu.sel >= g_menu.count[MP_LAN]) g_menu.sel = g_menu.count[MP_LAN] - 1;

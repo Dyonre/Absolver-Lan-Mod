@@ -44,6 +44,7 @@
 #include "rowsjson.h"
 #include "utf8text.h"
 #include "joinguard.h"
+#include "landisc.h"                     // ld_lan_listen_url (do_travel)
 #include "hookreg.h"
 #include "lnhooks.h"
 
@@ -132,6 +133,7 @@ static void jg_announce_host(void);
 static JoinGuard g_jg;
 static void toast_show(char lines[][LM_LINE_MAX], int n, unsigned seconds);
 static const char *ld_menu_line(int i); static void ld_menu_join(int index, uint64_t now); static int ld_found(void);   // landisc.inc (LAN finder)
+static const char *kick_menu_line(int i); static void kick_menu_select(int i, uint64_t now); static int kick_count(void); static int g_kick_host;   // kick.inc (host: Kick player)
 static wchar_t g_dir[MAX_PATH];          // the LanNative folder next to the DLL, with a trailing backslash
 static CRITICAL_SECTION g_lock;
 static HookReg g_hreg;                  // which functions are patched and how their detours stack (hookreg.h); the loader's own hooks are registered here too
@@ -370,6 +372,8 @@ static const NpcApi g_npcapi = { npc_cls_spawner, npc_cls_archetype, npc_spawn_a
 static int do_travel(const wchar_t *url) {
     void *e = engine(), *w = world();
     if (!e || !w) { logf_("travel refused: GEngine=%p GWorld=%p (get past the title screen first)", e, w); return 0; }
+    wchar_t lanurl[1024];                                       // a Steam-online host listens on Steam sockets only unless the URL has bIsLanMatch
+    if (ld_lan_listen_url(url, lanurl, sizeof lanurl / sizeof lanurl[0])) { logf_("travel: listen URL gets ?bIsLanMatch (IP sockets, so LAN / VPN players can join by address)"); url = lanurl; }
     logf_("travel -> %ls", url);
     ((SetClientTravel_t)(g_base + g_targets[IDX_SETCLIENTTRAVEL].rva))(e, w, url, TRAVEL_ABSOLUTE);
     return 1;
@@ -1386,6 +1390,7 @@ static const char *menu_list_text(int page, int i) {
     static char label[MENU_LINE_MAX];
     if (page == MP_MODS) return modsui_line(i);
     if (page == MP_LAN) return ld_menu_line(i);
+    if (page == MP_KICK) return kick_menu_line(i);
     if (page == MP_ALTARS) return g_altar_label[i];
     if (page == MP_NPCGROUPS) { if (i < 0 || i >= g_npc_ngroups) return ""; snprintf(label, sizeof label, "%s (%d)", g_npc_group_name[i], g_npc_group_count[i]); return label; }
     if (page == MP_NPCS) return i >= 0 && i < g_npcs_n ? g_npc_label[i] : "";                    // i = whole-list index (menu_entry)
@@ -1473,6 +1478,7 @@ static void menu_do(MenuAct a, uint64_t now) {
     case MA_MODS_ACT: modsui_action(a.index); break;
     case MA_MODS_BACK: g_menu.sel = modsui_back(a.index); break;
     case MA_LAN_JOIN: ld_menu_join(a.index, now); break;
+    case MA_KICK: kick_menu_select(a.index, now); break;
     case MA_EDIT_IP: ti_clear(&g_ti); ti_prime(); g_ti_active = 1; logf_("menu: join address box opened"); break;
     case MA_HOST: if (L_guard_leave(&g_armed6, now, "menu Host")) do_travel(MAP_URL); else g_menu.open = 1; break;
     // quit without a function key; the same travel the game's own Quit ends in (UGameplayStatics::OpenLevel StartMap)
@@ -1738,7 +1744,7 @@ static void menu_tick(int focus, uint64_t now) {
         g_menu.mods_sub = g_menu.open && g_menu.page == MP_MODS && modsui_open_section();
         if (!g_menu.open) modsui_collapse();                                      // the Mods page always opens with its sections closed
         if (g_menu.open) {
-            MenuStatus st = { g_autoleave_on, g_perteam_cfg, !L_is_joiner(), g_maps_n, g_altars_n, g_hostips[g_hostip_sel], g_npc_on ? g_npcs_n : 0, L_npc_live(), g_solo_cfg, g_joinaddr_text, ld_found() };
+            MenuStatus st = { g_autoleave_on, g_perteam_cfg, !L_is_joiner(), g_maps_n, g_altars_n, g_hostips[g_hostip_sel], g_npc_on ? g_npcs_n : 0, L_npc_live(), g_solo_cfg, g_joinaddr_text, ld_found(), g_kick_host ? kick_count() : -1 };
             g_menu_nlines = g_ti_active ? ti_layout(g_menu_lines, &g_menu_sel) : menu_layout(&g_menu, &st, menu_list_text, g_menu_lines, &g_menu_sel);
         } else g_menu_nlines = 0;
 #ifdef LN_OVERLAY

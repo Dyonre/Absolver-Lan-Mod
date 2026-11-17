@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <wchar.h>
 
 #define LD_PORT       7778          // game port 7777 + 1 (a firewall rule "UDP 7777-7778" covers both)
 #define LD_QUERY_LEN  512
@@ -132,6 +133,25 @@ static void ld_label(const LdHost *h, int me_has_fp, uint64_t me_fp, char *out, 
     const char *mods = (!i->has_fp || !me_has_fp) ? "" : i->fp == me_fp ? " - mods match" : " - MODS DIFFER";
     snprintf(out, cap, "%s - %s (%s, %d player%s) - %s%s", i->name[0] ? i->name : "Host", i->map[0] ? i->map : "?", i->duel ? "duel" : "co-op",
              i->players, i->players == 1 ? "" : "s", h->join, mods);
+}
+// A listen travel ("<map>?listen...") without ?bIsLanMatch gets it appended. The game's net driver is SteamNetDriver: on a PC where Steam is online
+// it listens on Steam sockets only unless the URL has bIsLanMatch (UE 4.18 SteamNetDriver::InitListen), and every join by IP (LAN list, ip.txt, VPN)
+// times out. 1 = out holds the changed URL, 0 = keep the URL as it is (not a listen travel, already set, or no room).
+static int ld_tok_is(const wchar_t *b, const wchar_t *e, const wchar_t *name) {          // option token [b, e) is "name" or "name=..." (case-insensitive)
+    size_t n = wcslen(name); if ((size_t)(e - b) < n || _wcsnicmp(b, name, n)) return 0;
+    return b + n == e || b[n] == L'=';
+}
+static int ld_lan_listen_url(const wchar_t *in, wchar_t *out, size_t cap) {
+    if (!in || !out || !cap) return 0;
+    int listen = 0, lan = 0;
+    for (const wchar_t *q = wcschr(in, L'?'); q; q = wcschr(q + 1, L'?')) {
+        const wchar_t *b = q + 1, *e = b; while (*e && *e != L'?' && *e != L' ') e++;
+        if (ld_tok_is(b, e, L"listen")) listen = 1;
+        if (ld_tok_is(b, e, L"bIsLanMatch")) lan = 1;
+    }
+    if (!listen || lan) return 0;
+    size_t n = wcslen(in); if (n + 13 >= cap) return 0;
+    memcpy(out, in, n * sizeof(wchar_t)); memcpy(out + n, L"?bIsLanMatch", 13 * sizeof(wchar_t)); return 1;
 }
 // at most `per_sec` answers per second (a flood of queries costs the host nothing more)
 typedef struct { uint64_t window; int n; } LdRate;
