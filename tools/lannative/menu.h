@@ -244,7 +244,7 @@ static int menu_layout(const Menu *m, const MenuStatus *s, const char *(*list_te
     int n = 0; *sel_line = -1;
     if (!m->open) return 0;
     if (m->page == MP_MAIN) {
-        n = menu_append(lines, n, "LanNative menu  (F1 close, F2 mods, Up/Down, Enter)%s", "", 0);
+        n = menu_append(lines, n, "Gleam Loader  (F1 close, F2 mods, Up/Down, Enter)%s", "", 0);
         const char *items[MENU_MAIN_COUNT] = { "Host: %s", "Join: %s", "Bring joiners to me: %s", "State dump to log: %s", "Log marker: %s", "Auto-leave: %s", "3v3 players per team: %s", "Host address: %s", "Map list...%s", "Altar teleport...%s", "Spawn NPC...%s", "Remove all NPCs: %s", "Solo duel (test maps alone): %s", "Join address (Enter to type it): %s", "LAN games...%s", "Kick player...%s", "Quit to main menu: %s" };
         for (int i = 0; i < MENU_MAIN_COUNT; i++) {
             char val[32] = "";

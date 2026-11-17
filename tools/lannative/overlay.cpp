@@ -265,6 +265,40 @@ static int xi_install(void) {
     return 0;
 }
 
+/* ---------- the game's cursor position (no game hover under the loader's windows): while the game shows its own cursor
+ * (cursor mode 2: pause / Esc menu, inventory) and the mouse is over an overlay window, the game's GetCursorPos reports a point far outside its window,
+ * so the game's menu underneath shows no hover (Slate re-reads the cursor every frame; swallowing mouse messages alone does not stop the hover).
+ * Only the executable's import is routed; the overlay's own calls (ImGui) go through this DLL's import and see the real position. ---------- */
+typedef BOOL(WINAPI *GetCursorPos_t)(LPPOINT);
+static GetCursorPos_t g_gcp_orig; static volatile LONG g_gcp_hooked, g_mouse_on_ui, g_gcp_hidden;
+static BOOL WINAPI gcp_hook(LPPOINT p) {
+    BOOL ok = g_gcp_orig ? g_gcp_orig(p) : FALSE;
+    if (ok && p && g_mouse_on_ui && g_cursor_mode == 2 && g_state == OV_READY) {
+        p->x = -32000; p->y = -32000;
+        if (InterlockedIncrement(&g_gcp_hidden) == 1) LOG("overlay: the mouse is over an overlay window - the game's cursor position is hidden from it meanwhile (no hover in the game's menu underneath)");
+    }
+    return ok;
+}
+static int gcp_install(void) {                                     // once; 1 = in place
+    if (g_gcp_hooked) return g_gcp_hooked > 0;
+    g_gcp_hooked = -1;
+    BYTE *base = (BYTE *)GetModuleHandleW(NULL); if (!base) return 0;
+    IMAGE_DOS_HEADER *dos = (IMAGE_DOS_HEADER *)base; IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)(base + dos->e_lfanew);
+    IMAGE_DATA_DIRECTORY dd = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT]; if (!dd.VirtualAddress) return 0;
+    for (IMAGE_IMPORT_DESCRIPTOR *d = (IMAGE_IMPORT_DESCRIPTOR *)(base + dd.VirtualAddress); d->Name; d++) {
+        if (_stricmp((const char *)(base + d->Name), "user32.dll") != 0) continue;
+        ULONGLONG *thunk = (ULONGLONG *)(base + (d->OriginalFirstThunk ? d->OriginalFirstThunk : d->FirstThunk)); void **iat = (void **)(base + d->FirstThunk);
+        for (int i = 0; thunk[i]; i++) {
+            if ((thunk[i] & IMAGE_ORDINAL_FLAG64) || strcmp((const char *)((IMAGE_IMPORT_BY_NAME *)(base + thunk[i]))->Name, "GetCursorPos") != 0) continue;
+            DWORD old; if (!VirtualProtect(&iat[i], sizeof(void *), PAGE_READWRITE, &old)) return 0;
+            g_gcp_orig = (GetCursorPos_t)iat[i]; iat[i] = (void *)gcp_hook; VirtualProtect(&iat[i], sizeof(void *), old, &old);
+            g_gcp_hooked = 1; LOG("overlay: the game's GetCursorPos is routed through the overlay (import slot %p): no game hover under overlay windows", (void *)&iat[i]); return 1;
+        }
+    }
+    LOG("overlay: no GetCursorPos import in the game - its menus may still highlight under an overlay window");
+    return 0;
+}
+
 /* ---------- drawing ---------- */
 static void tt(const char *s) { if (ImGui::IsItemHovered() && s && s[0]) ImGui::SetTooltip("%s", s); }
 
@@ -496,7 +530,7 @@ static void draw_ui(int w, int h) {
         ImGui::SetNextWindowPos(ImVec2(s.kind == OV_MODS ? 40.f : 60.f, s.kind == OV_MODS ? 40.f : 80.f), cond);
         ImGui::SetNextWindowSize(ImVec2(ww, wh), cond);
         ImGui::SetNextWindowBgAlpha(0.88f);
-        const char *name = s.kind == OV_MODS ? "Mods###lnwin" : "LanNative###lnwin";
+        const char *name = s.kind == OV_MODS ? "Mods###lnwin" : "Gleam Loader###lnwin";   // product name; the ###id stays
         // one clear highlight: the selected row (keys, pad, or the row the mouse moved onto) is strong, a row the cursor only rests on is faint
         // (ImGui's default style paints hover brighter than selection, so a resting mouse looked like a second selection - UX-B1 key_b05)
         const ImVec4 hl = ImGui::GetStyleColorVec4(ImGuiCol_HeaderHovered);
@@ -538,6 +572,7 @@ static int init(IDXGISwapChain *sc) {
     ImGui_ImplWin32_Init(g_hwnd); ImGui_ImplDX11_Init(g_dev, g_ctx);
     g_oldproc = (WNDPROC)SetWindowLongPtrW(g_hwnd, GWLP_WNDPROC, (LONG_PTR)wndproc);
     make_rtv(); g_imgui = 1;
+    gcp_install();                                                   // no game hover under overlay windows (above)
     LOG("overlay: ImGui %s up on window %p (%ux%u, buffers %u, swap effect %d), WndProc subclassed (old %p), init took %llu ms", IMGUI_VERSION, (void *)g_hwnd, d.BufferDesc.Width, d.BufferDesc.Height, d.BufferCount, (int)d.SwapEffect, (void *)g_oldproc, (unsigned long long)(GetTickCount64() - t0));
     return 1;
 }
@@ -576,6 +611,7 @@ static void frame(IDXGISwapChain *sc) {
     if (g_state == OV_STARTING) { InterlockedExchange(&g_state, OV_READY); LOG("overlay: first frame drawing - ImGui menus active"); }   // before the first callback, so overlay_info works in frame 1
     draw_ui(w, h);
     InterlockedExchange(&g_want_keys, io.WantCaptureKeyboard || io.WantTextInput);
+    InterlockedExchange(&g_mouse_on_ui, io.WantCaptureMouse ? 1 : 0);  // gcp_hook: the game does not see the cursor over an overlay window
     ImGui::Render();
     ID3D11RenderTargetView *old_rtv[D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT] = { 0 }; ID3D11DepthStencilView *old_dsv = NULL;
     g_ctx->OMGetRenderTargets(D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT, old_rtv, &old_dsv);   // the engine caches its bindings: put them back
@@ -636,7 +672,7 @@ static HRESULT STDMETHODCALLTYPE hk_present_body(IDXGISwapChain *sc, UINT sync, 
             LOG("overlay: EXCEPTION in the overlay frame (%ld of 3)%s", n, n >= 3 ? " - overlay switched off for this run, the text menu takes over" : "");
         }
     } else if (g_was_vis) {                                          // hidden again: release whatever the overlay still holds
-        g_was_vis = 0;
+        g_was_vis = 0; InterlockedExchange(&g_mouse_on_ui, 0);
         if (g_imgui) { EnterCriticalSection(&g_cs); ImGui::GetIO().ClearInputKeys(); ImGui::GetIO().ClearInputMouse(); LeaveCriticalSection(&g_cs); }
     }
     return o_present(sc, sync, flags);
