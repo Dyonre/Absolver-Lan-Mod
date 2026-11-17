@@ -34,7 +34,10 @@ static int modpak_footer_ok(FILE *f) {
 
 // Returns the number of entries (>= 0) with *out malloc'd (free it), or -1 for an unsupported/malformed/encrypted index.
 // index_hash (optional) receives the footer's index SHA-1: it changes whenever any file in the pak changes.
-static int modpak_read(FILE *f, PakEntry **out, unsigned char index_hash[20]) {
+// rejected (optional): entries the path rules dropped ("..", above the engine root, too long); first_bad gets the first one's raw mount+name.
+// The mod loader's own fingerprint ignores them (modpak_read); the host mod download refuses a pak that has any (hostmods.h).
+static int modpak_read_ex(FILE *f, PakEntry **out, unsigned char index_hash[20], int *rejected, char *first_bad, size_t bcap) {
+    if (rejected) *rejected = 0; if (first_bad && bcap) first_bad[0] = 0;
     unsigned char tail[256];
     *out = NULL;
     if (_fseeki64(f, 0, SEEK_END)) return -1;
@@ -66,10 +69,12 @@ static int modpak_read(FILE *f, PakEntry **out, unsigned char index_hash[20]) {
             if (!pak_take(&c, NULL, 5)) { ok = 0; break; }
         }
         if (modpak_path(mount, name, list[n].path, sizeof list[n].path)) n++;
+        else { if (rejected) (*rejected)++; if (first_bad && bcap && !first_bad[0]) snprintf(first_bad, bcap, "%.120s%.120s", mount, name); }
     }
     free(data);
     if (!ok || c.left != 0) { free(list); return -1; }
     if (index_hash) memcpy(index_hash, hash, 20);
     *out = list; return n;
 }
+static int modpak_read(FILE *f, PakEntry **out, unsigned char index_hash[20]) { return modpak_read_ex(f, out, index_hash, NULL, NULL, 0); }
 #endif

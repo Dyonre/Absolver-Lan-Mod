@@ -90,15 +90,7 @@ static void hm_fromhost_dir(const char *key, const char *mod, wchar_t *out) {   
 // a pak on disk passes: not an executable, UE pak footer + readable index, every packed file a data type. *ini = has Config/*.ini; ih = index hash.
 static int hm_check_pak_file(const wchar_t *path, int *ini, unsigned char ih[20], char *why, size_t wcap) {
     FILE *f = _wfopen(path, L"rb"); if (!f) { snprintf(why, wcap, "cannot be read"); return 0; }
-    unsigned char head[4] = { 0 }; size_t hn = fread(head, 1, 4, f);
-    if (hm_head_is_executable(head, hn)) { fclose(f); snprintf(why, wcap, "is an executable, not a pak"); return 0; }
-    if (modpak_footer_ok(f) != 1) { fclose(f); snprintf(why, wcap, "is not a UE pak (no valid footer)"); return 0; }
-    PakEntry *ents = NULL; int ne = modpak_read(f, &ents, ih); fclose(f);
-    if (ne < 0) { snprintf(why, wcap, "pak index is not readable (encrypted or unsupported)"); return 0; }
-    const char **paths = malloc(sizeof(char *) * (size_t)(ne ? ne : 1)); int ok = paths != NULL;
-    if (ok) { for (int i = 0; i < ne; i++) paths[i] = ents[i].path; ok = hm_pak_entries_ok(paths, ne, ini, why, wcap); }
-    else snprintf(why, wcap, "out of memory");
-    free(paths); free(ents); return ok;
+    int ok = hm_check_pak_stream(f, ini, ih, why, wcap); fclose(f); return ok;      // hostmods.h (tested offline)
 }
 
 // ===== host side
@@ -306,7 +298,8 @@ static void hm_write_text(const wchar_t *path, const char *text) {
     WriteFile(h, text, (DWORD)strlen(text), &w, NULL); CloseHandle(h);
 }
 // downloads entry i to its final place. 1 = ok (why empty), 0 = failed (why says why; nothing left behind)
-static int hj_fetch(int i, char *why, size_t wcap) {
+// *refused = 1 when the file arrived but failed the pak / content check (a hostile or broken pak): the caller then refuses the whole download
+static int hj_fetch(int i, char *why, size_t wcap, int *refused) {
     const HmEntry *e = &g_hj.e[i]; wchar_t dir[MAX_PATH], part[MAX_PATH], fin[MAX_PATH], wp[HM_NAME_MAX]; u8_to_w(e->pak, wp, HM_NAME_MAX);
     hm_fromhost_dir(NULL, NULL, dir); CreateDirectoryW(dir, NULL); hm_fromhost_dir(g_hj.key, NULL, dir); CreateDirectoryW(dir, NULL);
     hm_fromhost_dir(g_hj.key, e->mod, dir); CreateDirectoryW(dir, NULL);
@@ -330,21 +323,32 @@ static int hj_fetch(int i, char *why, size_t wcap) {
     char hex[65]; if (!hm_sha_end(&sh, hex) && ok) { ok = 0; snprintf(why, wcap, "SHA-256 failed"); }
     if (ok && strcmp(hex, e->sha)) { ok = 0; snprintf(why, wcap, "SHA-256 mismatch (got %.16s..., host announced %.16s...)", hex, e->sha); }
     int ini = 0; unsigned char ih[20];
-    if (ok && !hm_check_pak_file(part, &ini, ih, why, wcap)) ok = 0;
-    if (ok && ini != e->ini) { ok = 0; snprintf(why, wcap, "%s Config/*.ini, but the host announced %s", ini ? "carries" : "carries no", e->ini ? "it does" : "it does not"); }
+    if (ok && !hm_check_pak_file(part, &ini, ih, why, wcap)) { ok = 0; *refused = 1; }
+    if (ok && ini != e->ini) { ok = 0; *refused = 1; snprintf(why, wcap, "%s Config/*.ini, but the host announced %s", ini ? "carries" : "carries no", e->ini ? "it does" : "it does not"); }
     if (ok && !MoveFileExW(part, fin, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) { ok = 0; snprintf(why, wcap, "rename failed (error %lu)", GetLastError()); }
     if (!ok) DeleteFileW(part);
     return ok;
 }
 static DWORD WINAPI hj_download_thread(LPVOID u) {
-    (void)u; int okn = 0, bad = 0; char first_err[200] = "";
-    for (int i = 0; i < g_hj.n; i++) {                                  // g_hj.e / want / have_dl do not change while HJ_DOWNLOADING
+    (void)u; int okn = 0, bad = 0, refused = -1; char first_err[200] = ""; static unsigned char fetched[HM_MAX];
+    memset(fetched, 0, sizeof fetched);
+    for (int i = 0; i < g_hj.n && refused < 0; i++) {                   // g_hj.e / want / have_dl do not change while HJ_DOWNLOADING
         if (!g_hj.want[i] || g_hj.have_dl[i]) continue;
-        char why[200] = ""; int ok = 0;
-        __try { ok = hj_fetch(i, why, sizeof why); } __except (EXCEPTION_EXECUTE_HANDLER) { snprintf(why, sizeof why, "EXCEPTION 0x%08lX", GetExceptionCode()); }
-        logf_("host mods: download %s/%s: %s%s", g_hj.e[i].mod, g_hj.e[i].pak, ok ? "OK, verified (SHA-256, pak, packed types)" : "FAILED: ", why);
-        if (ok) { okn++; g_hj.have_dl[i] = 1; } else { bad++; if (!first_err[0]) snprintf(first_err, sizeof first_err, "%s/%s: %s", g_hj.e[i].mod, g_hj.e[i].pak, why); }
+        char why[200] = ""; int ok = 0, ref = 0;
+        __try { ok = hj_fetch(i, why, sizeof why, &ref); } __except (EXCEPTION_EXECUTE_HANDLER) { snprintf(why, sizeof why, "EXCEPTION 0x%08lX", GetExceptionCode()); }
+        logf_("host mods: download %s/%s: %s%s", g_hj.e[i].mod, g_hj.e[i].pak, ok ? "OK, verified (SHA-256, pak, packed types)" : ref ? "REFUSED: " : "FAILED: ", why);
+        if (ok) { okn++; g_hj.have_dl[i] = 1; fetched[i] = 1; } else { bad++; if (!first_err[0]) snprintf(first_err, sizeof first_err, "%s/%s: %s", g_hj.e[i].mod, g_hj.e[i].pak, why); }
+        if (ref) refused = i;                                           // a pak that fails the content check: refuse the whole download
         EnterCriticalSection(&g_hm_cs); g_hj.files_done++; LeaveCriticalSection(&g_hm_cs);
+    }
+    if (refused >= 0) {                                                 // remove what this download already wrote; nothing gets activated
+        for (int i = 0; i < g_hj.n; i++) if (fetched[i]) {
+            wchar_t dir[MAX_PATH], fin[MAX_PATH], wp[HM_NAME_MAX]; u8_to_w(g_hj.e[i].pak, wp, HM_NAME_MAX); hm_fromhost_dir(g_hj.key, g_hj.e[i].mod, dir);
+            swprintf(fin, MAX_PATH, L"%ls\\%ls", dir, wp); BOOL del = DeleteFileW(fin); g_hj.have_dl[i] = 0;
+            logf_("host mods: download refused - removed %s/%s again (%s)", g_hj.e[i].mod, g_hj.e[i].pak, del ? "deleted" : "delete FAILED");
+        }
+        EnterCriticalSection(&g_hm_cs); hm_set(HJ_FAILED, "Host mods: download REFUSED, nothing installed - %s", first_err); LeaveCriticalSection(&g_hm_cs);
+        return 0;
     }
     // order.txt = the host's load order of every mod with files in this host's folder; active.txt = this host
     static char order[HM_MAX * (HM_NAME_MAX + 2) + 4], src[HM_MAX * 200 + 256]; order[0] = 0;

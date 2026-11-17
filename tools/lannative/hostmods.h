@@ -19,6 +19,7 @@
 #include <bcrypt.h>
 #pragma comment(lib, "bcrypt.lib")
 #include "rowsjson.h"
+#include "modpak.h"
 
 #define HM_PORT        7779u                       // default TCP port of the side channel (config "moddownload_port"); UDP 7778 is the LAN finder
 #define HM_NAME_MAX    64                          // mod folder / pak file name (same limit as the loader's MOD_NAME_MAX)
@@ -151,6 +152,25 @@ static int hm_pak_entries_ok(const char *const *paths, int n, int *has_ini, char
 // the file itself: executables are refused whatever they are called (the pak check after this needs the UE footer magic too)
 static int hm_head_is_executable(const unsigned char *b, size_t n) {
     return (n >= 2 && b[0] == 'M' && b[1] == 'Z') || (n >= 4 && b[0] == 0x7F && b[1] == 'E' && b[2] == 'L' && b[3] == 'F') || (n >= 2 && b[0] == '#' && b[1] == '!');
+}
+
+// A pak file as a stream (the joiner's downloaded .part, the host's offered file): 1 = passes. Refused: an executable, no UE pak footer, an
+// unreadable index, ANY packed file the path rules drop ("..", mounted above the game folders, path too long: those
+// used to be skipped, so their types were never checked), any file that is not a game data type. why names the reason. *ini, ih as hm_pak_entries_ok.
+static int hm_check_pak_stream(FILE *f, int *ini, unsigned char ih[20], char *why, size_t wcap) {
+    unsigned char head[4] = { 0 }; size_t hn; *ini = 0;
+    if (!f || _fseeki64(f, 0, SEEK_SET)) { snprintf(why, wcap, "cannot be read"); return 0; }
+    hn = fread(head, 1, 4, f);
+    if (hm_head_is_executable(head, hn)) { snprintf(why, wcap, "is an executable, not a pak"); return 0; }
+    if (modpak_footer_ok(f) != 1) { snprintf(why, wcap, "is not a UE pak (no valid footer)"); return 0; }
+    PakEntry *ents = NULL; int rejected = 0; char bad[260];
+    int ne = modpak_read_ex(f, &ents, ih, &rejected, bad, sizeof bad);
+    if (ne < 0) { snprintf(why, wcap, "pak index is not readable (encrypted, unsupported, or a path over 511 characters)"); return 0; }
+    if (rejected) { snprintf(why, wcap, "%d packed path(s) leave the game folders or are too long (first: '%.70s')", rejected, bad); free(ents); return 0; }
+    const char **paths = malloc(sizeof(char *) * (size_t)(ne ? ne : 1)); int ok = paths != NULL;
+    if (ok) { for (int i = 0; i < ne; i++) paths[i] = ents[i].path; ok = hm_pak_entries_ok(paths, ne, ini, why, wcap); }
+    else snprintf(why, wcap, "out of memory");
+    free(paths); free(ents); return ok;
 }
 
 // ----- host: who may ask. Addresses that passed PreLogin, kept HM_PEER_MS after their last login.

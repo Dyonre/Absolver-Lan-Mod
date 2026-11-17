@@ -71,26 +71,42 @@ static void lm_refuse(void *err, const char *text) {
 }
 // ----- optional address allow list (joinguard.h): decides before the mod check, whatever modmismatch says. No allow lines = nothing is checked.
 // There is no join key, joiner limit or lock-out; old config lines with those keys are ignored with a log line.
+// on-screen warning for the host while the allow list has a bad line (at start, when hosting, at each refused join)
+static void jg_warn_invalid(unsigned seconds) {
+    char l[2][LM_LINE_MAX];
+    snprintf(l[0], LM_LINE_MAX, "ALLOW LIST ERROR: line %d '%.40s' is not valid - every join is refused", g_jg.bad_line, g_jg.bad);
+    snprintf(l[1], LM_LINE_MAX, "Fix or remove it in LanNative\\config.txt (a.b.c.d or a.b.c.d/0-32), then restart the game.");
+    toast_show(l, 2, seconds);
+}
 static void jg_config_load(void) {
-    char v[96] = ""; wchar_t path[MAX_PATH];
+    char v[512] = ""; wchar_t path[MAX_PATH];
     memset(&g_jg, 0, sizeof g_jg);
-    for (int k = 0; g_jg.nallow < JG_ALLOW_MAX && setting_get("allow", L"allow.txt", k, v, sizeof v, path); k++) {
-        if (jg_parse_rule(v, &g_jg.allow[g_jg.nallow])) g_jg.nallow++; else logf_("join check: allow rule '%.40s' is not a.b.c.d or a.b.c.d/bits - ignored", v);
+    for (int k = 0; k < 1000 && setting_get("allow", L"allow.txt", k, v, sizeof v, path); k++) {     // every allow line; one bad line refuses every join (joinguard.h)
+        if (strlen(v) >= sizeof v - 1) v[0] = 0;                                                       // cut by the buffer: never accept part of a line
+        if (!jg_add_line(&g_jg, v, k + 1)) logf_("join check: allow line %d '%.70s' is NOT valid (a.b.c.d or a.b.c.d/0-32, '#' starts a comment)", k + 1, v);
     }
     char old[64];
     if (g_cfg_present && jg_obsolete_keys(g_cfg_text, old, sizeof old)) logf_("config: '%s' in config.txt no longer exist(s) - the join key was removed; those lines are ignored and can be deleted", old);
     static const wchar_t *const legacy[] = { L"joinkey.txt", L"joinprotect.txt", L"maxpeers.txt" };
     for (int i = 0; i < 3; i++) { swprintf(path, MAX_PATH, L"%s%ls", g_dir, legacy[i]); if (GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES) logf_("config: %ls is no longer used (the join key was removed) - ignored; you can delete it", path); }
-    if (g_jg.nallow) logf_("join check: %d allow rule(s) - only those addresses may join or see this game in the LAN list", g_jg.nallow);
+    if (g_jg.invalid) {
+        logf_("join check: FAIL CLOSED - allow line %d '%s' is not valid, so EVERY join is refused and this game is not shown in LAN lists until it is fixed in %ls", g_jg.bad_line, g_jg.bad, path);
+        jg_warn_invalid(30);
+    } else if (g_jg.nallow) logf_("join check: %d allow rule(s) - only those addresses may join or see this game in the LAN list", g_jg.nallow);
     else logf_("join check: open - anybody who can reach this PC may join (add 'allow = 26.0.0.0/8' lines to config.txt to limit it)");
 }
 // 1 = refuse this login (the error text is already set)
 static int jg_on_prelogin(const char *which, void *address, void *err) {
-    if (!g_jg.nallow) return 0;
+    if (!jg_active(&g_jg)) return 0;
     const FStringView *a = address;
     char addr[80] = "?"; if (a && a->data && a->num > 1 && a->num < 200) narrow(a->data, a->num - 1, addr, sizeof addr);
     char masked[40]; jg_mask_addr(addr, masked, sizeof masked);
     if (jg_allowed(&g_jg, addr)) { logf_("join check (%s): login from %s accepted (allow list)", which, masked); return 0; }
+    if (g_jg.invalid) {
+        logf_("join check (%s): login from %s REFUSED: the allow list has a bad line (%d '%s') - fail closed", which, masked, g_jg.bad_line, g_jg.bad);
+        lm_refuse(err, "Join refused: the host's allow list has an error (the host sees which line).");
+        jg_warn_invalid(12); return 1;
+    }
     logf_("join check (%s): login from %s REFUSED: not on the allow list", which, masked);
     lm_refuse(err, "Join refused: your address is not on the host's allow list.");
     { char lines[1][LM_LINE_MAX]; snprintf(lines[0], LM_LINE_MAX, "JOIN REFUSED (not on the allow list) from %s", masked); toast_show(lines, 1, 8); }
@@ -98,6 +114,7 @@ static int jg_on_prelogin(const char *which, void *address, void *err) {
 }
 // shown on the host's screen when a listen server starts (lannative.c hostip_on_travel, servermode.inc)
 static void jg_announce_host(void) {
+    if (g_jg.invalid) { jg_warn_invalid(20); return; }
     char l1[1][LM_LINE_MAX]; snprintf(l1[0], LM_LINE_MAX, "HOSTING - players on your LAN / VPN find this game at an altar (F1 > LAN games)");
     toast_show(l1, 1, 12);
 }
