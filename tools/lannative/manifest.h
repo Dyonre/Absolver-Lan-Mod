@@ -24,10 +24,18 @@ typedef struct {
     int nsup; char sup[MF_LIST_MAX][MOD_NAME_MAX];   // "supersedes": pak file names (".pak" optional) of OTHER mods that this mod replaces; those paks are not mounted while this mod loads and ships a pak
     int affects_gameplay;                      // default 1
     int has_file;                              // a mod.json was read
+    int net;                                   // "net": MF_NET_* - who needs the mod in a LAN game; a label for players (Mods page), the loader enforces nothing
+    int joiners_need;                          // "joiners_need": default 1; false = joiners do not need this mod, so it is left out of the LAN mod check (like a cosmetic mod)
 } Manifest;
+enum { MF_NET_UNSET = 0, MF_NET_HOST_ONLY, MF_NET_LOCAL, MF_NET_VANILLA_VISIBLE, MF_NET_ALL };
+static const char *const MF_NET_KEY[] = { "", "host_only", "local", "vanilla_visible", "all" };
+static const char *const MF_NET_TAG[] = { "", "[host only]", "[local only]", "[vanilla visible]", "[all need it]" };
+static const char *mf_net_tag(int net) { return net > MF_NET_UNSET && net <= MF_NET_ALL ? MF_NET_TAG[net] : ""; }
+// the LAN mod check (fingerprint + gameplay mod list) counts a mod only when it affects gameplay AND joiners need it
+static int mf_in_lan_check(const Manifest *m) { return m->affects_gameplay && m->joiners_need; }
 
 static void manifest_default(Manifest *m, const char *folder) {
-    memset(m, 0, sizeof *m); snprintf(m->id, sizeof m->id, "%s", folder); snprintf(m->name, sizeof m->name, "%s", folder); strcpy(m->version, "0"); m->affects_gameplay = 1;
+    memset(m, 0, sizeof *m); snprintf(m->id, sizeof m->id, "%s", folder); snprintf(m->name, sizeof m->name, "%s", folder); strcpy(m->version, "0"); m->affects_gameplay = 1; m->joiners_need = 1;
 }
 static int mf_id_ok(const char *s) { size_t n = strlen(s); if (!n || n >= MOD_NAME_MAX) return 0; for (; *s; s++) if (!((*s >= '0' && *s <= '9') || (*s >= 'A' && *s <= 'Z') || (*s >= 'a' && *s <= 'z') || *s == '_' || *s == '-' || *s == '.')) return 0; return 1; }
 // numeric dotted versions ("0.1.0", "1.2"): missing parts are 0, non-numeric characters are separators. <0, 0, >0
@@ -62,6 +70,11 @@ static int manifest_parse(const char *json, const char *folder, Manifest *m, cha
     if ((s = mf_str(&d, 0, "version"))) snprintf(m->version, sizeof m->version, "%s", s);
     if ((s = mf_str(&d, 0, "api"))) m->api = atoi(s);
     int c = jfind(&d, 0, "affects_gameplay"); if (c >= 0 && d.n[c].t == J_BOOL && d.n[c].str && !strcmp(d.n[c].str, "False")) m->affects_gameplay = 0;
+    c = jfind(&d, 0, "joiners_need"); if (c >= 0 && d.n[c].t == J_BOOL && d.n[c].str && !strcmp(d.n[c].str, "False")) m->joiners_need = 0;
+    if ((s = mf_str(&d, 0, "net"))) {                                        // case-insensitive; an unknown value is a warning, the mod still loads without a label
+        for (int k = MF_NET_HOST_ONLY; k <= MF_NET_ALL; k++) if (!_stricmp(s, MF_NET_KEY[k])) m->net = k;
+        if (!m->net) { if (err && !err[0]) snprintf(err, cap, "mod.json: 'net' must be host_only, local, vanilla_visible or all (got '%.24s'; no label)", s); if (!rc) rc = 1; }
+    }
     int drop = 0;
     c = jfind(&d, 0, "requires");
     for (int e = mf_first(&d, c); e >= 0; e = mf_next(&d, c, e)) {

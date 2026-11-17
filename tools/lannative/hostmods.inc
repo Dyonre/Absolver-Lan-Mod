@@ -109,7 +109,7 @@ static void hs_collect(void) {
     g_hs_pending_n = 0; g_hsns_n = 0;
     for (int oi = 0; oi < no; oi++) {
         const ModInfo *mi = &g_mi[order[oi]];
-        if (!mi->affects_gameplay) continue;                                       // cosmetic: not part of the mod check, not offered
+        if (!mi->affects_gameplay || mi->joiners_optional) continue;              // cosmetic or "joiners_need": false: not part of the mod check, not offered
         char lab[HM_LABEL_MAX] = ""; if (mi->version[0] && strcmp(mi->version, "0")) snprintf(lab, sizeof lab, "%s%sv%s", strcmp(mi->id, mi->name) ? mi->id : "", strcmp(mi->id, mi->name) ? " " : "", mi->version);
         if (!hm_name_ok(mi->name)) { logf_("host mods: %s is not offered: folder name has characters other than A-Z a-z 0-9 . _ -", mi->name); continue; }
         if (mi->has_rows || mi->has_content || mi->has_plugin || mi->has_lua) { hs_noshare(mi, lab, "it is not pak-only (rows.json / content / plugin / Lua never travel)"); continue; }

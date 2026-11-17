@@ -344,6 +344,9 @@ static void content_text(const OvMod &m, char *out, size_t cap) {
     if (m.content_files) w += snprintf(out + w, cap - (size_t)w, "%d content  ", m.content_files);
     if (m.plugin == 1) w += snprintf(out + w, cap - (size_t)w, "plugin  ");
     if (!m.affects_gameplay) snprintf(out + w, cap - (size_t)w, "[cosmetic]");
+    size_t l = strlen(out);                                                         // net / joiners_need tags (bounded: the snprintf chain above may have run past cap)
+    if (m.net_tag[0] && l + 1 < cap) l += (size_t)snprintf(out + l, cap - l, " %s", m.net_tag);
+    if (m.joiners_optional && m.affects_gameplay && l + 1 < cap) snprintf(out + l, cap - l, " [joiners need not]");
 }
 static void draw_mods(const OvSnap &s) {
     const ImVec4 green(0.45f, 0.9f, 0.5f, 1), red(1.f, 0.45f, 0.4f, 1), yellow(1.f, 0.85f, 0.35f, 1), grey(0.6f, 0.6f, 0.65f, 1);
@@ -404,6 +407,9 @@ static void draw_mods(const OvSnap &s) {
                   if (m.has_plugin) w += snprintf(c + w, sizeof c - (size_t)w, "plugin  ");
                   if (m.has_lua) w += snprintf(c + w, sizeof c - (size_t)w, "Lua  ");
                   if (!m.affects_gameplay) snprintf(c + w, sizeof c - (size_t)w, "[cosmetic]");
+                  { size_t l = strlen(c);                                           // net / joiners_need tags
+                    if (m.net_tag[0] && l + 1 < sizeof c) l += (size_t)snprintf(c + l, sizeof c - l, " %s", m.net_tag);
+                    if (m.joiners_optional && m.affects_gameplay && l + 1 < sizeof c) snprintf(c + l, sizeof c - l, " [joiners need not]"); }
                   ImGui::TextUnformatted(c); if (m.plugin == 2) { ImGui::SameLine(); ImGui::TextColored(red, "plugin BLOCKED (list it in Mods\\plugins.txt)"); } }
                 ImGui::TableSetColumnIndex(4);
                 if (m.nconf) { ImGui::TextColored(yellow, "%d", m.nconf);

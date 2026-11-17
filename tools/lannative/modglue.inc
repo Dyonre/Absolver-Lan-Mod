@@ -228,7 +228,7 @@ static void mods_mount_all(void *self) {
     memset(g_mi, 0, sizeof g_mi); g_mi_n = list.count < MODS_MAX ? list.count : MODS_MAX;
     for (int i = 0; i < g_mi_n; i++) {
         ModInfo *mi = &g_mi[i]; snprintf(mi->name, sizeof mi->name, "%s", list.mods[i].name); snprintf(mi->id, sizeof mi->id, "%s", mfs[i].id); snprintf(mi->version, sizeof mi->version, "%s", mfs[i].version);
-        mi->affects_gameplay = mfs[i].affects_gameplay; mi->status = mres.status[i] == MF_OFF ? MI_OFF : mres.status[i] == MF_SKIPPED ? MI_SKIPPED : MI_ON; snprintf(mi->reason, sizeof mi->reason, "%s", mres.reason[i]); g_mi_pos[i] = -1;
+        mi->affects_gameplay = mfs[i].affects_gameplay; snprintf(mi->net_tag, sizeof mi->net_tag, "%s", mf_net_tag(mfs[i].net)); mi->joiners_optional = !mfs[i].joiners_need; mi->status = mres.status[i] == MF_OFF ? MI_OFF : mres.status[i] == MF_SKIPPED ? MI_SKIPPED : MI_ON; snprintf(mi->reason, sizeof mi->reason, "%s", mres.reason[i]); g_mi_pos[i] = -1;
         {   wchar_t wn[MOD_NAME_MAX * 2], dd[MAX_PATH], pp[MAX_PATH]; u8_to_w(list.mods[i].name, wn, MOD_NAME_MAX * 2); swprintf(dd, MAX_PATH, L"%ls\\%ls", mods, wn);
             wcsncpy(g_mi_dir[i], dd, MAX_PATH - 1); g_mi_dir[i][MAX_PATH - 1] = 0;
             mi->enabled = list.mods[i].enabled; mi->has_pak = mods_dir_has_pak(dd); mi->requires = mfs[i].nreq; mi->nsettings = g_mset[i] ? g_mset[i]->n : 0;
@@ -309,8 +309,8 @@ static void mods_mount_all(void *self) {
             if (m < g_mi_n) g_mi[m].status = MI_EMPTY;
             if (rows_big) logf_("mods: %s has nothing else to load (skipped)", me->name);
             else logf_("mods: %s has no .pak files, no rows.json, no content\\ files and no plugin.dll (skipped)", me->name); RPT("[empty] %s\r\n", me->name); continue; }
-        int cosmetic = 0;
-        cosmetic = !mfs[m].affects_gameplay;
+        int cosmetic = 0;                                                        // = left out of the LAN mod check (fingerprint + gameplay list): cosmetic, or "joiners_need": false
+        cosmetic = !mf_in_lan_check(&mfs[m]);
         int ok_paks = 0;
         for (int k = 0; k < np; k++) {
             { int by = mf_pak_superseded(mfs, &mres, has_pak, list.count, m, paks[k]);
@@ -393,8 +393,9 @@ static void mods_mount_all(void *self) {
         if (ok_paks || ok_rows || ok_plugin || ok_content) {
             if (m < g_mi_n) g_mi_pos[m] = position;
             strcpy(g_posname[position], me->name); mounted_mods++; position++;
-            if (cosmetic) logf_("mods: %s is marked cosmetic (mod.json: affects_gameplay false) - not part of the LAN mod check", me->name);
+            if (cosmetic) logf_("mods: %s is marked %s - not part of the LAN mod check", me->name, !mfs[m].affects_gameplay ? "cosmetic (mod.json: affects_gameplay false)" : "joiners-optional (mod.json: joiners_need false)");
             else if (ngp < MODS_MAX) gpn[ngp++] = me->name;
+            if (mfs[m].net) logf_("mods: %s net label %s (mod.json \"net\": %s)", me->name, mf_net_tag(mfs[m].net), MF_NET_KEY[mfs[m].net]);
         }
     }
     // 3. conflicts between mods

@@ -224,7 +224,7 @@ static void modsui_snapshot(OvSnap *o) {
         int mi = mods_ui_mi_of(g_order_now.mods[r].name); if (mi < 0) continue;
         const ModInfo *m = &in->mods[mi]; OvMod *d = &o->mods[o->nmods++]; memset(d, 0, sizeof *d);
         snprintf(d->name, sizeof d->name, "%s", m->name); snprintf(d->id, sizeof d->id, "%s", m->id); snprintf(d->version, sizeof d->version, "%s", m->version); snprintf(d->reason, sizeof d->reason, "%s", m->reason);
-        d->status = m->status; d->paks_ok = m->paks_ok; d->paks_total = m->paks_total; d->rows_ops = m->rows_ops; d->content_files = m->content_files; d->plugin = m->plugin; d->affects_gameplay = m->affects_gameplay;
+        d->status = m->status; d->paks_ok = m->paks_ok; d->paks_total = m->paks_total; d->rows_ops = m->rows_ops; d->content_files = m->content_files; d->plugin = m->plugin; d->affects_gameplay = m->affects_gameplay; snprintf(d->net_tag, sizeof d->net_tag, "%s", m->net_tag); d->joiners_optional = m->joiners_optional;
         d->enabled = g_order_now.mods[r].enabled; d->effect = mods_ui_effect(mi, r);
         d->has_pak = m->has_pak; d->has_lua = m->has_lua; d->has_rows = m->has_rows; d->has_content = m->has_content; d->has_plugin = m->has_plugin; d->nsettings = m->nsettings; d->nconf = m->nconf;
         { ModKind k = { m->has_pak, m->has_plugin, m->has_lua, m->requires }; d->hot_ok = mo_hot_enable_ok(&k) && (m->has_rows || m->has_content); }

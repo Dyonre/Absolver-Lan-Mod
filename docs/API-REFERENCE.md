@@ -1,7 +1,7 @@
 # AbsolverSE API reference
 
 Generated from `tools/lannative/AbsolverSE.h` (`python tools/sdk/gen_api_reference.py`). This page may lag the header: the header is the source of truth.  
-`ABS_API_VERSION` = 2; 152 functions. Every function takes `self` (the `const AbsApi *` you were given) as its first argument. Fields are only ever appended: check `api->size >= offsetof(AbsApi, <field>) + sizeof(void *)` before using a field newer than the version you built against.  
+`ABS_API_VERSION` = 2; 153 functions. Every function takes `self` (the `const AbsApi *` you were given) as its first argument. Fields are only ever appended: check `api->size >= offsetof(AbsApi, <field>) + sizeof(void *)` before using a field newer than the version you built against.  
 How a mod is loaded: `docs/MODS.md`. Notes for larger plugins: `docs/ADVANCED.md`.
 
 ## Header fields
@@ -219,6 +219,7 @@ Grouped by topic. Since = the API minor version that added the function (check `
 | `bind_state` | `int bind_state(const AbsApi *self, int handle, int *pressed)` | 1 while the bound input is held (game window focused, no rebind in progress), 0 not, -1 bad handle; *pressed (may be NULL) = 1 once per press since your last call for this handle. The input_owner rules are yours to apply (as for keys you read yourself) | 2.24 |
 | `bind_name` | `int bind_name(const AbsApi *self, int handle, char *out, int cap)` | the bound input's name ("K", "Pad A", "(none)") into out; returns the input code (0 = unbound, -1 = bad handle). Show it in your own UI ("press K to ...") | 2.24 |
 | `add_travel_entry` | `int add_travel_entry(const AbsApi *self, const char *label, const char *like_map, void (*cb)(void *user), void *user)` | a row in the F1 Map list; like_map ("/Game/Maps/StartMap/...") picks its category and place; choosing it calls cb on the game thread (you travel yourself, e.g. api->travel). Call it in AbsPlugin_Load; listed from the next map scan (every F1 open). 0 = ok, 1 = bad arguments / 16 entries in all | 2.25 |
+| `net_role` | `int net_role(const AbsApi *self)` | this machine in the current world: 0 standalone (no net driver), 1 host (a listen server: hosting a LAN game; solo with the LAN mod off has no net driver = 0), 2 a joined client, -1 no world / not known yet (loading). Reads engine pointers only (any thread; the game thread is stable during a travel) | 2.26 |
 
 ## Structs
 

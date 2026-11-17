@@ -14,6 +14,8 @@ typedef struct {
     int status, paks_ok, paks_total, rows_ops, content_files, plugin, affects_gameplay;
     // Mods page table (filled for every mod folder, loaded or not): what the folder holds, whether loadorder.txt had it enabled at boot, conflicts with other mods, settings in mod.json
     int enabled, has_pak, has_lua, has_rows, has_content, has_plugin, requires, nsettings, nconf; char conf[3][112];
+    // mod.json "net" label (manifest.h mf_net_tag: "[host only]" ... or "") and "joiners_need": false (joiners_optional 1 = left out of the LAN mod check)
+    char net_tag[20]; int joiners_optional;
 } ModInfo;
 
 #define MUI_LINE 96
@@ -99,6 +101,8 @@ static int modsui_build(const ModsUiIn *in, char (*lines)[MUI_LINE], int max) {
             if (m->plugin == MIP_ALLOWED) w += snprintf(d + w, sizeof d - w, " plugin");
             if (m->plugin == MIP_BLOCKED) w += snprintf(d + w, sizeof d - w, " plugin BLOCKED (list it in Mods\\plugins.txt)");
             if (!m->affects_gameplay) w += snprintf(d + w, sizeof d - w, " [cosmetic]");
+            if (m->net_tag[0]) w += snprintf(d + w, sizeof d - w, " %s", m->net_tag);
+            if (m->joiners_optional && m->affects_gameplay) w += snprintf(d + w, sizeof d - w, " [joiners need not]");
             n = modsui_put(lines, n, max, "[on] ", d); break; }
         case MI_OFF: n = modsui_put(lines, n, max, "[off] ", m->name); break;
         case MI_SKIPPED: { char d[320]; snprintf(d, sizeof d, "%s: %s", m->name, m->reason[0] ? m->reason : "skipped"); n = modsui_put(lines, n, max, "[SKIPPED] ", d); break; }

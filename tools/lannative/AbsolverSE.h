@@ -344,6 +344,9 @@ struct AbsApi {
     int   (*bind_name)(const AbsApi *self, int handle, char *out, int cap);   /* the bound input's name ("K", "Pad A", "(none)") into out; returns the input code (0 = unbound, -1 = bad handle). Show it in your own UI ("press K to ...") */
     /* ---- v2.25: plugin travel entries in the F1 Map list (travelx.inc, docs/API-REFERENCE.md). Check self->size before using it. */
     int   (*add_travel_entry)(const AbsApi *self, const char *label, const char *like_map, void (*cb)(void *user), void *user);   /* a row in the F1 Map list; like_map ("/Game/Maps/StartMap/...") picks its category and place; choosing it calls cb on the game thread (you travel yourself, e.g. api->travel). Call it in AbsPlugin_Load; listed from the next map scan (every F1 open). 0 = ok, 1 = bad arguments / 16 entries in all */
+    /* ---- v2.26: network role (netrole.inc, docs/API-REFERENCE.md). Pair it with your mod.json "net" label: e.g. a "host_only" mod
+     *      acts only on 0 / 1. Check self->size before using it. */
+    int   (*net_role)(const AbsApi *self);   /* this machine in the current world: 0 standalone (no net driver), 1 host (a listen server: hosting a LAN game; solo with the LAN mod off has no net driver = 0), 2 a joined client, -1 no world / not known yet (loading). Reads engine pointers only (any thread; the game thread is stable during a travel) */
 };
 
 /* for_each_property: one property. Read / write it by name with get_property_text / set_property_text ("name[N]" for array_dim > 1). */
