@@ -6,9 +6,16 @@
 static int ovapi_alive(int p) { return plug_guard(p); }
 static void ovapi_fault(int p, unsigned long code) { plug_fault(p, "overlay draw callback", code); }
 static const char *ovapi_name(int p) { return plug_name_of(p); }
+// The Present hook goes in at the first game tick, never during start-up: a plugin that registered while it loaded made the
+// loader patch the swap chain vtable before the game had its device and before the Steam overlay hooked Present; under Steam Play the two hooks then
+// recursed into a stack overflow (exit code 3 after 3 s). Until that tick only the overlay's bookkeeping exists (ov_prepare): registrations are kept.
+static volatile LONG g_ovapi_ticking, g_ovapi_pending;
 static int ovapi_up(int p, const char *what) {                                  // 0 = usable, 2 = unavailable
     ov_set_log(logf_); ov_set_guard(ovapi_alive, ovapi_fault, ovapi_name);
-    if (ov_state() == OV_OFF) ov_request();
+    if (!g_ovapi_ticking) {
+        if (ov_state() == OV_OFF) ov_prepare();
+        if (!InterlockedExchange(&g_ovapi_pending, 1)) logf_("overlay: requested during start-up (plugin %s, %s) - the Present hook goes in at the first game tick", plug_name_of(p), what);
+    } else if (ov_state() == OV_OFF || InterlockedExchange(&g_ovapi_pending, 0)) ov_request();
     if (ov_state() == OV_DEAD) { logf_("plugin %s: %s refused - the overlay is not available", plug_name_of(p), what); return 2; }
     return 0;
 }
@@ -46,4 +53,11 @@ LN_API(overlay) {
     a->overlay_info = api_p_overlay_info; a->overlay_register = api_p_overlay_register; a->overlay_unregister = api_p_overlay_unregister;
     a->overlay_set_mode = api_p_overlay_set_mode; a->overlay_raw_mouse = api_p_overlay_raw_mouse;
 }
+static void ovapi_first_tick(void) {
+    InterlockedExchange(&g_ovapi_ticking, 1);
+    if (!InterlockedExchange(&g_ovapi_pending, 0)) return;
+    __try { logf_("overlay: first game tick - installing the Present hook requested during start-up"); ov_request(); }
+    __except (EXCEPTION_EXECUTE_HANDLER) { logf_("overlay: EXCEPTION 0x%08lX while installing the Present hook - overlay stays off", GetExceptionCode()); }
+}
+LN_PRETICK(0050, overlay) { if (!g_ovapi_ticking) ovapi_first_tick(); }       // before plugins_tick (0300): plugins see the hook in their first on_tick
 #endif

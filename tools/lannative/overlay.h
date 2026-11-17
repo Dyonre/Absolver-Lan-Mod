@@ -92,6 +92,7 @@ void ov_info(int owner, OvInfo *out);                                           
 void ov_set_log(void (*fn)(const char *fmt, ...));                      // log sink (the loader's logf_)
 void ov_set_scale(float min_scale);                                     // lower bound of the UI scale (1 = 1080p size)
 int  ov_request(void);                                                  // installs the hooks once (game thread, first menu open); returns ov_state()
+void ov_prepare(void);                                                  // lock + state only, no hook: registrations work, the hook follows with ov_request (overlayapi.inc: first game tick)
 int  ov_state(void);
 int  ov_shows_menu(void);                                               // 1 = the overlay draws (or is about to): the loader's text menu stays hidden; 0 = draw the text menu
 void ov_publish(const OvSnap *s);                                       // s == NULL or kind OV_NONE hides the overlay. Copies s.

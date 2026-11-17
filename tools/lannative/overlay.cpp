@@ -9,6 +9,7 @@
 #include <dxgi.h>
 #include <stdio.h>
 #include <string.h>
+#include <intrin.h>
 #include "overlay.h"
 #include "imgui.h"
 #include "imgui_internal.h"
@@ -589,7 +590,42 @@ static void frame(IDXGISwapChain *sc) {
 static int frame_guarded(IDXGISwapChain *sc) { __try { frame(sc); return 1; } __except (EXCEPTION_EXECUTE_HANDLER) { return 0; } }
 // an exception inside frame() may leave g_cs held by this thread (it is recursive): release every level this thread owns
 static void unlock_all(void) { if (g_cs.OwningThread == (HANDLE)(ULONG_PTR)GetCurrentThreadId()) while (g_cs.RecursionCount > 0) LeaveCriticalSection(&g_cs); }
+static void patch(void **vt, int i, void *fn, void **orig);
+static void **g_vt;                                                    // the patched swap chain vtable (restored when a Present loop is found)
+static DWORD g_pres_tid; static int g_pres_depth; static volatile LONG g_pres_reentry;
+static HRESULT STDMETHODCALLTYPE hk_present_body(IDXGISwapChain *sc, UINT sync, UINT flags);
+// Re-entry guard (Steam Play starts: a stack overflow in gameoverlayrenderer64): no Present hook chain calls back into this hook on the same thread.
+// If one does, the nested call draws nothing and goes straight down the chain; past PRES_MAX_DEPTH it is a loop between two hooks, so this hook takes itself
+// out of the vtable, switches the overlay off and returns without calling down again (one frame is not presented instead of the game dying).
+#define PRES_MAX_DEPTH 6
 static HRESULT STDMETHODCALLTYPE hk_present(IDXGISwapChain *sc, UINT sync, UINT flags) {
+    DWORD tid = GetCurrentThreadId();
+    if (g_pres_depth > 0 && g_pres_tid == tid) {
+        LONG n = InterlockedIncrement(&g_pres_reentry);
+        if (n == 1) {
+            HMODULE m = NULL; char who[MAX_PATH] = "?"; void *ra = _ReturnAddress();
+            if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)ra, &m) && m) GetModuleFileNameA(m, who, sizeof who);
+            const char *b = strrchr(who, '\\');
+            LOG("overlay: Present RE-ENTERED on the render thread (depth %d, called from %s+0x%llX) - another Present hook calls back into this one; nested calls draw nothing",
+                g_pres_depth + 1, b ? b + 1 : who, m ? (unsigned long long)((char *)ra - (char *)m) : 0ull);
+        }
+        if (g_pres_depth >= PRES_MAX_DEPTH) {
+            if (InterlockedExchange(&g_state, OV_DEAD) != OV_DEAD) {
+                void *x;
+                if (g_vt && g_vt[8] == (void *)hk_present) patch(g_vt, 8, (void *)o_present, &x);
+                LOG("overlay: Present LOOP between two hooks (depth %d) - the overlay unhooks itself and stays off for this run, the text menu takes over", g_pres_depth + 1);
+            }
+            return S_OK;
+        }
+        g_pres_depth++; HRESULT hr = o_present(sc, sync, flags); g_pres_depth--;
+        return hr;
+    }
+    g_pres_tid = tid; g_pres_depth = 1;
+    HRESULT hr = hk_present_body(sc, sync, flags);
+    g_pres_depth = 0;
+    return hr;
+}
+static HRESULT STDMETHODCALLTYPE hk_present_body(IDXGISwapChain *sc, UINT sync, UINT flags) {
     InterlockedIncrement(&g_present_calls);
     if ((g_vis || g_any) && g_state != OV_DEAD) {
         g_was_vis = 1;
@@ -623,10 +659,19 @@ static int slot_foreign(void *fn, char *who, int cap) {
     return _stricmp(b, "dxgi.dll") != 0 && _stricmp(b, "d3d11.dll") != 0;
 }
 
-// Runs once, on whichever thread asks first (ov_request waits for it): the lock, the state, and the hook on the swap chain.
-static BOOL CALLBACK install_once(PINIT_ONCE, PVOID, PVOID *) {
+// The lock and the state, once (ov_prepare): plugins can register draw callbacks and modes from then on; nothing is hooked yet.
+static INIT_ONCE g_once_prep = INIT_ONCE_STATIC_INIT;
+static BOOL CALLBACK prepare_once(PINIT_ONCE, PVOID, PVOID *) {
     InitializeCriticalSection(&g_cs); g_req_tick = GetTickCount64();
-    InterlockedExchange(&g_state, OV_STARTING);
+    InterlockedExchange(&g_state, OV_STARTING); InterlockedExchange(&g_installed, 1);
+    return TRUE;
+}
+extern "C" void ov_prepare(void) { InitOnceExecuteOnce(&g_once_prep, prepare_once, NULL, NULL); }
+// Runs once, on whichever thread asks first (ov_request waits for it): the hook on the swap chain. overlayapi.inc calls it only once the game ticks:
+// a probe device made during start-up (before the game's own device) patched the shared vtable before the Steam overlay hooked Present, and Steam's
+// hook then recursed into a stack overflow 2 s later (seen in Steam Play starts).
+static BOOL CALLBACK install_once(PINIT_ONCE, PVOID, PVOID *) {
+    ov_prepare(); g_req_tick = GetTickCount64();
     HMODULE d3d = LoadLibraryW(L"d3d11.dll"); CreateDevSc_t create = d3d ? (CreateDevSc_t)GetProcAddress(d3d, "D3D11CreateDeviceAndSwapChain") : NULL;
     if (!create) { LOG("overlay: d3d11.dll / D3D11CreateDeviceAndSwapChain not available - overlay off, text menu stays"); InterlockedExchange(&g_state, OV_DEAD); InterlockedExchange(&g_installed, 1); return TRUE; }
     WNDCLASSEXW wc; memset(&wc, 0, sizeof wc); wc.cbSize = sizeof wc; wc.lpfnWndProc = DefWindowProcW; wc.hInstance = GetModuleHandleW(NULL); wc.lpszClassName = L"LanNativeOverlayProbe";
@@ -641,7 +686,7 @@ static BOOL CALLBACK install_once(PINIT_ONCE, PVOID, PVOID *) {
         LOG("overlay: the swap chain's Present / ResizeBuffers are already patched by another module (%s / %s) - not stacking a second hook; overlay off, text menu stays", who8, who13);
         InterlockedExchange(&g_state, OV_DEAD);
     } else if (SUCCEEDED(hr) && sc) {
-        void **vt = *(void ***)sc; patch(vt, 8, (void *)hk_present, (void **)&o_present); patch(vt, 13, (void *)hk_resize, (void **)&o_resize);
+        void **vt = *(void ***)sc; g_vt = vt; patch(vt, 8, (void *)hk_present, (void **)&o_present); patch(vt, 13, (void *)hk_resize, (void **)&o_resize);
         LOG("overlay: Present / ResizeBuffers hooked (swap chain vtable %p)", (void *)vt);
     } else { LOG("overlay: probe device FAILED (0x%08lX) - overlay off, text menu stays", (unsigned long)hr); InterlockedExchange(&g_state, OV_DEAD); }
     if (sc) sc->Release(); if (cx) cx->Release(); if (dv) dv->Release();
