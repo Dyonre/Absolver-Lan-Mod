@@ -19,8 +19,16 @@ static int lv_has(const char *s, const char *word) {            // case-insensit
 // an error / warning line: what the loader and plugins write when something went wrong ("no faults" and "0 failed" summaries excluded)
 static int lv_is_error(const char *line) {
     static const char *const w[] = { "error", "failed", "exception", "warning", "clash", "refused", "faulted", "missing" };
-    if (lv_has(line, " 0 failed") || lv_has(line, ", 0 failed") || lv_has(line, "0 error")) return 0;
-    for (size_t i = 0; i < sizeof w / sizeof w[0]; i++) if (lv_has(line, w[i])) return 1;
+    for (size_t i = 0; i < sizeof w / sizeof w[0]; i++) {
+        size_t wl = strlen(w[i]);
+        for (const char *s = line; *s; s++) {
+            if (_strnicmp(s, w[i], wl)) continue;
+            size_t at = (size_t)(s - line);
+            if (at >= 2 && s[-1] == ' ' && s[-2] == '0' && (at == 2 || s[-3] < '0' || s[-3] > '9')) continue;   // "0 failed", "0 errors": a zero count
+            if (i == 0 && !_strnicmp(s, "errors only", 11)) continue;                                            // the log window's own toggle
+            return 1;
+        }
+    }
     return 0;
 }
 // the mod a line names: "plugin <Mod>: ...", "plugin hook <Mod>:<fn>: ...", "binds: <Mod>/...", "keys: <Mod>'s ..."; "" = the loader's own line
