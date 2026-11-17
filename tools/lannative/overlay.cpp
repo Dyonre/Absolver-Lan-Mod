@@ -410,7 +410,11 @@ static void draw_mods(const OvSnap &s) {
                   { size_t l = strlen(c);                                           // net / joiners_need tags
                     if (m.net_tag[0] && l + 1 < sizeof c) l += (size_t)snprintf(c + l, sizeof c - l, " %s", m.net_tag);
                     if (m.joiners_optional && m.affects_gameplay && l + 1 < sizeof c) snprintf(c + l, sizeof c - l, " [joiners need not]"); }
-                  ImGui::TextUnformatted(c); if (m.plugin == 2) { ImGui::SameLine(); ImGui::TextColored(red, "plugin BLOCKED (list it in Mods\\plugins.txt)"); } }
+                  ImGui::TextWrapped("%s", c);                                     // wraps inside the column: long tag lists ("[joiners need not]") are not cut off
+                  if ((m.net_tag[0] || m.joiners_optional || !m.affects_gameplay) && ImGui::IsItemHovered()) { ImGui::BeginTooltip(); ImGui::TextUnformatted(c);
+                      ImGui::TextDisabled("[cosmetic]: left out of the LAN mod check. [host only] / [local only] / [vanilla visible] / [all need it]: who needs the mod (mod.json \"net\").");
+                      ImGui::TextDisabled("[joiners need not]: joiners can play without it (mod.json \"joiners_need\": false; left out of the LAN mod check)."); ImGui::EndTooltip(); }
+                  if (m.plugin == 2) { ImGui::SameLine(); ImGui::TextColored(red, "plugin BLOCKED (list it in Mods\\plugins.txt)"); } }
                 ImGui::TableSetColumnIndex(4);
                 if (m.nconf) { ImGui::TextColored(yellow, "%d", m.nconf);
                     if (ImGui::IsItemHovered()) { ImGui::BeginTooltip(); for (int k = 0; k < m.nconf && k < 3; k++) ImGui::TextUnformatted(m.conf[k]); if (m.nconf > 3) ImGui::TextDisabled("... %d in all (see mods.txt)", m.nconf); ImGui::EndTooltip(); } }
