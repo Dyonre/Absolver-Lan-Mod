@@ -30,7 +30,7 @@ static void pf_scan(void) {                                     // profile names
     }
     for (int i = 1; i < g_pf_n; i++) for (int j = i; j > 0 && _stricmp(g_pf_names[j - 1], g_pf_names[j]) > 0; j--) { char t[PROFILE_NAME_MAX + 1]; strcpy(t, g_pf_names[j]); strcpy(g_pf_names[j], g_pf_names[j - 1]); strcpy(g_pf_names[j - 1], t); }
     static ModList p, out;                                       // static: a ModList is 25 KB
-    for (int i = 0; i < g_pf_n && g_pf_current < 0; i++) if (pf_read(g_pf_names[i], &p)) { profile_apply(&g_order_now, &p, &out, NULL, NULL); if (modlist_same(&out, &g_order_now)) g_pf_current = i; }
+    for (int i = 0; i < g_pf_n && g_pf_current < 0; i++) if (pf_read(g_pf_names[i], &p)) { int ext = 0; profile_apply(&g_order_now, &p, &out, NULL, &ext); if (ext < g_order_now.count && modlist_same(&out, &g_order_now)) g_pf_current = i; }   // ext == count: it names no installed mod
     if (g_pf_current >= 0 && _stricmp(g_pf_lastname, g_pf_names[g_pf_current])) { snprintf(g_pf_lastname, sizeof g_pf_lastname, "%s", g_pf_names[g_pf_current]); g_pf_serial++; }
 }
 static int pf_exists(const char *name) { for (int i = 0; i < g_pf_n; i++) if (!_stricmp(g_pf_names[i], name)) return 1; return 0; }

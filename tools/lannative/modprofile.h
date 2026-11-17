@@ -13,6 +13,9 @@ static const char *const g_profile_suggest[3] = { "Everything", "Light", "Testin
 static int profile_name_ok(const char *n) {
     size_t len = n ? strlen(n) : 0; if (!len || len > PROFILE_NAME_MAX || n[0] == ' ' || n[len - 1] == ' ') return 0;
     for (size_t i = 0; i < len; i++) { char c = n[i]; if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == ' ' || c == '-' || c == '_')) return 0; }
+    static const char *const dev[] = { "CON", "PRN", "AUX", "NUL" };                     // Windows device names (also COM1-9, LPT1-9)
+    for (int i = 0; i < 4; i++) if (!_stricmp(n, dev[i])) return 0;
+    if (len == 4 && (!_strnicmp(n, "COM", 3) || !_strnicmp(n, "LPT", 3)) && n[3] >= '1' && n[3] <= '9') return 0;
     return 1;
 }
 static void profile_apply(const ModList *now, const ModList *prof, ModList *out, int *missing, int *extra) {
