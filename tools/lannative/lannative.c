@@ -126,6 +126,7 @@ static char g_posname[MODS_MAX + 1][MOD_NAME_MAX];   // name of the mod at each 
 static LmInfo g_lm_me;                   // this PC's gameplay-mod fingerprint and names (filled by the mod loader); present = 0 until the mod check is installed
 static int g_lm_mode = 1;                // modmismatch: 0 off, 1 warn, 2 block
 static void lm_serverack_post(void *pc);
+static int hm_on_prelogin(const char *which, void *address, void *err); static void hm_tick(void); static void hostmods_install(void);   // hostmods.inc
 static void lm_selftest(void);
 static void jg_announce_host(void);
 static JoinGuard g_jg;
@@ -1693,6 +1694,7 @@ static void on_tick(float dt) {
     }
     room_spawn_tick();
     int focus = game_has_focus();
+    hm_tick();                                              // host mod download: asks a joined host, toasts (hostmods.inc)
     ld_tick(GetTickCount64());                              // LAN finder: answers while hosting, searches at an altar / F1 > LAN games (landisc.inc)
     menu_tick(focus, GetTickCount64());
     modsui_tick(focus);
@@ -1885,6 +1887,7 @@ static uint64_t image_size(const uint8_t *base) {          // PE SizeOfImage of 
 #include "plugins.inc"
 #include "secore.inc"
 #include "content.inc"
+#include "hostmods.inc"                     // host mod download + max players
 #include "modsui.inc"
 static int npc_mod_entry(int i, char *id, int idcap, char *label, int lcap) {   // the F1 NPC page's "Mod NPCs" / "Bots" groups (npc_finish_list)
     if (i < 0 || i >= g_np_n) return -1;
@@ -1960,6 +1963,7 @@ static void init(HMODULE self) {
     g_lm_me.present = 1;                                              // until the mod loader fills it in: "no gameplay mods"
     lanmods_install();
     ld_install();
+    hostmods_install();
     servermode_install();
     if (!cmdline_has_flag(GetCommandLineW(), L"nomods")) rowedit_install();
     int lan_on = read_lan();

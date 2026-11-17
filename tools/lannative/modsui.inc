@@ -149,13 +149,15 @@ static void modsui_refresh(void) {
     int ns = modsui_sections(g_mitem_n, key, nm, tx, g_mui_open, act + 1, g_mui_ref + 1, MUI_ACTIONS - 1);
     g_mui_ref[0].kind = 0; g_mui_ref[0].ref = 0; g_mui_nref = 1 + ns;
     for (int i = 1; i <= ns; i++) in->action[in->nactions++] = act[i];
+    for (int i = 0, n = hm_menu_count(); i < n && in->nactions < MUI_ACTIONS; i++) in->action[in->nactions++] = hm_menu_label(i);   // hostmods.inc rows (after the plugin sections)
     g_mui_n = modsui_build(in, g_mui_lines, MENU_LIST_MAX); g_mui_at = GetTickCount64();
 }
 static int modsui_count(void) { if (GetTickCount64() - g_mui_at > 500) modsui_refresh(); return g_mui_n; }
 static const char *modsui_line(int i) { return i >= 0 && i < g_mui_n ? g_mui_lines[i] : ""; }
 static void modsui_action(int index) {
     if (index == 0) { mods_reload_all(); g_mui_at = 0; return; }
-    if (index < 1 || index >= g_mui_nref) return;
+    if (index >= g_mui_nref) { hm_menu_action(index - g_mui_nref); g_mui_at = 0; return; }   // hostmods.inc rows
+    if (index < 1) return;
     if (g_mui_ref[index].kind == MUR_HEAD) {
         int k = g_mui_ref[index].ref; g_mui_open = g_mui_open == k ? -1 : k; g_mui_at = 0;
         logf_("menu: Mods section %s %s", plug_name_of(k), g_mui_open == k ? "opened" : "closed"); return;

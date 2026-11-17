@@ -28,6 +28,7 @@ static void *g_pak_self;                 // the FPakPlatformFile, kept for rows_
 typedef uint8_t (*PakInit_t)(void *self, void *lower, const wchar_t *cmdline);
 typedef uint8_t (*PakMount_t)(void *self, const wchar_t *path, uint32_t order, const wchar_t *mountpoint);
 static PakInit_t g_orig_pakinit;
+static void hm_mount_fromhost(void *self, PakMount_t mount, int *position, uint64_t *fp, uint64_t *gp_fp, const char **gpn, int *ngp, int *mounted_mods, const wchar_t *sigsrc, int have_sigsrc);   // hostmods.inc
 // what the F1 "Mods" page shows (modsui.h): one ModInfo per mod folder (same index as the ModList), filled below while the mods load; g_mi_dir keeps each mod's folder for content hot reload
 static ModInfo g_mi[MODS_MAX]; static int g_mi_n; static wchar_t g_mi_dir[MODS_MAX][MAX_PATH]; static int g_mi_pos[MODS_MAX];   // g_mi_pos = load position (counts mounted mods only), -1 = not loaded
 static ModList g_order_boot, g_order_now;                  // loadorder.txt as the game booted with it / as edited on the Mods page (modorder.h)
@@ -106,7 +107,7 @@ static void mods_mount_all(void *self) {
         wchar_t pat[MAX_PATH]; swprintf(pat, MAX_PATH, L"%ls\\*", mods); WIN32_FIND_DATAW fd; HANDLE h = FindFirstFileW(pat, &fd);
         if (h != INVALID_HANDLE_VALUE) {
             do {
-                if ((fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && fd.cFileName[0] != L'.' && nnames < MODS_MAX) {
+                if ((fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && fd.cFileName[0] != L'.' && _wcsicmp(fd.cFileName, L"_FromHost") && nnames < MODS_MAX) {   // _FromHost: host downloads (hostmods.inc), mounted below
                     char u[1024]; w_to_u8(fd.cFileName, u, sizeof u);
                     if (u[0] && strlen(u) < MOD_NAME_MAX) names[nnames++] = _strdup(u);
                     else if (u[0]) {
@@ -408,6 +409,7 @@ static void mods_mount_all(void *self) {
         } else logf_("mods: verify skipped (FindFileInPakFiles bytes differ from this build)");
     }
     for (int i = 0; i < nsets; i++) free(lists[i]);
+    __try { hm_mount_fromhost(self, mount, &position, &fp, &gp_fp, gpn, &ngp, &mounted_mods, sigsrc, have_sigsrc); } __except (EXCEPTION_EXECUTE_HANDLER) { logf_("host mods: EXCEPTION 0x%08lX mounting Mods\\_FromHost", GetExceptionCode()); }
     plugin_register_builtin();
     g_mods_fp = (mounted_paks || rows_mods || g_plugins_n) ? fp : 0; g_mods_active = mounted_mods;
     lm_names_join(gpn, ngp, g_lm_me.names, sizeof g_lm_me.names); g_lm_me.fp = ngp ? gp_fp : 0; g_lm_me.present = 1;

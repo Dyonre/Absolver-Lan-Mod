@@ -126,11 +126,13 @@ static void jg_guarded(const char *which, void *o, void *a, void *e, int *refuse
 static void hk_prelogin_base(void *self, void *o, void *a, void *u, void *e) {
     g_orig_prelogin_base(self, o, a, u, e);
     int refused; jg_guarded("game mode", o, a, e, &refused); if (refused) return;
+    if (!g_disabled && hm_on_prelogin("game mode", a, e)) return;            // hostmods.inc: player cap, joiner address for the mod download
     if (!g_disabled && g_lm_faults < 3) { __try { lm_on_prelogin("game mode", o, a, e); } __except (EXCEPTION_EXECUTE_HANDLER) { g_lm_faults++; logf_("mods: EXCEPTION 0x%08lX in the join check (fault %d of 3)", GetExceptionCode(), g_lm_faults); } }
 }
 static void hk_prelogin_adv(void *self, void *o, void *a, void *u, void *e) {
     g_orig_prelogin_adv(self, o, a, u, e);
     int refused; jg_guarded("pvp game mode", o, a, e, &refused); if (refused) return;
+    if (!g_disabled && hm_on_prelogin("pvp game mode", a, e)) return;
     if (!g_disabled && g_lm_faults < 3) { __try { lm_on_prelogin("pvp game mode", o, a, e); } __except (EXCEPTION_EXECUTE_HANDLER) { g_lm_faults++; logf_("mods: EXCEPTION 0x%08lX in the join check (fault %d of 3)", GetExceptionCode(), g_lm_faults); } }
 }
 // called from hk_serverack (the joiner's controller just acknowledged its pawn): tell that joiner what the host runs
