@@ -333,6 +333,15 @@ struct AbsApi {
     /* ---- v2.23: key ownership and input focus (keys.inc, docs/API-REFERENCE.md). Check self->size before using these. */
     int   (*declare_key)(const AbsApi *self, int vk, const char *what);   /* a key you read yourself (GetAsyncKeyState): it goes into the loader's key list (log, F2 page "Keys"), and an F key is then kept from the game's window procedure (F11 is also the game's fullscreen toggle). on_key registers its key by itself. 0 = noted, 1 = noted but someone else uses it too (a clash, logged), 2 = you noted it already, -1 = bad arguments */
     int   (*input_owner)(const AbsApi *self);                              /* who has the keyboard and the pad now: 0 the game, 1 a loader menu (F1 / F2), 2 another mod's window, 3 your window (it has the focus and you hold ABS_OV_KEYS or ABS_OV_BLOCK_GAME). Act on keys you read yourself only on 0 (or 3 for keys your window uses) */
+    /* ---- v2.24: key binding (keys.inc, docs/API-REFERENCE.md). The player rebinds an action on the F2 Keys rows (choose it, press a key, mouse
+     *      button or pad button); the loader stores it (LanNative\binds.txt). Same input on several actions is allowed: actions whose contexts overlap get a
+     *      warning, nothing is refused. Input names: "K", "F8", "Space", "Mouse Left" / "Mouse Right" / "Mouse Middle" / "Mouse 4" / "Mouse 5",
+     *      "Pad A" "Pad B" "Pad X" "Pad Y" "Pad LB" "Pad RB" "Pad LT" "Pad RT" "Pad Back" "Pad Start" "Pad LS" "Pad RS" "Pad Up" "Pad Down" "Pad Left" "Pad Right",
+     *      "" / "none" = unbound. Every on_key registration is an action too (id "on_key_<VK in hex>", e.g. "on_key_77" for F8): declare that id with
+     *      bind_action to give it a label and a context. Check self->size before using these. */
+    int   (*bind_action)(const AbsApi *self, const char *id, const char *label, const char *default_input, const char *context);   /* declare (again: updates label / default / context). id: yours, stable, no '/' or '='. context: "always" (overlaps every context), "foot", "riding", "menu" or your own "mymod:state" (each overlaps only itself). Returns the handle (>= 0), -1 = bad arguments / unknown input name */
+    int   (*bind_state)(const AbsApi *self, int handle, int *pressed);   /* 1 while the bound input is held (game window focused, no rebind in progress), 0 not, -1 bad handle; *pressed (may be NULL) = 1 once per press since your last call for this handle. The input_owner rules are yours to apply (as for keys you read yourself) */
+    int   (*bind_name)(const AbsApi *self, int handle, char *out, int cap);   /* the bound input's name ("K", "Pad A", "(none)") into out; returns the input code (0 = unbound, -1 = bad handle). Show it in your own UI ("press K to ...") */
 };
 
 /* for_each_property: one property. Read / write it by name with get_property_text / set_property_text ("name[N]" for array_dim > 1). */

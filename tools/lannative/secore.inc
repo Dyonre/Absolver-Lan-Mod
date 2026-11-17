@@ -523,13 +523,19 @@ static void se_tick(float dt) {
 }
 
 // ----- events: keys, damage; sidecar key/value store
-typedef struct { int plugin, vk, down; void (*cb)(int vk, void *); void *user; } SeKeyCb;
+typedef struct { int plugin, vk, down, bind; void (*cb)(int vk, void *); void *user; } SeKeyCb;
 static SeKeyCb g_keycb[32]; static int g_keycb_n;
+#include "bindreg.h"                                              // input names (bind_code_name); the binds themselves live in keys.inc
+static int binds_declare(const char *mod, const char *id, const char *label, int def, const char *ctx);   // keys.inc (key binding)
+static int binds_code(int h); static int binds_down(int code, unsigned pad); static unsigned binds_pad_bits(void); static int binds_capturing(void);
 static int api_p_on_key(const AbsApi *self, int vk, void (*cb)(int, void *), void *user) {
     int p = plug_of(self); if (p < 0 || !cb || vk < 1 || vk > 254) return 1;
     if (g_keycb_n >= 32) { logf_("plugin %s: on_key(0x%02X) refused - the loader holds 32 key callbacks in all", plug_name_of(p), vk); return 1; }
-    EnterCriticalSection(&g_lock); SeKeyCb *k = &g_keycb[g_keycb_n++]; k->plugin = p; k->vk = vk; k->down = 0; k->cb = cb; k->user = user; LeaveCriticalSection(&g_lock);
-    keys_note(vk, KR_ON_KEY, plug_name_of(p), "on_key");                       // key ownership (keyreg.h): clashes are logged and shown on the F2 page
+    // every on_key is a bindable action: id on_key_<VK hex>, context always; the player can move it to another key, mouse or pad
+    // button on the F2 Keys rows. The callback still receives the vk it registered. A plugin may relabel it: bind_action("on_key_77", "Throw a ball", "F8", ...).
+    char id[24], kn[24], label[64]; snprintf(id, sizeof id, "on_key_%02X", vk); keyreg_vk_name(vk, kn, sizeof kn); snprintf(label, sizeof label, "on_key %s", kn);
+    int b = binds_declare(plug_name_of(p), id, label, vk, "always");
+    EnterCriticalSection(&g_lock); SeKeyCb *k = &g_keycb[g_keycb_n++]; k->plugin = p; k->vk = vk; k->down = 0; k->bind = b; k->cb = cb; k->user = user; LeaveCriticalSection(&g_lock);
     return 0;
 }
 static void se_poll_keys(void) {                                  // key-down edges, only while the game window has the focus
@@ -540,10 +546,14 @@ static void se_poll_keys(void) {                                  // key-down ed
 #ifdef LN_OVERLAY
     focus_owner = ov_state() == OV_READY ? ov_focus_owner() : -2;
 #endif
+    int capturing = binds_capturing(); unsigned pad = 0; int pad_read = 0;
     for (int i = 0; i < g_keycb_n; i++) {
-        SeKeyCb *k = &g_keycb[i]; int d = focus && (GetAsyncKeyState(k->vk) & 0x8000) ? 1 : 0; int edge = d && !k->down; k->down = d;
-        int fkey = k->vk >= VK_F1 && k->vk <= VK_F24;
+        SeKeyCb *k = &g_keycb[i]; int code = k->bind >= 0 ? binds_code(k->bind) : k->vk;   // the player's bind (0 = unbound)
+        if (code >= 0x100 && !pad_read) { pad = binds_pad_bits(); pad_read = 1; }
+        int d = focus && !capturing && binds_down(code, pad) ? 1 : 0; int edge = d && !k->down; k->down = d;
+        int fkey = code >= VK_F1 && code <= VK_F24;
         if (edge && !fkey && (menu_keys || (focus_owner >= 0 && focus_owner != k->plugin))) { logf_("keys: %s's on_key 0x%02X held back (%s has the keyboard)", plug_name_of(k->plugin), k->vk, menu_keys ? "the loader menu" : "another mod's window"); continue; }
+        if (edge && code != k->vk) { char bn[24]; bind_code_name(code, bn, sizeof bn); logf_("keys: %s's on_key 0x%02X fired by its bind %s", plug_name_of(k->plugin), k->vk, bn); }   // rebound: one line per press
         if (edge && plug_guard(k->plugin)) { __try { k->cb(k->vk, k->user); } __except (EXCEPTION_EXECUTE_HANDLER) { plug_fault(k->plugin, "on_key", GetExceptionCode()); } }
     }
 }

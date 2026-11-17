@@ -1,7 +1,7 @@
 # AbsolverSE API reference
 
 Generated from `tools/lannative/AbsolverSE.h` (`python tools/sdk/gen_api_reference.py`). This page may lag the header: the header is the source of truth.  
-`ABS_API_VERSION` = 2; 148 functions. Every function takes `self` (the `const AbsApi *` you were given) as its first argument. Fields are only ever appended: check `api->size >= offsetof(AbsApi, <field>) + sizeof(void *)` before using a field newer than the version you built against.  
+`ABS_API_VERSION` = 2; 151 functions. Every function takes `self` (the `const AbsApi *` you were given) as its first argument. Fields are only ever appended: check `api->size >= offsetof(AbsApi, <field>) + sizeof(void *)` before using a field newer than the version you built against.  
 How a mod is loaded: `docs/MODS.md`. Notes for larger plugins: `docs/ADVANCED.md`.
 
 ## Header fields
@@ -210,6 +210,14 @@ Grouped by topic. Since = the API minor version that added the function (check `
 | `trial_reward` | `int trial_reward(const AbsApi *self, void *character, const char *ranks_id, int won, int rounds_won, int mentoring, int pay, struct AbsTrialReward *out)` | the stock 1v1 reward rules (500 finish, +4000 win, +1500 for 2+ rounds won, +500 mentoring; 1 point each) or a "ranks" entry's table (ranks_id); pay = 1 grants it with xp_add + gm_points_add. Returns the XP; out may be NULL | 2.15 |
 | `bot_trial_start` | `int bot_trial_start(const AbsApi *self, const char *trial_id)` | start the bot_trials entry `trial_id` (solo duel + travel to its map, rounds against its bot(s), reward, travel back); 1 = started, 0 = unknown id / a trial is already running | 2.16 |
 | `bot_trial_status` | `int bot_trial_status(const AbsApi *self, struct AbsTrialStatus *out)` | the running (or last finished) trial; set out->size first; 1 = there is one | 2.16 |
+
+### Other
+
+| Name | Signature | Description | Since |
+|---|---|---|---|
+| `bind_action` | `int bind_action(const AbsApi *self, const char *id, const char *label, const char *default_input, const char *context)` | declare (again: updates label / default / context). id: yours, stable, no '/' or '='. context: "always" (overlaps every context), "foot", "riding", "menu" or your own "mymod:state" (each overlaps only itself). Returns the handle (>= 0), -1 = bad arguments / unknown input name | 2.24 |
+| `bind_state` | `int bind_state(const AbsApi *self, int handle, int *pressed)` | 1 while the bound input is held (game window focused, no rebind in progress), 0 not, -1 bad handle; *pressed (may be NULL) = 1 once per press since your last call for this handle. The input_owner rules are yours to apply (as for keys you read yourself) | 2.24 |
+| `bind_name` | `int bind_name(const AbsApi *self, int handle, char *out, int cap)` | the bound input's name ("K", "Pad A", "(none)") into out; returns the input code (0 = unbound, -1 = bad handle). Show it in your own UI ("press K to ...") | 2.24 |
 
 ## Structs
 

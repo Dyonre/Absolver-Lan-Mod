@@ -1613,6 +1613,7 @@ static int keys_note(int vk, int kind, const char *who, const char *what) {
 #endif
     return rc;
 }
+static int binds_capturing(void);                                                  // keys.inc: 1 while the F2 Keys rows wait for a new bind (the menu leaves the keys alone)
 static void keys_boot(void) {                                                       // once, at the first menu tick
     static int done; if (done) return; done = 1;
     keys_note(VK_F1, KR_LOADER, "Loader", "F1 menu (open / close)");
@@ -1694,12 +1695,15 @@ static void menu_tick(int focus, uint64_t now) {
 #endif
     if (!ov_menu) esc = spc = 0;
     if (plugin_keys) up = dn = en = rt = lf = bs = esc = spc = typed = 0;
+    int capturing = binds_capturing();                                           // keys.inc: a rebind waits for the next input - it belongs to the capture, not the menu
+    if (capturing) f1 = f2 = up = dn = en = rt = lf = bs = esc = spc = typed = 0;
     int padk = MPK_NONE;
     if (g_padmenu_on) {
         unsigned pb = 0; float ly = 0.f; menu_pad_read(&pb, &ly);
         float dt = pad_last ? (float)(now - pad_last) / 1000.f : 0.f; pad_last = now; if (dt > 0.25f) dt = 0.25f;
         padk = menupad_step(&pad, pb, ly, dt);
         if (padk && padk != MPK_TOGGLE && (!g_menu.open || plugin_keys)) padk = MPK_NONE;
+        if (capturing) padk = MPK_NONE;
         if (padk) logf_("menu: gamepad key %d", padk);
     }
     if (InterlockedCompareExchange(&g_discovery_state, 2, 2) == 2 && (!g_menu.open || g_menu.page == MP_MAIN || g_menu.page == MP_MAPS || g_menu.page == MP_MAPGROUPS)) {
@@ -1722,7 +1726,7 @@ static void menu_tick(int focus, uint64_t now) {
               (en || rt || spc || padk == MPK_SELECT) ? MK_SELECT : (lf || esc || padk == MPK_BACK) ? MK_BACK : bs ? MK_ERASE : 0;
 #ifdef LN_OVERLAY
     { OvCmd oc;                                                                   // a click in the overlay runs as the key that does the same
-        if (g_ov_on && ov_poll(&oc) && g_menu.open && !g_ti_active) {
+        if (g_ov_on && ov_poll(&oc) && g_menu.open && !g_ti_active && !capturing) {   // a click during a capture is the capture's (Mouse Left), not a row
             if (oc.cmd == OVC_MENU_HOVER) { if (oc.index >= 0 && oc.index < g_menu.count[g_menu.page]) g_menu.sel = oc.index; }   // the mouse moved onto a row: it is the selected row now (no log: it follows the mouse)
             else if (oc.cmd >= OVC_MODS_ENABLE) { __try { modsui_command(&oc); } __except (EXCEPTION_EXECUTE_HANDLER) { logf_("mods page: EXCEPTION 0x%08lX in command %d", GetExceptionCode(), oc.cmd); } }
             else if (oc.cmd == OVC_TOGGLE) key = MK_TOGGLE;
