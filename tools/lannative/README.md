@@ -23,11 +23,23 @@ Mod-checking tools: `test\build_tools.bat` builds `reccheck.exe`, `modscan.exe` 
 
 ## Layout
 
-* `lannative.c` - entry point, hooks, key handling, the mod loader glue.
-* `*.inc` - feature modules included by `lannative.c` (mods, rows.json, plugins, content kinds, powers, NPCs, bots, map scripts, ...).
+* `lannative.c` - entry point, hooks, key handling, the F1 menu.
+* `*.inc` - units: one feature each (mods, rows.json, plugins, content kinds, powers, NPCs, bots, map scripts, ...), listed in `units.inc` (the item code's helpers `weapons.inc`, `weaponslot.inc`, `kindstate.inc`, `learn.inc` and `powers.inc` are included from `content.inc`).
 * `*.h` - pure logic and tables used by the modules.
 * `AbsolverSE.h` - the plugin API header (`docs/API-REFERENCE.md`).
 * `lan_logic.c`, `lan_telemetry.c` - LAN play logic and its read-only logging (`docs/HOSTING.md`).
+
+## Units and registration
+
+Every feature is a unit: an `.inc` file listed once in `units.inc`, which `lannative.c` includes (one translation unit); the helpers of
+the item code are included from `content.inc`. The order of
+`units.inc` is the dependency order: a unit may use what the units above it define, so a new unit goes at the end.
+
+A unit registers what it runs with a macro next to its own code instead of a call in `lannative.c`: `LN_PREINIT` / `LN_INIT` (start-up),
+`LN_PRETICK` / `LN_TICK` (every frame), `LN_SE_TICK` (script extender frame), `LN_DRAW` (canvas text), `LN_API` (its `AbsApi` fields),
+`LN_CONTENT` (content kinds), `LN_MODS_ROWS` (rows on the F2 Mods page) and `LN_HS_VERB` (verbs on the host-mods side channel). The tables
+are declared in `lnhooks.h`; `lnreg.h` is the mechanism (the linker collects the entries; the start-up, frame, draw, content and page tables run in the order of
+an explicit four-digit key, and a key used twice in one table does not compile). The log lists every table after the version line (`registry: ...`).
 
 ## Keys
 

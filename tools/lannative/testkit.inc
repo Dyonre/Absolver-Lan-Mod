@@ -249,3 +249,7 @@ static int api_p_test_get_forward(const AbsApi *self, void *actor, float out[3])
     __except (EXCEPTION_EXECUTE_HANDLER) { ok = 0; }
     return ok;
 }
+LN_API(testkit) {
+    a->test_heal = api_p_test_heal; a->test_set_invincible = api_p_test_set_invincible; a->test_attack = api_p_test_attack; a->test_guard = api_p_test_guard; a->test_teleport = api_p_test_teleport; a->test_get_location = api_p_test_get_location; a->test_spawn_npc = api_p_test_spawn_npc;
+    a->test_dodge = api_p_test_dodge; a->test_ai = api_p_test_ai; a->test_hittable = api_p_test_hittable; a->test_get_forward = api_p_test_get_forward;
+}

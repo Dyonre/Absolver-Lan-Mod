@@ -45,6 +45,7 @@
 #include "utf8text.h"
 #include "joinguard.h"
 #include "hookreg.h"
+#include "lnhooks.h"
 
 #define RVA_GENGINE         0x38A2E68u   // UEngine *GEngine
 #define RVA_GWORLD          0x38A5890u   // UWorldProxy GWorld (first 8 bytes = UWorld *)
@@ -117,7 +118,6 @@
 
 static uint8_t *g_base;
 static DWORD g_game_tid;                  // thread that runs UGameEngine::Tick (set by the tick hook)
-static void rows_drain_objects(void);
 static int g_safe_mode;                  // safe mode (crashrep.inc): no mods, no plugins, no extender hooks this run
 static void crashguard_ready(void);      // crashrep.inc
 static ObjOps g_objops;                  // data asset edits (object / ops entries of rows.json), applied when the object finishes loading
@@ -126,16 +126,12 @@ static char g_posname[MODS_MAX + 1][MOD_NAME_MAX];   // name of the mod at each 
 static LmInfo g_lm_me;                   // this PC's gameplay-mod fingerprint and names (filled by the mod loader); present = 0 until the mod check is installed
 static int g_lm_mode = 1;                // modmismatch: 0 off, 1 warn, 2 block
 static void lm_serverack_post(void *pc);
-static int hm_on_prelogin(const char *which, void *address, void *err); static void hm_tick(void); static void hostmods_install(void);   // hostmods.inc
-static void ni_tick(void);                                                                                // netinspect.inc
+static int hm_on_prelogin(const char *which, void *address, void *err);   // hostmods.inc
 static void lm_selftest(void);
 static void jg_announce_host(void);
 static JoinGuard g_jg;
 static void toast_show(char lines[][LM_LINE_MAX], int n, unsigned seconds);
-static const char *ld_menu_line(int i); static void ld_menu_join(int index, uint64_t now); static void ld_tick(uint64_t now); static void ld_install(void); static int ld_found(void);   // landisc.inc (LAN finder)
-static void toast_draw(void *canvas);
-static int toast_active(void);
-static void md_draw(void *canvas); static int md_draw_active(void);                    // modes.inc
+static const char *ld_menu_line(int i); static void ld_menu_join(int index, uint64_t now); static int ld_found(void);   // landisc.inc (LAN finder)
 static wchar_t g_dir[MAX_PATH];          // the LanNative folder next to the DLL, with a trailing backslash
 static CRITICAL_SECTION g_lock;
 static HookReg g_hreg;                  // which functions are patched and how their detours stack (hookreg.h); the loader's own hooks are registered here too
@@ -741,6 +737,7 @@ static void room_spawn_tick(void) {
     if (pawn && pawn != last_pawn) { last_pawn = pawn; due = now; }
     if (due && now >= due) { due = 0; __try { logf_("rooms: moving the character to the room spawn of %s -> %d", g_room[idx].map, L_teleport_local(g_room[idx].xyz)); } __except (EXCEPTION_EXECUTE_HANDLER) { logf_("rooms: teleport EXCEPTION 0x%08lX", GetExceptionCode()); } }
 }
+LN_TICK(0200, rooms) { room_spawn_tick(); }
 
 // first line of ip.txt = host ip or ip:port, optional second line = extra URL options (e.g. ?CheckPoint=...?zone=3)
 static int read_join_url(wchar_t *out, int cap) {
@@ -1320,7 +1317,7 @@ static int read_menu_cfg(void) {
     return 1;
 }
 
-static int modsui_count(void); static const char *modsui_line(int i); static void modsui_action(int index); static void modsui_tick(int focus);   // modsui.inc
+static int modsui_count(void); static const char *modsui_line(int i); static void modsui_action(int index);   // modsui.inc
 static int modsui_back(int sel); static int modsui_open_section(void); static void modsui_collapse(void);
 static const char *menu_list_text(int page, int i) {
     static char label[MENU_LINE_MAX];
@@ -1574,6 +1571,8 @@ static void menu_tick(int focus, uint64_t now) {
     }
 }
 
+LN_TICK(0700, menu) { menu_tick(g_ln_focus, GetTickCount64()); }
+
 typedef float (*CanvasDrawText_t)(void *canvas, void *font, const void *fstring, float x, float y, float xs, float ys, const void *render_info);
 typedef struct { wchar_t *data; int32_t num, max; } FStringView;
 typedef void (*PostRender_t)(void *viewport, void *canvas);
@@ -1613,8 +1612,9 @@ static void hk_postrender(void *viewport, void *canvas) {
     g_orig_postrender(viewport, canvas);
     if (g_disabled || !canvas || g_draw_faults >= 2) return;
     int menu_visible = g_menu.open && g_menu_nlines;
-    if (!menu_visible && !toast_active() && !md_draw_active()) return;
-    __try { if (menu_visible && !ov_text_hidden()) draw_menu(canvas); toast_draw(canvas); md_draw(canvas); }
+    int visible = menu_visible; LN_FOREACH(draw, LnDraw, d) if (!visible && d->active()) visible = 1;   // units' canvas text (lnhooks.h): toasts, mode banners
+    if (!visible) return;
+    __try { if (menu_visible && !ov_text_hidden()) draw_menu(canvas); LN_FOREACH(draw, LnDraw, d) d->draw(canvas); }
     __except (EXCEPTION_EXECUTE_HANDLER) {
         g_draw_faults++;
         logf_("menu: EXCEPTION 0x%08lX while drawing (fault %d of 2)%s", GetExceptionCode(), g_draw_faults, g_draw_faults >= 2 ? " - the menu text is off for this run" : "");
@@ -1693,13 +1693,8 @@ static void on_tick(float dt) {
         g_clone_sweep_due = GetTickCount64() + (g_clone_sweep == 1 ? 3000 : 5000);
         if (++g_clone_sweep > 3) g_clone_sweep = 0;
     }
-    room_spawn_tick();
-    int focus = game_has_focus();
-    hm_tick();                                              // host mod download: asks a joined host, toasts (hostmods.inc)
-    ni_tick();                                              // Net Inspector: refresh when due, serve a joiner's snapshot request (netinspect.inc)
-    ld_tick(GetTickCount64());                              // LAN finder: answers while hosting, searches at an altar / F1 > LAN games (landisc.inc)
-    menu_tick(focus, GetTickCount64());
-    modsui_tick(focus);
+    int focus = g_ln_focus = game_has_focus();
+    LN_RUN(tick);                                           // units' frame work (lnhooks.h): arena lights, rooms, shot runner, host mods, Net Inspector, LAN finder, F1 menu, Mods page
     if (!focus) { k10 = k9 = k11 = 0; return; }
     // F keys: players get F1 (menu) and F2 (Mods page) only. Host / Join / Bring joiners / State dump / Log marker are F1 menu items,
     // hot reload is an F2 page item, F3 is left free for other mods. F9 cam.txt / F10 goto.txt / F11 lmtest.txt are developer keys, on only when
@@ -1849,25 +1844,22 @@ static void hk_notifyparry(void *comp, float delay, void *actor, uint64_t name, 
     g_orig_notifyparry(comp, delay, actor, name, flag);
 }
 
-static void plugins_tick(float dt);
-
 static void plugins_postload(void *obj);
 static int plugin_register(const wchar_t *mods_dir, const char *name, const wchar_t *dll, const wchar_t *dirw);
 static void plugins_load_all(void);
-static void servermode_tick(void);
-static void servermode_install(void);
 static int g_plugins_n;
 
 static void hk_tick(void *self, float dt, uint8_t idle) {
     g_game_tid = GetCurrentThreadId();
-    rows_drain_objects();                                   // data asset edits that arrived on a loader thread are applied here, on the game thread
-    servermode_tick();                                      // unattended host steps (servermode.inc)
-    plugins_tick(dt);                                       // plugin events and queued jobs (plugins.inc)
+    g_ln_dt = dt;
+    LN_RUN(pretick);                                        // units' unguarded frame work (lnhooks.h): data asset edits from loader threads, server mode, plugins
     if (!g_disabled) {
         __try { on_tick(dt); }
         __except (EXCEPTION_EXECUTE_HANDLER) {
             g_disabled = 1;
             logf_("EXCEPTION 0x%08lX inside our tick work - LanNative is now switched off for this run", GetExceptionCode());
+            if (g_ln_cur) logf_("registry: the exception was raised in the tick hook '%s'", g_ln_cur);
+            g_ln_cur = NULL;
         }
     }
     g_orig_tick(self, dt, idle);
@@ -1881,17 +1873,8 @@ static uint64_t image_size(const uint8_t *base) {          // PE SizeOfImage of 
     } __except (EXCEPTION_EXECUTE_HANDLER) { return 0; }
 }
 
-#include "modglue.inc"
-#include "crashrep.inc"
-#include "lanmods.inc"
-#include "landisc.inc"
-#include "rowedit.inc"
-#include "plugins.inc"
-#include "secore.inc"
-#include "content.inc"
-#include "hostmods.inc"                     // host mod download + max players
-#include "netinspect.inc"                   // Net Inspector: F2 Mods page rows, host list over the host-mods side channel
-#include "modsui.inc"
+#include "units.inc"                         // every unit (.inc), one line each, in dependency order
+
 static int npc_mod_entry(int i, char *id, int idcap, char *label, int lcap) {   // the F1 NPC page's "Mod NPCs" / "Bots" groups (npc_finish_list)
     if (i < 0 || i >= g_np_n) return -1;
     const CNpc *n = &g_np[i]; if (!n->obj) return 0;                               // not built (template missing / invalid entry)
@@ -1910,18 +1893,15 @@ static void room_palace(void) {
     int c = f && api_p_call_params(NULL, cdo, f, args, &ret);
     logf_("rooms: Inner Palace (Training level) for meditation in %s -> call %d, loaded %d", strrchr(path, '.') ? strrchr(path, '.') + 1 : path, c, ok);
 }
-#if defined(__has_include)
-#if __has_include("servermode.inc")
-#include "servermode.inc"                    // the optional unattended-host module; without the file the hooks below are empty
-#define LN_SERVERMODE 1
-#endif
-#endif
-#ifndef LN_SERVERMODE
-static void servermode_tick(void) {}
-static void servermode_install(void) {}
-#endif
 
-#include "matchredir.inc"
+// "registry: <table> (<n>): name(key) ..." for every table of lnhooks.h, right after the version line: which units this build runs where, and in which order
+static void ln_log_table(const char *table, int n, const char *text) { logf_("registry: %s (%d): %s", table, n, n ? text : "-"); }
+static void ln_log_tables(void) {
+    char text[900]; int n;
+#define LN_LOG_TABLE_(table) n = LN_DESCRIBE(table, text, (int)sizeof text); ln_log_table(#table, n, text);
+    LN_TABLES(LN_LOG_TABLE_)
+#undef LN_LOG_TABLE_
+}
 
 static void init(HMODULE self) {
     wchar_t mod[MAX_PATH];
@@ -1936,6 +1916,7 @@ static void init(HMODULE self) {
     g_base = (uint8_t *)GetModuleHandleW(NULL);
     // The installer recognises this dll by the text "Gleam Loader loaded in" (and older builds by "LanNative M"): change both together.
     logf_("Gleam Loader loaded in %ls (version " GLEAM_VERSION ", base %p)", wcsrchr(exe, L'\\') ? wcsrchr(exe, L'\\') + 1 : exe, g_base);
+    ln_log_tables();
     if (wcsstr(exe, L"Absolver-Win64-Shipping")) { safe_mode_detect(); crashrep_install(); }
     g_self_base = (uint64_t)(uintptr_t)self;
     g_self_size = image_size((const uint8_t *)self);
@@ -1949,7 +1930,7 @@ static void init(HMODULE self) {
         return;
     }
     config_load();
-    matchredir_install();
+    LN_RUN(preinit);                                        // units' early start-up (lnhooks.h): matchredir
     if (parryfix_enabled()) apply_parryfix();
     apply_patch_table();
     L_init(&g_api);
@@ -1958,17 +1939,7 @@ static void init(HMODULE self) {
     T_init(&g_api, &g_tel_cfg, GetCurrentProcessId());
     g_orig_tick = (Tick_t)hook(IDX_TICK, (void *)hk_tick);
     if (!g_orig_tick) { logf_("tick hook NOT installed - LanNative does nothing (game runs untouched)"); g_disabled = 1; return; }
-    if (!g_safe_mode) se_install();                         // script extender: ProcessEvent hook (secore.inc)
-    if (!cmdline_has_flag(GetCommandLineW(), L"nomods")) {
-        g_orig_pakinit = (PakInit_t)hook(IDX_PAKINIT, (void *)hk_pakinit);
-        if (!g_orig_pakinit) logf_("mods: pak hook NOT installed - the mod loader is off (stock game unchanged)");
-    } else logf_("mods: -NoMods on the command line - the mod loader is off");
-    g_lm_me.present = 1;                                              // until the mod loader fills it in: "no gameplay mods"
-    lanmods_install();
-    ld_install();
-    hostmods_install();
-    servermode_install();
-    if (!cmdline_has_flag(GetCommandLineW(), L"nomods")) rowedit_install();
+    LN_RUN(init);                                           // units' start-up (lnhooks.h): extender, mod loader / pak list, LAN mod check, LAN finder, host mods, server mode, rows
     int lan_on = read_lan();
     { int mode = pvpfix_mode(); g_pvpfix_on = mode >= 1; g_pvpflow_on = mode >= 2; }
     if (lan_on) {

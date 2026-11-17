@@ -54,6 +54,7 @@ static double bai_now(void) { static LARGE_INTEGER f; LARGE_INTEGER t; if (!f.Qu
 typedef char (*BaiIsAvail_t)(void *ch, uint8_t action, char predict, char ignore_reject, uint8_t ctx);
 static BaiIsAvail_t g_bai_isavail; static uintptr_t g_bai_isavail_va; static int g_bai_fn_state;
 static double bai_cfg_num(const char *key, double dflt);
+static int api_p_add_menu_item(const AbsApi *self, const char *label, void (*cb)(void *), void *user);   // modsui.inc (the "Bot: spawn" Mods page items)
 static void *g_bai_canperfect, *g_bai_nextattack, *g_bai_dact, *g_bai_hsad, *g_bai_abinput, *g_bai_itemuse, *g_bai_lcq, *g_bai_ucq, *g_bai_lca, *g_bai_scs; static int g_bai_lca_ok;   // lca / scs: mid-attack feint natives
 static int bai_fns(void) {
     if (g_bai_fn_state) return g_bai_fn_state > 0;
@@ -1005,3 +1006,4 @@ static void bai_init(const AbsApi *a) {
           fns, ea, eh, ed, ex, ep, et, em, g_bai_match_rounds, g_bai_round_max, g_bai_verbose);
     if (!fns || et) { logf_("bot: natives or the tick missing - bot OFF"); g_bai_on = 0; }
 }
+LN_CONTENT(1300, botai) { bai_init(a); }

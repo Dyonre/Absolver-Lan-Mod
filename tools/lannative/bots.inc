@@ -363,8 +363,8 @@ static float api_p_npc_difficulty(const AbsApi *self, void *npc, float set) {
     } __except (EXCEPTION_EXECUTE_HANDLER) { r = -1.f; }
     return r;
 }
-#include "bottrial.inc"                                             // kind "bot_trials" and API 2.16 bot_trial_start / bot_trial_status
-static void bt_fill_api(AbsApi *a) {
-    a->bot_trial_start = api_p_bot_trial_start; a->bot_trial_status = api_p_bot_trial_status;
+LN_API(bots) {
     a->xp_add = api_p_xp_add; a->gm_points_add = api_p_gm_points_add; a->rank_info = api_p_rank_info; a->trial_reward = api_p_trial_reward; a->npc_difficulty = api_p_npc_difficulty;
 }
+LN_CONTENT(0600, bots) { ck_add(plug_of(a), "bots", bots_validate, bots_apply, NULL); }
+LN_CONTENT(0700, ranks) { ck_add(plug_of(a), "ranks", ranks_validate, ranks_apply, NULL); }

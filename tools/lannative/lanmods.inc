@@ -25,6 +25,8 @@ static void toast_show(char lines[][LM_LINE_MAX], int n, unsigned seconds) {
     g_toast_until = GetTickCount64() + (uint64_t)seconds * 1000; g_toast_n = n;
 }
 static int toast_active(void) { return g_toast_n > 0 && GetTickCount64() < g_toast_until; }
+static void toast_draw(void *canvas);
+LN_DRAW(0100, toast, toast_active, toast_draw)
 static void toast_draw(void *canvas) {
     if (!toast_active()) return;
     static const uint8_t expect[10] = { 0x48, 0x89, 0x5C, 0x24, 0x08, 0x57, 0x48, 0x83, 0xEC, 0x70 };
@@ -222,3 +224,4 @@ static void lanmods_install(void) {
     g_orig_clientmsg = (ClientMsg_t)hook(IDX_CLIENTMSG, (void *)hk_clientmsg);
     logf_("mod check: host check %s, joiner display %s", g_orig_prelogin_base && g_orig_prelogin_adv ? "installed" : "PARTLY MISSING", g_orig_clientmsg ? "installed" : "NOT installed");
 }
+LN_INIT(0300, lanmods) { lanmods_install(); }

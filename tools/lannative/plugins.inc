@@ -273,7 +273,7 @@ static void plugins_load_all(void) {
     }
 }
 
-// ----- events (called from the hooks in lannative.c / rowedit.inc)
+// ----- events (plugins_tick: the pretick table; plugins_postload: rowedit.inc)
 static void plugins_tick(float dt) {
     if (!g_plugins_n) return;
     se_tick(dt);
@@ -299,3 +299,4 @@ static void plugins_unload_all(void) {
 #endif
     for (int i = 0; i < g_plugins_n; i++) if (g_plugins[i].loaded && g_plugins[i].unload) { __try { g_plugins[i].unload(); } __except (EXCEPTION_EXECUTE_HANDLER) { } }
 }
+LN_PRETICK(0300, plugins) { plugins_tick(g_ln_dt); }       // plugin events and queued jobs

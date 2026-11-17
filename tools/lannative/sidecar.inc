@@ -80,4 +80,4 @@ static int api_p_sidecar_get(const AbsApi *self, void *ch, const char *key, char
     char k[300]; if (out && cap > 0) out[0] = 0; if (!out || cap < 1 || !sc_api_key(self, ch, key, k, sizeof k)) return 0; return sc_read_key(k, out, cap);
 }
 static int api_p_sidecar_set(const AbsApi *self, void *ch, const char *key, const char *value) { char k[300]; return sc_api_key(self, ch, key, k, sizeof k) && sc_write_key(k, value); }
-static void sc_fill_api(AbsApi *a) { a->sidecar_get = api_p_sidecar_get; a->sidecar_set = api_p_sidecar_set; }
+LN_API(sidecar) { a->sidecar_get = api_p_sidecar_get; a->sidecar_set = api_p_sidecar_set; }

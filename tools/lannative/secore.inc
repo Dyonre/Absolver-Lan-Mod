@@ -429,7 +429,7 @@ static int api_p_on_world(const AbsApi *self, void (*cb)(const char *, void *), 
     int p = plug_of(self); if (p < 0 || !cb || g_worldcb_n >= 16) return 1;
     EnterCriticalSection(&g_lock); g_worldcb[g_worldcb_n].plugin = p; g_worldcb[g_worldcb_n].cb = cb; g_worldcb[g_worldcb_n].user = user; g_worldcb_n++; LeaveCriticalSection(&g_lock); return 0;
 }
-static void se_poll_keys(void); static void md_tick(float dt); static void ms_tick(float dt); static void as_tick(float dt);   // modes.inc, mapscript.inc, animstyle.inc
+static void se_poll_keys(void);
 static void se_timer_fire(void *ctx, int p, void (*cb)(void *), void *u) {
     (void)ctx; if (!plug_guard(p)) return;
     __try { cb(u); } __except (EXCEPTION_EXECUTE_HANDLER) { plug_fault(p, "timer", GetExceptionCode()); }
@@ -502,7 +502,7 @@ static void se_tick(float dt) {
     }
     se_world_check();                                                 // first: modes / mapscript below and timers see the new world generation
     tm_step(&g_tm, dt, se_timer_fire, NULL);
-    md_tick(dt); ms_tick(dt); as_tick(dt);
+    LN_RUN(setick);                                                   // units (lnhooks.h LN_SE_TICK): modes, map scripts, anim styles
     se_poll_keys();
 }
 
@@ -880,21 +880,6 @@ static int api_p_char_info(const AbsApi *self, void *ch, AbsCharInfo *out) {
     memcpy(out, &r, out->size < sizeof r ? out->size : sizeof r); return ok;
 }
 
-#include "testkit.inc"
-static int api_p_add_menu_item(const AbsApi *self, const char *label, void (*cb)(void *), void *user);       // modsui.inc
-static int api_p_reload_content(const AbsApi *self);                                                         // modsui.inc
-static int api_p_inventory_equip_slot(const AbsApi *self, int index, int slot); static int api_p_on_power_used(const AbsApi *self, void (*cb)(void *, void *, void *, int, void *), void *user); static int api_p_power_use(const AbsApi *self, void *character, int dir);   // powers.inc (included by content.inc)
-#include "texture.inc"
-#include "combodeck.inc"
-#include "sidecar.inc"                                                  // API 2.18 per-character metadata store (LanNative\state\<GUID>.txt), used by weaponslot / kindstate
-#include "animstyle.inc"                                                // API 2.17 weapon animation sets (another style's animations without a style change)
-#include "modes.inc"
-static void np_fill_api(AbsApi *a);                                                                       // npcs.inc (included by content.inc)
-static void bt_fill_api(AbsApi *a);                                                                       // bots.inc (included by content.inc)
-static void hp_fill_api(AbsApi *a);                                                                       // hitpre.inc (included by content.inc)
-static void ov_fill_api(AbsApi *a);                                                                       // overlayapi.inc (included by content.inc)
-static void de_fill_api(AbsApi *a);                                                                       // defense_ev.inc (included by content.inc)
-#include "mapscript.inc"
 // for_each_property: walks UStruct Children (+0x38, UField Next +0x28) of the type and each parent (Super +0x30). Bounded against corrupt chains.
 static int api_p_for_each_property(const AbsApi *self, void *cls, int (*cb)(const AbsPropInfo *p, void *user), void *user) {
     (void)self; if (!se_valid_ptr(cls) || !cb) return -1;
@@ -914,9 +899,6 @@ static int api_p_for_each_property(const AbsApi *self, void *cls, int (*cb)(cons
 }
 // ----- wiring
 static void se_fill_api(AbsApi *a) {
-    a->create_texture = api_p_create_texture; a->texture_from_file = api_p_texture_from_file;
-    a->test_heal = api_p_test_heal; a->test_set_invincible = api_p_test_set_invincible; a->test_attack = api_p_test_attack; a->test_guard = api_p_test_guard; a->test_teleport = api_p_test_teleport; a->test_get_location = api_p_test_get_location; a->test_spawn_npc = api_p_test_spawn_npc;
-    a->add_menu_item = api_p_add_menu_item; a->reload_content = api_p_reload_content; a->test_dodge = api_p_test_dodge; a->test_ai = api_p_test_ai; a->test_hittable = api_p_test_hittable; a->test_get_forward = api_p_test_get_forward;
     a->hook_symbol = api_p_hook_symbol; a->find_symbol = api_p_find_symbol; a->find_class = api_p_find_class; a->find_function_in_class = api_p_find_function_in_class;
     a->on_call = api_p_on_call; a->trace = api_p_trace; a->replace_native = api_p_replace_native; a->prop_ptr = api_p_prop_ptr; a->get_bool = api_p_get_bool; a->set_bool = api_p_set_bool;
     a->call_function_params = api_p_call_params; a->construct_object = api_p_construct_object; a->spawn_actor = api_p_spawn_actor; a->get_world = api_p_get_world;
@@ -926,13 +908,12 @@ static void se_fill_api(AbsApi *a) {
     a->create_asset = api_p_create_asset; a->add_to_root = api_p_add_to_root; a->table_row = api_p_table_row; a->table_add_row = api_p_table_add_row; a->row_set_text = api_p_row_set_text;
     a->inventory_add = api_p_inventory_add; a->inventory_equip = api_p_inventory_equip; a->inventory_index = api_p_inventory_index; a->set_text = api_p_set_text_prop; a->on_save_loading = api_p_on_save_loading; a->on_save_written = api_p_on_save_written;
     a->on_hit = api_p_on_hit; a->on_attack_start = api_p_on_attack_start; a->on_pawn_spawned = api_p_on_pawn_spawned; a->on_pawn_destroyed = api_p_on_pawn_destroyed; a->on_death = api_p_on_death; a->on_menu = api_p_on_menu; a->char_info = api_p_char_info; a->register_content_kind = api_p_register_content_kind;
-    a->inventory_equip_slot = api_p_inventory_equip_slot; a->on_power_used = api_p_on_power_used; a->power_use = api_p_power_use;
-    a->combo_slot_ensure = api_p_combo_slot_ensure; a->combo_load = api_p_combo_load; a->combo_current = api_p_combo_current; a->set_combat_style = api_p_set_combat_style; a->on_weapon_changed = api_p_on_weapon_changed; a->on_style_changed = api_p_on_style_changed; a->prop_ptr_path = api_p_prop_ptr_path; a->fname_make = api_p_fname_make; a->fname_text = api_p_fname_text;
-    md_fill_api(a); ms_fill_api(a); np_fill_api(a); bt_fill_api(a); as_fill_api(a); sc_fill_api(a); hp_fill_api(a); de_fill_api(a); ov_fill_api(a);
     a->for_each_property = api_p_for_each_property;
+    LN_FOREACH(api, LnApi, u) u->fn(a);                              // the fields of the units (lnhooks.h LN_API): texture, TestKit, combo deck, powers, modes, map script, NPCs, bots, anim styles, sidecar, hit / defence events, overlay, Mods page
 }
 static void se_install(void) {                                    // called once from init(): the ProcessEvent hook is always installed (fast path when nothing is registered)
     g_orig_pe = (PE_t)hook(IDX_PROCESSEVENT, (void *)hk_pe);
     g_orig_pi = (PI_t)hook(IDX_PROCESSINTERNAL, (void *)hk_pi);
     logf_("script extender: ProcessEvent hook %s, ProcessInternal hook %s", g_orig_pe ? "installed" : "NOT installed (on_call and the tracer are off)", g_orig_pi ? "installed" : "NOT installed (Blueprint-to-Blueprint calls are not seen)");
 }
+LN_INIT(0100, extender) { if (!g_safe_mode) se_install(); }   // not in safe mode

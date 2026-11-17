@@ -227,3 +227,4 @@ static void cl_shake_install(void) {   // at load replace_native is not ready ye
     if (r == 0 && o_cl_shake) { done = 1; logf_("clones: camera shake filter on"); }
     else if (++tries == 30) logf_("clones: camera shake filter NOT installed yet (replace_native %d) - clone hits may shake your camera", r);
 }
+LN_CONTENT(1400, clones) { ck_add(plug_of(a), "clones", clones_validate, clones_apply, NULL); cl_init(a); }

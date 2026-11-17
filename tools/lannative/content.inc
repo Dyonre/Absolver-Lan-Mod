@@ -516,17 +516,7 @@ static int styles_apply(const char *mod, const char *id, const char *json, void 
     return 0;
 }
 
-#include "powers.inc"                                                // kind "powers" and the power API; builds on the items code above
-#include "npcs.inc"                                                  // kind "npcs" and the NPC API (npc_spawn, on_area, ...)
-#include "bots.inc"                                                  // kinds "bots" + "ranks" and the progression API (xp_add, rank_info, trial_reward, ...)
-#include "hitpre.inc"                                                // kind "poise" and on_hit_pre / damage_mod / poise_set (API 2.19)
-#include "overlayapi.inc"                                            // overlay_info / _register / _unregister / _set_mode / _raw_mouse: plugins draw Dear ImGui through the loader's overlay (API 2.21)
-#include "defense_ev.inc"                                            // on_defense (API 2.20): guard / guard break / absorb / parry / deflect / dodge / avoid events
-#include "faejinesc.inc"                                             // Faejin gold-loop brakes (window shrink, stamina escalation; default OFF, config fe_*)
-#include "inputrec.inc"                                              // input_rec: input + state recorder, default off
-#include "botai.inc"                                                 // scripted bot, default off
-#include "clone.inc"                                                 // kind "clones": player clones = second local players with their own character, driven by a botai brain
-#include "animsets.inc"                                              // kind "anim_sets": runtime animation sets (padded style tables + wired clips)
+#include "powers.inc"                                                // kind "powers" and the power API; builds on the items code above (grants_warn_line below reads its tables)
 
 static int grants_warn_line(int k, char *out, int cap) {
     if (!g_gp_world_ok) return 0;
@@ -538,13 +528,11 @@ static int grants_warn_line(int k, char *out, int cap) {
 // ================================================================ the loader's own plugin
 static void content_ready(void *u) { (void)u; content_process("engine ready"); }
 static void content_saveload(void *save, void *u) { (void)u; logf_("content: save %p is about to resolve its item paths", save); content_process("before the save resolves its items"); grants_rearm(); }
+LN_CONTENT(0200, items) { ck_add(plug_of(a), "items", items_validate, items_apply, NULL); }
+LN_CONTENT(0300, styles) { ck_add(plug_of(a), "styles", styles_validate, styles_apply, NULL); }
 static void content_init(const AbsApi *a) {
-    CA = a; int p = plug_of(a);
-    ck_add(p, "maps", ms_validate, maps_apply, NULL);                 // mapscript.inc (+ "menu" travel item: bottrial.inc)
-    ck_add(p, "items", items_validate, items_apply, NULL); ck_add(p, "styles", styles_validate, styles_apply, NULL); ck_add(p, "powers", powers_validate, powers_apply, NULL); ck_add(p, "npcs", npcs_validate, npcs_apply, NULL); ck_add(p, "bots", bots_validate, bots_apply, NULL); ck_add(p, "ranks", ranks_validate, ranks_apply, NULL); ck_add(p, "bot_trials", trials_validate, trials_apply, NULL); ck_add(p, "poise", hp_poise_validate, hp_poise_apply, NULL); hp_init(a); de_init(a); fe_init(a); ir_init(a); bai_init(a); ck_add(p, "clones", clones_validate, clones_apply, NULL); cl_init(a);
-    ck_add(p, "anim_sets", as_kind_validate, as_kind_apply, NULL);
-    ck_add(p, "weapons", wp_kind_validate, wp_kind_apply, NULL);     // weapons.inc
-    learn_install();
+    CA = a;
+    LN_FOREACH(content, LnContent, u) u->fn(a);                       // the units' kinds and start-up (lnhooks.h LN_CONTENT), in key order: maps, items, styles, powers, npcs, bots, ranks, bot_trials, poise, ...
     a->on_engine_ready(a, content_ready, NULL);
     logf_("content: on_save_loading -> %d, on_world_loaded -> %d", a->on_save_loading(a, content_saveload, NULL), a->on_world_loaded(a, items_world, NULL));
 }

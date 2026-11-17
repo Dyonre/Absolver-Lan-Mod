@@ -136,3 +136,6 @@ static int cd_watch_add(const AbsApi *self, int kind, void *cb, void *user) {
 }
 static int api_p_on_weapon_changed(const AbsApi *self, void (*cb)(void *, void *, void *, int, void *), void *user) { return cd_watch_add(self, 0, (void *)cb, user); }
 static int api_p_on_style_changed(const AbsApi *self, void (*cb)(void *, int, int, void *), void *user) { return cd_watch_add(self, 1, (void *)cb, user); }
+LN_API(combodeck) {
+    a->combo_slot_ensure = api_p_combo_slot_ensure; a->combo_load = api_p_combo_load; a->combo_current = api_p_combo_current; a->set_combat_style = api_p_set_combat_style; a->on_weapon_changed = api_p_on_weapon_changed; a->on_style_changed = api_p_on_style_changed; a->prop_ptr_path = api_p_prop_ptr_path; a->fname_make = api_p_fname_make; a->fname_text = api_p_fname_text;
+}

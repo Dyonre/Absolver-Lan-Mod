@@ -208,7 +208,7 @@ static int api_p_poise_set(const AbsApi *self, void *ch, float poise, int heavy_
     return 1;
 }
 static float api_p_poise_get(const AbsApi *self, void *ch) { (void)self; HpChar *c = hp_find(&g_hp, ch ? ch : HP_PLAYER); return c && c->poise.max > 0.0f ? c->poise.cur : -1.0f; }
-static void hp_fill_api(AbsApi *a) { a->on_hit_pre = api_p_on_hit_pre; a->damage_mod = api_p_damage_mod; a->poise_set = api_p_poise_set; a->poise_get = api_p_poise_get; }
+LN_API(hitpre) { a->on_hit_pre = api_p_on_hit_pre; a->damage_mod = api_p_damage_mod; a->poise_set = api_p_poise_set; a->poise_get = api_p_poise_get; }
 
 // ----- content kind "poise": { "archetype": "<npcs / bots entry id, archetype name or path>", "poise": 30, "heavy_power": 2 }
 static int hp_parse(const char *json, HpPoiseDef *o, char *err, int cap) {
@@ -237,3 +237,4 @@ static int hp_poise_apply(const char *mod, const char *id, const char *json, voi
     return 0;
 }
 static void hp_init(const AbsApi *a) { HP_API = a; logf_("hitpre: ready (hooks are installed at the first on_hit_pre / damage_mod / poise_set / poise entry)"); }
+LN_CONTENT(0900, hitpre) { ck_add(plug_of(a), "poise", hp_poise_validate, hp_poise_apply, NULL); hp_init(a); }

@@ -436,7 +436,8 @@ static int npcs_apply(const char *mod, const char *id, const char *json, void *u
     return 0;
 }
 
-static void np_fill_api(AbsApi *a) {
+LN_API(npcs) {
     a->npc_spawn = api_p_npc_spawn; a->npc_remove = api_p_npc_remove; a->npc_set_target = api_p_npc_set_target; a->npc_set_faction = api_p_npc_set_faction; a->faction_can_target = api_p_faction_can_target;
     a->npc_archetype = api_p_npc_archetype; a->on_area = api_p_on_area; a->area_remove = api_p_area_remove; a->show_message = api_p_show_message;
 }
+LN_CONTENT(0500, npcs) { ck_add(plug_of(a), "npcs", npcs_validate, npcs_apply, NULL); }

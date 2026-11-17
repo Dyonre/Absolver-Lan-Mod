@@ -93,5 +93,6 @@ static int api_p_on_defense(const AbsApi *self, void (*cb)(const AbsDefenseInfo 
     EnterCriticalSection(&g_lock); g_de_cb[g_de_ncb].plugin = p; g_de_cb[g_de_ncb].cb = cb; g_de_cb[g_de_ncb].user = user; g_de_ncb++; LeaveCriticalSection(&g_lock);
     logf_("plugin %s: on_defense registered", plug_name_of(p)); return 0;
 }
-static void de_fill_api(AbsApi *a) { a->on_defense = api_p_on_defense; }
+LN_API(defense) { a->on_defense = api_p_on_defense; }
 static void de_init(const AbsApi *a) { DE_API = a; logf_("defense: ready (hooks are installed at the first on_defense registration)"); }
+LN_CONTENT(1000, defense) { de_init(a); }

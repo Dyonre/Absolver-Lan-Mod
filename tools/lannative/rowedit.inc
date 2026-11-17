@@ -681,3 +681,5 @@ static int rows_reload(char *status, int cap) {
     snprintf(status, cap, "rows.json: %d changed, %d table(s) updated%s%s", changed, tables, removed ? ", removed edits need a restart" : "", objchg ? ", data-asset edits need a restart" : "");
     return changed;
 }
+LN_INIT(0700, rowedit) { if (!cmdline_has_flag(GetCommandLineW(), L"nomods")) rowedit_install(); }
+LN_PRETICK(0100, rows) { rows_drain_objects(); }           // data asset edits that arrived on a loader thread are applied here, on the game thread

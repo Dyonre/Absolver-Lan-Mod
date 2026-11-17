@@ -31,3 +31,4 @@ static void learn_install(void) {
     g_o_learnstate = (uint8_t (*)(void *, const uint64_t *))CA->hook_symbol(CA, "UStatsComponent::BPF_GetAttackLearningState", (void *)learn_state_det);
     logf_("learn: learned-check detour %s", g_o_learnstate ? "installed" : "NOT installed - \"learn\": \"always\" rows need `mastery learn` on the save");
 }
+LN_CONTENT(1700, learn) { (void)a; learn_install(); }

@@ -1,4 +1,4 @@
-// overlayapi.inc - AbsApi::overlay_info / overlay_register / overlay_unregister / overlay_set_mode / overlay_raw_mouse (included by content.inc; needs LN_OVERLAY).
+// overlayapi.inc - AbsApi::overlay_info / overlay_register / overlay_unregister / overlay_set_mode / overlay_raw_mouse (included through units.inc after content.inc; needs LN_OVERLAY).
 // Plugins draw Dear ImGui windows through the loader's single overlay (overlay.cpp). Draw callbacks run on the render thread inside a guard; the guard's fault counter is the
 // plugin-wide one (3 faults switch every callback of the plugin off, this one included), and a plugin that is switched off or unloaded loses its overlay modes and callbacks
 // (ov_release_owner). The overlay is installed at the first registration or mode request, never at start-up. The loader's own menu style (menu_style) does not affect plugins.
@@ -42,10 +42,8 @@ static int api_p_overlay_raw_mouse(const AbsApi *self, int *dx, int *dy) {
     if (plug_of(self) < 0 || !dx || !dy || ov_state() == OV_OFF || ov_state() == OV_DEAD) return 1;
     return ov_raw_mouse(dx, dy);
 }
-static void ov_fill_api(AbsApi *a) {
+LN_API(overlay) {
     a->overlay_info = api_p_overlay_info; a->overlay_register = api_p_overlay_register; a->overlay_unregister = api_p_overlay_unregister;
     a->overlay_set_mode = api_p_overlay_set_mode; a->overlay_raw_mouse = api_p_overlay_raw_mouse;
 }
-#else
-static void ov_fill_api(AbsApi *a) { (void)a; }
 #endif

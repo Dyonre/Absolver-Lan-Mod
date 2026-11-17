@@ -282,3 +282,4 @@ static int wp_kind_apply(const char *mod, const char *id, const char *json, void
           k.has_defense ? ", \"defense\" present: reserved (not used)" : "");
     return 0;
 }
+LN_CONTENT(1600, weapons) { ck_add(plug_of(a), "weapons", wp_kind_validate, wp_kind_apply, NULL); }

@@ -154,4 +154,5 @@ static int api_p_on_handled_weapon(const AbsApi *self, void (*cb)(void *, void *
     AsWatch *x = &g_asw[g_asw_n]; memset(x, 0, sizeof *x); x->plugin = p; x->cb = cb; x->user = user; g_asw_n++;
     logf_("plugin %s: on_handled_weapon registered (polled per tick, local player, character+0x%X)", plug_name_of(p), AS_OFF_HANDLED); return 0;
 }
-static void as_fill_api(AbsApi *a) { a->anim_style_set = api_p_anim_style_set; a->anim_style = api_p_anim_style; a->real_style = api_p_real_style; a->on_handled_weapon = api_p_on_handled_weapon; }
+LN_API(animstyle) { a->anim_style_set = api_p_anim_style_set; a->anim_style = api_p_anim_style; a->real_style = api_p_real_style; a->on_handled_weapon = api_p_on_handled_weapon; }
+LN_SE_TICK(0300, animstyle) { as_tick(g_ln_dt); }

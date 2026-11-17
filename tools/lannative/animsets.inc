@@ -236,3 +236,4 @@ static int as_tables_hold(int style, char *why, int cap) {
     if (!g_as_hold_ok) snprintf(why, cap, "%s", g_as_hold_why);
     return g_as_hold_ok;
 }
+LN_CONTENT(1500, animsets) { ck_add(plug_of(a), "anim_sets", as_kind_validate, as_kind_apply, NULL); }

@@ -538,4 +538,5 @@ static int api_p_mapscript_mesh(const AbsApi *self, const char *mesh, const char
     int ok = 0; if (mesh && state) for (int i = 0; i < g_ms_n && !ok; i++) if (g_ms[i]->live) ok = ms_mesh_set_state(g_ms[i], mesh, state);
     logf_("plugin %s: mapscript_mesh('%s', '%s') -> %d", plug_name_of(plug_of(self)), mesh ? mesh : "", state ? state : "", ok); return ok;
 }
-static void ms_fill_api(AbsApi *a) { a->mapscript_phase = api_p_mapscript_phase; a->mapscript_mesh = api_p_mapscript_mesh; }
+LN_API(mapscript) { a->mapscript_phase = api_p_mapscript_phase; a->mapscript_mesh = api_p_mapscript_mesh; }
+LN_SE_TICK(0200, mapscript) { ms_tick(g_ln_dt); }

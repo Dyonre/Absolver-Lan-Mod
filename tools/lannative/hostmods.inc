@@ -153,7 +153,6 @@ static int hs_recv_line(SOCKET c, char *out, int cap) {
     int n = 0; for (;;) { char ch; int k = recv(c, &ch, 1, 0); if (k <= 0) return 0; if (ch == '\n') break; if (ch == '\r') continue; if (n >= cap - 1) return 0; out[n++] = ch; }
     out[n] = 0; return 1;
 }
-static void ni_serve(SOCKET c, const char *masked);         // netinspect.inc: answers "NI" (the host's character list for the joiner's Net Inspector)
 static void hs_serve(SOCKET c, uint32_t ip) {
     char masked[40]; { char a[24]; snprintf(a, sizeof a, "%u.%u.%u.%u", ip >> 24, (ip >> 16) & 255, (ip >> 8) & 255, ip & 255); jg_mask_addr(a, masked, sizeof masked); }
     if (!jg_allowed_ip(&g_jg, ip)) { logf_("host mods: request from %s REFUSED (allow list)", masked); return; }
@@ -166,7 +165,7 @@ static void hs_serve(SOCKET c, uint32_t ip) {
     if (g_hm_mode == HM_OFF) { hs_send_all(c, "ERR this host does not share mods\n", 34); return; }
     if (g_hs_n < 0) hs_build();
     char buf[400];
-    if (!strcmp(cmd, "NI") && nf == 1) { ni_serve(c, masked); return; }
+    if (nf == 1) LN_FOREACH(hsverb, LnVerb, v) if (!strcmp(cmd, v->verb)) { v->fn(c, masked); return; }   // the units' verbs (lnhooks.h LN_HS_VERB): NI
     if (!strcmp(cmd, "LIST") && nf == 1) {
         hm_format_header(g_lm_me.fp, g_hs_n, g_hsns_n, buf, sizeof buf); int ok = hs_send_all(c, buf, (int)strlen(buf));
         for (int i = 0; ok && i < g_hs_n; i++) { hm_format_line(&g_hs[i].e, buf, sizeof buf); ok = hs_send_all(c, buf, (int)strlen(buf)); }
@@ -439,6 +438,7 @@ static void hm_menu_action(int i) {
     default: break;
     }
 }
+LN_MODS_ROWS(0100, hostmods, hm_menu_count, hm_menu_label, hm_menu_action)
 // game thread, every frame: one toast per state change
 static void hm_tick(void) {
     if (!g_hm_init) return;
@@ -458,6 +458,7 @@ static void hm_tick(void) {
     LeaveCriticalSection(&g_hm_cs);
     if (n) toast_show(lines, n, st == HJ_OFFER ? 30 : 15);
 }
+LN_TICK(0400, hostmods) { hm_tick(); }                    // host mod download: asks a joined host, toasts
 
 // ----- boot: mount Mods\_FromHost\<active host>\<Mod>\*.pak after the player's own mods (modglue.inc calls this before the LAN fingerprint is final)
 static void hm_mount_fromhost(void *self, PakMount_t mount, int *position, uint64_t *fp, uint64_t *gp_fp, const char **gpn, int *ngp, int *mounted_mods, const wchar_t *sigsrc, int have_sigsrc) {
@@ -510,3 +511,4 @@ static void hostmods_install(void) {
     logf_("host mods: %s (moddownload = prompt | off), side channel TCP %u", g_hm_mode == HM_OFF ? "OFF - this PC neither offers its mods nor asks a host" : "PROMPT - a host's missing mods are offered; nothing installs without a click", g_hm_port);
     hm_init_once();
 }
+LN_INIT(0500, hostmods) { hostmods_install(); }

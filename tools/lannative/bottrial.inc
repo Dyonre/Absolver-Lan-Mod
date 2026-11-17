@@ -671,3 +671,6 @@ static int api_p_bot_trial_status(const AbsApi *self, AbsTrialStatus *out) {
                 r.rounds_to_win = g_trs.m.rounds_to_win; r.total_player = g_trs.m.tp; r.total_bot = g_trs.m.tb; r.finished = g_trs.m.done; r.won = g_trs.m.won; r.xp = g_trs.xp; r.points = g_trs.points; r.ai_level = g_trs.level; r.bot = g_trs.bot; }
     memcpy(out, &r, out->size < sizeof r ? out->size : sizeof r); return have;
 }
+LN_CONTENT(0100, maps) { ck_add(plug_of(a), "maps", ms_validate, maps_apply, NULL); }                 // validate: mapscript.inc; apply (+ the "menu" travel item): above
+LN_CONTENT(0800, bottrials) { ck_add(plug_of(a), "bot_trials", trials_validate, trials_apply, NULL); }
+LN_API(bottrials) { a->bot_trial_start = api_p_bot_trial_start; a->bot_trial_status = api_p_bot_trial_status; }   // API 2.16

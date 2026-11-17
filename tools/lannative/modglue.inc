@@ -431,3 +431,10 @@ static uint8_t hk_pakinit(void *self, void *lower, const wchar_t *cmdline) {
     __try { mods_mount_all(self); } __except (EXCEPTION_EXECUTE_HANDLER) { logf_("mods: EXCEPTION 0x%08lX in the mod loader - the game continues without mods", GetExceptionCode()); }
     return r;
 }
+LN_INIT(0200, modloader) {                                 // the mod loader runs inside the game's own pak start-up (hk_pakinit)
+    if (!cmdline_has_flag(GetCommandLineW(), L"nomods")) {
+        g_orig_pakinit = (PakInit_t)hook(IDX_PAKINIT, (void *)hk_pakinit);
+        if (!g_orig_pakinit) logf_("mods: pak hook NOT installed - the mod loader is off (stock game unchanged)");
+    } else logf_("mods: -NoMods on the command line - the mod loader is off");
+    g_lm_me.present = 1;                                              // until the mod loader fills it in: "no gameplay mods"
+}

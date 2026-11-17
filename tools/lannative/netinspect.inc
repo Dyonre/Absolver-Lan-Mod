@@ -213,6 +213,8 @@ static DWORD WINAPI ni_fetch_thread(LPVOID u) {
 }
 
 // ----- host: hostmods.inc hs_serve hands "NI" requests here (server thread)
+static void ni_serve(SOCKET c, const char *masked);
+LN_HS_VERB(netinspect, "NI", ni_serve)                             // the host's character list for the joiner's Net Inspector
 static void ni_serve(SOCKET c, const char *masked) {
     ni_init_once();
     InterlockedIncrement(&g_ni_asked);                                               // before the refresh, so the host's own page counts this request
@@ -224,7 +226,7 @@ static void ni_serve(SOCKET c, const char *masked) {
     free(s);
 }
 
-// ----- the F2 Mods page (modsui.inc appends these rows after the host-mods rows)
+// ----- the F2 Mods page (rows after the host-mods rows: LN_MODS_ROWS key 0200)
 static int ni_menu_count(void) {
     ni_init_once();
     static uint64_t last; uint64_t now = GetTickCount64();                        // modsui re-reads the rows every 0.5 s while the page is open
@@ -239,6 +241,8 @@ static void ni_install_link(const char *mod) {
     logf_("net inspector: '%s' row clicked, but the host-mods page has no INSTALL row right now (state %d)", mod, g_hj.state);
     char lines[1][LM_LINE_MAX]; snprintf(lines[0], LM_LINE_MAX, "Net Inspector: no download offer open for %s right now", mod); toast_show(lines, 1, 6);
 }
+static void ni_menu_action(int i);
+LN_MODS_ROWS(0200, netinspect, ni_menu_count, ni_menu_label, ni_menu_action)
 static void ni_menu_action(int i) {
     if (i < 0 || i >= g_ni_nrows) return;
     NiRow r = g_ni_rows[i];
@@ -274,3 +278,4 @@ static void ni_tick(void) {
         else if (seq != last_seq) { last_seq = seq; if (g_ni_nrows && g_ni_view == NIV_CLIENT) ni_render("host-mods offer changed"); }
     } __except (EXCEPTION_EXECUTE_HANDLER) { logf_("net inspector: EXCEPTION 0x%08lX in the tick", GetExceptionCode()); }
 }
+LN_TICK(0500, netinspect) { ni_tick(); }                  // refresh when due, serve a snapshot request of a joiner

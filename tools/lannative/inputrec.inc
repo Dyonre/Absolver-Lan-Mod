@@ -249,3 +249,4 @@ static void ir_init(const AbsApi *a) {
     if (!o_ir_key || et) { logf_("inputrec: the key hook or the tick is missing - recorder OFF"); g_ir_state = -1; return; }
     atexit(ir_exit); g_ir_state = 0;
 }
+LN_CONTENT(1200, inputrec) { ir_init(a); }

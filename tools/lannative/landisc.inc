@@ -198,3 +198,5 @@ static void ld_tick(uint64_t now) {
     }
 }
 static int ld_found(void) { return g_ld_list.n; }
+LN_INIT(0400, landisc) { ld_install(); }
+LN_TICK(0600, landisc) { ld_tick(GetTickCount64()); }      // answers while hosting, searches at an altar / F1 > LAN games

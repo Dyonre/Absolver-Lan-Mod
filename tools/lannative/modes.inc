@@ -110,7 +110,9 @@ static void md_draw_line(void *canvas, const char *utf8, float cx, float y, floa
     memcpy(color, black, 4); draw(canvas, font, &text, x + 2.f * scale, y + 2.f * scale, scale, scale, info);
     memcpy(color, rgba_bgra, 4); draw(canvas, font, &text, x, y, scale, scale, info); memcpy(color, saved, 4);
 }
-static void md_draw(void *canvas) {                                      // called from hk_postrender (lannative.c); the caller has a __try
+static void md_draw(void *canvas);
+LN_DRAW(0200, modes, md_draw_active, md_draw)
+static void md_draw(void *canvas) {                                      // called from hk_postrender (lannative.c) through the draw table; the caller has a __try
     if (!md_draw_active()) return;
     static const uint8_t expect[10] = { 0x48, 0x89, 0x5C, 0x24, 0x08, 0x57, 0x48, 0x83, 0xEC, 0x70 };
     if (memcmp(g_base + RVA_CANVAS_DRAWTEXT, expect, sizeof expect) != 0) return;
@@ -131,8 +133,9 @@ static void md_tick(float dt) {
         const char *t = NULL; if (mdb_tick(&g_md_bq, dt, &t)) { snprintf(g_md_banner_cur, sizeof g_md_banner_cur, "%s", t); logf_("modes: banner '%s'", t); }
     } __except (EXCEPTION_EXECUTE_HANDLER) { static int n; if (n++ < 5) logf_("modes: tick EXCEPTION 0x%08lX", GetExceptionCode()); }
 }
-static void md_fill_api(AbsApi *a) {
+LN_API(modes) {
     a->travel = api_p_travel; a->console_cmd = api_p_console_cmd; a->solo_duel = api_p_solo_duel; a->match_info = api_p_match_info; a->on_match_state = api_p_on_match_state; a->on_round_end = api_p_on_round_end;
     a->set_mode_prop = api_p_set_mode_prop; a->show_banner = api_p_show_banner; a->hud_score = api_p_hud_score;
     a->set_timer_id = api_p_set_timer_id; a->cancel_timer = api_p_cancel_timer;
 }
+LN_SE_TICK(0100, modes) { md_tick(g_ln_dt); }

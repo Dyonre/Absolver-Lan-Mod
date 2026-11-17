@@ -156,3 +156,4 @@ static void fe_init(const AbsApi *a) {
     if (g_fe_cfg.enabled && (!o_fe_coef || !g_fe_style_fn)) g_fe_cfg.enabled = 0;           // never half-on: without the verified hook / style read there is no escalation
     g_fe_state = bad ? -1 : 1;
 }
+LN_CONTENT(1100, faejinesc) { fe_init(a); }

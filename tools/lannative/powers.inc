@@ -196,3 +196,5 @@ static int powers_apply(const char *mod, const char *id, const char *json, void 
     if (p->grant && !p->granted) grants_arm(g_reloading ? "hot reload" : "power ready");
     return 0;
 }
+LN_API(powers) { a->inventory_equip_slot = api_p_inventory_equip_slot; a->on_power_used = api_p_on_power_used; a->power_use = api_p_power_use; }
+LN_CONTENT(0400, powers) { ck_add(plug_of(a), "powers", powers_validate, powers_apply, NULL); }

@@ -68,3 +68,5 @@ static void servermode_tick(void) {
         }
     } __except (EXCEPTION_EXECUTE_HANDLER) { g_srv.faults++; logf_("server mode: EXCEPTION 0x%08lX at step %d (fault %d of 2)", GetExceptionCode(), g_srv.stage, g_srv.faults); }
 }
+LN_INIT(0600, servermode) { servermode_install(); }
+LN_PRETICK(0200, servermode) { servermode_tick(); }        // unattended host steps

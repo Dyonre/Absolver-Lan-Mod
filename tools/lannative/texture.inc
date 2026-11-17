@@ -75,3 +75,4 @@ static void *api_p_texture_from_file(const AbsApi *self, const char *file, const
     logf_("plugin %s: texture_from_file %s: decoded %dx%d", who, file, w, h);
     void *t = api_p_create_texture(self, px, w, h, path); free(px); return t;
 }
+LN_API(texture) { a->create_texture = api_p_create_texture; a->texture_from_file = api_p_texture_from_file; }

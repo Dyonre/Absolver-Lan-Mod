@@ -140,3 +140,5 @@ static void matchredir_install(void) {
     if (!c || !d) { logf_("matchmaking: the LAN-only guard is incomplete, so the online gate stays CLOSED (the game could otherwise reach Sloclap's servers)"); return; }
     mr_open_online_gate();
 }
+
+LN_PREINIT(0100, matchredir) { matchredir_install(); }
