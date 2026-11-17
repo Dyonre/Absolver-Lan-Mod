@@ -269,14 +269,30 @@ static int se_params_of(void *func, SeParam *out, int cap) {
     for (int i = 1; i < n; i++) { SeParam t = out[i]; int j = i - 1; while (j >= 0 && out[j].off > t.off) { out[j + 1] = out[j]; j--; } out[j + 1] = t; }
     return n;
 }
+// args[i] points at the value of the i-th non-return parameter (in declaration order); *ret receives the return value (can be NULL). Out parameters are copied back into args[i].
+// args has no length: a plugin that passes fewer pointers than the function has inputs makes the loader read past its array (stack garbage). An unreadable
+// pointer is refused before the copy (no access violation) and the log names the function's inputs; a readable garbage pointer cannot be detected.
+#include "seread.h"                                                // se_readable
+static void se_bad_arg_log(const AbsApi *self, void *func, const SeParam *ps, int n, int bad, const void *ptr) {
+    static int nlog; if (nlog++ >= 20) return;                        // a per-tick caller would flood the log
+    char fn[96], list[400]; int w = 0, ins = 0; se_name_of(func, fn, sizeof fn); list[0] = 0;
+    for (int i = 0; i < n; i++) { if (ps[i].flags & CPF_RETURNPARM) continue; char pn[64]; se_name_of(ps[i].prop, pn, sizeof pn); if (w < (int)sizeof list - 70) w += snprintf(list + w, sizeof list - (size_t)w, "%s%s", ins ? ", " : "", pn); ins++; }
+    logf_("plugin %s: call_function_params(%s) refused - args[%d] = %p is not a readable pointer. %s takes %d input(s): %s - pass one pointer per input (is the args array too short?)%s",
+          plug_name_of(plug_of(self)), fn, bad, ptr, fn, ins, list, nlog == 20 ? " (further refusals not logged)" : "");
+}
 static int api_p_call_params(const AbsApi *self, void *obj, void *func, void **args, void *ret) {
     if (!obj || !func) return 0; if (!api_p_is_game_thread(self)) { logf_("plugin %s: call_function_params refused - not on the game thread", plug_name_of(plug_of(self))); return 0; }
     int ok = 0; SeParam ps[32]; int n = 0; uint8_t *block = NULL;
     __try {
         n = se_params_of(func, ps, 32); int psize = *(int *)((uint8_t *)func + 0x40); if (psize < 0 || psize > 4096) return 0;
         block = calloc(1, (size_t)psize + 32); if (!block) return 0;
-        int ai = 0;
-        for (int i = 0; i < n; i++) { if (ps[i].flags & CPF_RETURNPARM) continue; if (args && args[ai] && ps[i].off + ps[i].size <= psize) memcpy(block + ps[i].off, args[ai], (size_t)ps[i].size); ai++; }
+        int ai = 0, bad = -1;
+        for (int i = 0; i < n && bad < 0; i++) {
+            if (ps[i].flags & CPF_RETURNPARM) continue;
+            if (args && args[ai] && ps[i].off + ps[i].size <= psize) { if (se_readable(args[ai], (size_t)ps[i].size)) memcpy(block + ps[i].off, args[ai], (size_t)ps[i].size); else { se_bad_arg_log(self, func, ps, n, ai, args[ai]); bad = ai; } }
+            ai++;
+        }
+        if (bad >= 0) { free(block); return 0; }
         ((void (*)(void *, void *, void *))(g_base + RVA_PROCESSEVENT))(obj, func, block);
         ai = 0;
         for (int i = 0; i < n; i++) {
