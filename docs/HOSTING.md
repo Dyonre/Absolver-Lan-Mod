@@ -6,13 +6,17 @@ Offline / private LAN play only (`-NoEAC`, like every part of the loader). Playe
 
 ## 1. Host, find, join
 
-**Host:** F1 menu > `Host`. The main world opens as a listen server (UDP port 7777) and the screen says that LAN players can find it at an altar.
+**Host:** F2 world menu > `Host`. The main world opens as a listen server (UDP port 7777) and the screen says that LAN players can find it at an altar.
 
-**Join from an altar (no address to type):** walk to any altar and open it. While the altar menu is open (and you are not joined to a host) the loader searches the network; a host that answers shows up as `LAN game found: <character> on <map> - press F1 to join`. Press **F1**: the menu opens on the **LAN games** list (`<character> - <map> (co-op / duel, N players) - <address> - mods match / MODS DIFFER`). Select a game and press **Enter** to join. The same list is on the F1 menu as `LAN games...` anywhere in the world.
+**Hosting switch:** the loader window (F1) > Hosting tab starts with a Hosting ON / OFF switch. OFF refuses every join (the joiner sees that the host is not accepting players) and stops the host answering the LAN finder; players already in the game stay (F2 > `Kick player...` removes them). `hosting = on | off` in `config.txt` sets the state at start (default `on`). The tab also holds the host mod download setting and the maximum number of players.
 
-**Join by address:** F1 > `Join address (Enter to type it)` writes the host's address (`192.168.1.20` or `26.1.2.3:7777`) to `LanNative\ip.txt`, then F1 > `Join`. Use this when the list stays empty (section 3).
+**Host notices:** a host plugin can show joiners a one-line notice (plugin API 2.35, `net_notice`). A joiner with the loader sees it at the top of its loader windows and as a message when it changes; Cheats uses it to say `Host has cheats enabled`.
 
-| F1 item | What it does |
+**Join from an altar (no address to type):** walk to any altar and open it. While the altar menu is open (and you are not joined to a host) the loader searches the network; a host that answers shows up as `LAN game found: <character> on <map> - press F2 to join`. Press **F2**: the menu opens on the **LAN games** list (`<character> - <map> (co-op / duel, N players) - <address> - mods match / MODS DIFFER`). Select a game and press **Enter** to join. The same list is on the F2 menu as `LAN games...` anywhere in the world.
+
+**Join by address:** F2 > `Join address (Enter to type it)` writes the host's address (`192.168.1.20` or `26.1.2.3:7777`) to `LanNative\ip.txt`, then F2 > `Join`. Use this when the list stays empty (section 3).
+
+| F2 world menu item | What it does |
 |---|---|
 | `Host` | opens `/Game/Maps/MainMap/MainMap_Main?listen` as a listen server |
 | `Host address` | which network address a host binds: `auto` (every adapter, default) or one of the `hostip = <address>` lines in `config.txt` (repeatable; first line = default). With a fixed address, joiners must use exactly that address (the LAN list does this for them) |
@@ -24,11 +28,13 @@ Offline / private LAN play only (`-NoEAC`, like every part of the loader). Playe
 
 Joining from the LAN list writes `ip.txt` too (line 1 = the host's address; line 2 = `none` for a host on a duel map, so the join uses a bare URL), so `Join` reconnects to the same host later. While connected as a joiner, `Host`, `Join` and map travel are ignored once (logged); select the item again within 5 seconds to leave and do it anyway. `ip.txt` line 2 may also hold extra URL options for the join. The developer command `url` (`docs/ADVANCED.md`) shows the join URL without joining.
 
-Every host travel the loader makes (F1 > `Host`, the map list, server mode) adds `?bIsLanMatch` to the URL, so a host whose Steam is online still listens on the network addresses (without it, joins by address time out).
+Every host travel the loader makes (F2 > `Host`, the map list, server mode) adds `?bIsLanMatch` to the URL, so a host whose Steam is online still listens on the network addresses (without it, joins by address time out).
+
+**Loader version:** a join needs the same major loader version on both sides (`5.x` joins `5.y`); the minor versions may differ. A host refuses a joiner with another major version and says so in its log and on screen; the joiner (5.4 or newer) sees the host's reason as a message and at the top of its loader window for a minute, and stays in its own world. A joiner that sends the mod check but no version is a 5.0-5.3 loader (major 5); a vanilla game or a LanNative 4.x joiner cannot be told apart at login and is allowed.
 
 Both sides compare their gameplay mods when a joiner arrives (`modmismatch = warn | block | off`, `docs/MODS.md`); the LAN list already shows whether they match. A joiner can get the host's shareable pak mods from the host (section 4).
 
-**Kick a player (host):** F1 > `Kick player...`, select the player, press Enter twice. The game's own kick runs: the player's character and connection are removed, their game goes back to the title screen and shows `KICKED: The host removed you from the session.` (the loader's notice; a joiner with `modmismatch = off` does not show it). A kicked player can join again; to keep someone out, use `allow` lines.
+**Kick a player (host):** F2 > `Kick player...`, select the player, press Enter twice. The game's own kick runs: the player's character and connection are removed, their game goes back to the title screen and shows `KICKED: The host removed you from the session.` (the loader's notice; a joiner with `modmismatch = off` does not show it). A kicked player can join again; to keep someone out, use `allow` lines.
 
 **Player limit:** `maxplayers = 6` (default; `2`-`16`, or `off`) counts the players in the host's world, the host included. A joiner past the limit is refused with "the host's world is full".
 
@@ -58,9 +64,9 @@ The settings `joinkey`, `joinprotect` and `maxpeers` and the file `joinkey.txt` 
 | Cause | Fix |
 |---|---|
 | Windows Firewall blocks UDP 7778 on the host | Allow `Absolver-Win64-Shipping.exe` (or UDP 7777-7778) on **private** networks |
-| The VPN does not pass broadcasts (Tailscale and other point-to-point VPNs; some Hamachi network types) | Put the host's VPN address in `ip.txt` (F1 > `Join address`): the finder also asks that address directly, so it shows in the list; or use `Join` |
+| The VPN does not pass broadcasts (Tailscale and other point-to-point VPNs; some Hamachi network types) | Put the host's VPN address in `ip.txt` (F2 > `Join address`): the finder also asks that address directly, so it shows in the list; or use `Join` |
 | The host set `allow` lines that do not include you, or `lanfinder = off` | Ask the host |
-| The host is not hosting yet | The host presses F1 > `Host` first |
+| The host is not hosting yet | The host presses F2 > `Host` first |
 
 ## 4. Mods from the host
 

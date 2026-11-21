@@ -14,11 +14,13 @@ Much of the code and documentation was written with the help of AI tools.
 
 * **Mods**: one folder per mod in `<game>\Mods\`: `rows.json` edits of game tables, new items / powers / NPCs / styles / map scenes from
   JSON, paks, Lua scripts and native C plugins. Dependencies and load order from `mod.json`; conflicts are listed.
-* **In game**: **F1** menu (hosting, joining, LAN games list, kick, map list with categories and search, options), **F2** Mods page
-  (switch mods on and off, reorder, profiles, settings, conflicts, reload, Net Inspector, key binding, log window). Keyboard, mouse or gamepad.
-  `-NoMods` starts without mods.
+* **In game**: **F1** loader window (tabs Mods, Keybinds, Hosting, Settings, Log and one per mod that adds a tab: switch mods on and off, reorder,
+  profiles, settings, conflicts, reload, Net Inspector, key binding, log, a Hosting ON / OFF switch), **F2** world menu (hosting, joining, LAN games
+  list, kick, map list with categories and search, NPCs, options). Keyboard, mouse or gamepad. `-NoMods` starts without mods.
+* **Bundled mod**: Cheats (`Mods\Cheats`, a tab of the loader window, F10 opens it): player, world, NPC, game speed, debug and item helpers for playing
+  alone. Every cheat is off while other players are in the game unless the host switches that off. Remove its line from `Mods\plugins.txt` to switch it off.
 * **Plugin API**: hooks on game functions, calls by name, properties, events, spawning, timers, menus, an ImGui overlay.
-* **LAN play**: host and join from the F1 menu over a LAN or VPN, a list of LAN games at every altar, LAN duels, an optional address
+* **LAN play**: host and join from the F2 world menu over a LAN or VPN, a list of LAN games at every altar, LAN duels, an optional address
   allow list, a player limit, a host kick, a mod check when a player joins and a download of the host's shareable pak mods.
 * **Fixes**: the Forsaken "cursed parry" fix, on by default.
 

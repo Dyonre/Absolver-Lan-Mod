@@ -96,4 +96,4 @@ end)
 ## Hot reload, REPL, menu
 * Save a script: within a second every script is reloaded (the whole Lua state restarts: timers and handlers of the old state are gone, `ready` fires again). `reload = off` in plugin.cfg disables it.
 * REPL: write Lua into `Mods\LuaHost\repl_in.txt` (an expression or statements); it runs within a second, the result is logged (`luahost: repl>`) and appended to `repl_out.txt`. `repl = off` in plugin.cfg disables it.
-* Mods page (F2): `LuaHost: reload scripts`, `LuaHost: status`.
+* Mods tab (F1): `LuaHost: reload scripts`, `LuaHost: status`.

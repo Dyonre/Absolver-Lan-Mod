@@ -42,4 +42,4 @@ Objects are created under `/Game/Mods/<mod id>/<id>`. Plugins add kinds with `re
 | `clones` | a second local player driven by a bot brain | `name`, `brain`, `profile` (a file with the character data), `style`, `menu` |
 | `poise` | a poise gauge for an archetype | `archetype`, `poise`, `heavy_power` |
 
-Content and `rows.json` reload from the first line of the Mods page (F2); `base` and `copy_of` fields need a restart.
+Content and `rows.json` reload from the first line of the Mods tab (F1); `base` and `copy_of` fields need a restart.

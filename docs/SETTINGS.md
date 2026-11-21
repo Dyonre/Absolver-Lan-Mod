@@ -8,9 +8,10 @@ once `config.txt` exists those files are ignored.
 | Key | Default | Meaning |
 |---|---|---|
 | `lan` | `off` | `on`: LAN networking hooks (joiner fixes, host tracking, cleanup of a departed player) |
-| `hostip` | `auto` | address a host binds (`auto` = every adapter); repeatable, the first is the default, F1 cycles them |
+| `hostip` | `auto` | address a host binds (`auto` = every adapter); repeatable, the first is the default, F2 cycles them |
 | `allow` | none | `a.b.c.d[/bits]`, repeatable (max 64; `#` starts a comment): only these addresses may join and see the game in the LAN list. An invalid line refuses every join until it is fixed |
 | `lanfinder` | `on` | `off`: no LAN list (this PC neither answers searches while hosting nor searches at an altar; UDP 7778) |
+| `hosting` | `on` | `off`: every join is refused and the LAN finder does not answer (F1 > Hosting switches it) |
 | `maxplayers` | `6` | players in the host's world, the host included: `2`-`16` or `off` |
 | `moddownload` | `prompt` | `prompt`: a host offers its shareable pak mods and a joiner is asked before anything is downloaded; `off`: neither |
 | `moddownload_port` | `7779` | TCP port of the host mod download |
@@ -19,7 +20,7 @@ once `config.txt` exists those files are ignored.
 | `pvpfix` | `on` | `on`: LAN duels (send-back guard + duel flow); `guard`: guard only; `off` |
 | `perteam` | `1` | players per team in 3v3 maps: `1`, `2`, `3` / `off` (the game's own 6) |
 | `soloduel` | `off` | `on`: a hosted 1v1 / 3v3 starts with only the local player |
-| `npc` | `on` | F1 > Spawn NPC (host only) |
+| `npc` | `on` | F2 > Spawn NPC (host only) |
 | `npcrepl` | `off` | also replicate the NPC spawner actor to joiners |
 | `matchmaking` | `off` | a private address or `auto`: the game's two backend service names resolve to that LAN address (for a LAN backend program); private / loopback addresses only |
 | `servermode` | `off` | `on` (or `-LNServer`): unattended host that loads `servermode_save`, travels to `servermode_map` after `servermode_delay` seconds (3-300, default 12) and hosts |
@@ -37,7 +38,7 @@ once `config.txt` exists those files are ignored.
 |---|---|---|
 | `menu` | `on` | the F1 / F2 menus |
 | `menu_style` | `imgui` | `imgui` / `text` |
-| `pad_menu` | `on` | gamepad in the F1 / F2 menus: Back + Start opens F1, d-pad / A / B navigate; `off` |
+| `pad_menu` | `on` | gamepad in the F1 / F2 menus: Back + Start opens the loader window (F1), d-pad / A / B navigate; `off` |
 | `keep_keys` | `F11` | keys the game never gets in a Modded start (comma-separated key names, or `none`); F keys the loader or a mod uses are kept from the game as well. Works through the ImGui overlay (`menu_style = imgui`, the default) |
 | `telemetry` | `basic` | `off` / `basic` / `verbose` [seconds]: CSV snapshots in `LanNative\` |
 | `perf_stats` | `on` | frame-time recorder, 30 s windows written to the log |
@@ -59,13 +60,13 @@ Keys of individual features (`wp_*`, `anim_sets*`, `bot_ai_*`, `clone_spawn`, `d
 ## Keys
 | Key | Action |
 |---|---|
-| F1 | loader menu: host, join, LAN games, kick, maps (categories; type to search), NPCs, options |
-| F2 | Mods page: load order, switch mods on / off, profiles, settings, conflicts, plugin faults, reload, skipped `Content\Paks` paks, host mod download, Net Inspector, key binding, log window (`docs/MODS.md`) |
-| Back + Start (gamepad) | opens the F1 menu (`pad_menu`) |
+| F1 | loader window: tabs Mods (load order, switch mods on / off, profiles, conflicts, plugin faults, reload, skipped `Content\Paks` paks), Keybinds, Hosting (ON / OFF switch, host mod download, max players, Net Inspector), Settings (this file's options in a form), Log, and one tab per mod that adds one (`docs/MODS.md`) |
+| F2 | world menu: host, join, LAN games, kick, maps (categories; type to search), NPCs, options |
+| Back + Start (gamepad) | opens the F1 loader window (`pad_menu`); Q / E or LB / RB switch tabs |
 | F9 / F10 / F11 | developer keys, only while `LanNative\devkeys.txt` exists: free camera, teleport, developer commands (`docs/ADVANCED.md`) |
 
 A key that two owners use (the loader, a plugin's `on_key` or `declare_key`, the game, Steam) is a clash: it is logged once and listed on the
-Mods page. While the F1 / F2 menu or a plugin window has the keyboard, other plugins' `on_key` callbacks get only F keys.
+Keybinds tab. While the F1 / F2 menu or a plugin window has the keyboard, other plugins' `on_key` callbacks get only F keys.
 
 ## Per-mod settings
-A mod's `plugin.cfg` (`key = value`), read by its plugin with `config_get`. A `settings` list in `mod.json` shows it as a form on the Mods page.
+A mod's `plugin.cfg` (`key = value`), read by its plugin with `config_get`. A `settings` list in `mod.json` shows it as a form on the Mods tab.

@@ -23,7 +23,7 @@ Mod-checking tools: `test\build_tools.bat` builds `reccheck.exe`, `modscan.exe` 
 
 ## Layout
 
-* `lannative.c` - entry point, hooks, key handling, the F1 menu.
+* `lannative.c` - entry point, hooks, key handling, the world menu (F2) and loader window (F1).
 * `*.inc` - units: one feature each (mods, rows.json, plugins, content kinds, powers, NPCs, bots, map scripts, ...), listed in `units.inc` (the item code's helpers `weapons.inc`, `weaponslot.inc`, `kindstate.inc`, `learn.inc` and `powers.inc` are included from `content.inc`).
 * `*.h` - pure logic and tables used by the modules.
 * `AbsolverSE.h` - the plugin API header (`docs/API-REFERENCE.md`).
@@ -37,12 +37,12 @@ the item code are included from `content.inc`. The order of
 
 A unit registers what it runs with a macro next to its own code instead of a call in `lannative.c`: `LN_PREINIT` / `LN_INIT` (start-up),
 `LN_PRETICK` / `LN_TICK` (every frame), `LN_SE_TICK` (script extender frame), `LN_DRAW` (canvas text), `LN_API` (its `AbsApi` fields),
-`LN_CONTENT` (content kinds), `LN_MODS_ROWS` (rows on the F2 Mods page) and `LN_HS_VERB` (verbs on the host-mods side channel). The tables
+`LN_CONTENT` (content kinds), `LN_MODS_ROWS` (rows on the F1 Mods tab) and `LN_HS_VERB` (verbs on the host-mods side channel). The tables
 are declared in `lnhooks.h`; `lnreg.h` is the mechanism (the linker collects the entries; the start-up, frame, draw, content and page tables run in the order of
 an explicit four-digit key, and a key used twice in one table does not compile). The log lists every table after the version line (`registry: ...`).
 
 ## Keys
 
-F1 opens the loader menu (host, join, maps, NPCs), F2 the Mods page (`docs/MODS.md`). F9, F10 and F11 are developer keys,
+F1 opens the loader window (mods, keybinds, hosting, settings, log; `docs/MODS.md`), F2 the world menu (host, join, maps, NPCs). F9, F10 and F11 are developer keys,
 active only while the file `LanNative\devkeys.txt` exists: F9 free camera (`LanNative\cam.txt`), F10 teleport (`LanNative\goto.txt`), F11 runs
 the developer commands in `LanNative\lmtest.txt` (`docs/ADVANCED.md`).
