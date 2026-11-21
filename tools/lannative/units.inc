@@ -36,11 +36,17 @@
 #include "netinspect.inc"                   // Net Inspector: F2 Mods page rows, host list over the host-mods side channel
 #include "keys.inc"                         // key ownership: F2 "Keys" rows, API 2.23 declare_key / input_owner
 #include "kick.inc"                         // host-only F1 "Kick player..." (AGameSession::KickPlayer; kick.h)
+#include "uirows.inc"                       // API 2.27 ui_toggle / ui_number / ui_button / ui_hint / ui_set: loader-drawn plugin rows (docs/API-REFERENCE.md); before modsui.inc, which lists them
 #include "modsui.inc"
 #include "logwin.inc"                       // F2 row: the log window (lannative.log: filter, errors only, mod tags)
 #include "profiles.inc"                     // mod profiles: Mods\profiles\<name>.txt, F2 rows Save as / Switch to
 #include "travelx.inc"                      // API 2.25 add_travel_entry: plugin rows in the F1 Map list
 #include "netrole.inc"                      // API 2.26 net_role (mod.json "net" / "joiners_need" are read in manifest.h)
+#include "camclaim.inc"                     // API 2.28 camera_claim / camera_release / camera_holder: view-target ownership by priority
+#include "gamestate.inc"                    // API 2.29 game_state flags + on_world_ready (no title / menu worlds)
+#include "hudhide.inc"                      // API 2.30 hud_hide / hud_show: the game's HUD hidden without plugin object scans; uses camclaim.inc\'s ln_obj_alive
+#include "modeclaim.inc"                    // API 2.31 mode_claim / mode_release / mode_holder: one owner per pawn, native movement / collision / pose off + exact restore; uses camclaim.inc\'s ln_obj_alive + cc_obj_prop
+#include "posestage.inc"                    // API 2.32 pose_stage / pose_handoff: inertialized clip hand-offs in the loader's FinalizeBoneTransform detour; uses modeclaim.inc\'s mc_call, camclaim.inc's ln_obj_alive + cc_obj_prop
 #if defined(__has_include)
 #if __has_include("servermode.inc")
 #include "servermode.inc"                    // the optional unattended-host module; without the file its hooks do not exist

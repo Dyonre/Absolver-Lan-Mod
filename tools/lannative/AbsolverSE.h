@@ -230,7 +230,7 @@ struct AbsApi {
     void *(*test_spawn_npc)(const AbsApi *self, const char *archetype_path, const float loc[3]);   /* spawn an NPC from an archetype asset ("/Game/DB/AI/NPCs/Trickster/Trickster.Trickster") through the game's AAISpawner chain and move it to loc (NULL = where it appears); returns the character or NULL */
 
     /* ---- v2.7: mod UI and hot reload */
-    int   (*add_menu_item)(const AbsApi *self, const char *label, void (*cb)(void *user), void *user);   /* an entry on the F1 menu's "Mods" page (labelled "<your mod>: <label>"); cb runs on the game thread when the player selects it; 0 = ok, 1 = table full / bad arguments */
+    int   (*add_menu_item)(const AbsApi *self, const char *label, void (*cb)(void *user), void *user);   /* an entry on the F1 loader window's "Mods" tab (labelled "<your mod>: <label>"); cb runs on the game thread when the player selects it; 0 = ok, 1 = table full / bad arguments */
     int   (*reload_content)(const AbsApi *self);                                              /* hot reload: re-read Mods/<mod>/content (items, styles, plugin kinds) and rows.json and apply what changed without a restart (what cannot be reloaded is logged); returns the number of changed or new content entries, or -1 if nothing could be reloaded. Game thread. Same as a LanNative/reload.txt file and the first line of the F2 Mods page */
 
     /* ---- v2.8: test functions: dodge, AI, hittable, facing */
@@ -331,9 +331,9 @@ struct AbsApi {
     /* ---- v2.22: property listing. Reads class data only; use it on the game thread or in a draw callback. The strings in AbsPropInfo live only during the callback. */
     int   (*for_each_property)(const AbsApi *self, void *cls, int (*cb)(const struct AbsPropInfo *p, void *user), void *user);   /* every property of a class or struct type (object_class(obj), find_class(...), or AbsPropInfo.struct_type to list a struct's members): the type's own properties first, then its parents'. cb returns nonzero to stop. Returns the number visited, -1 on bad arguments */
     /* ---- v2.23: key ownership and input focus (keys.inc, docs/API-REFERENCE.md). Check self->size before using these. */
-    int   (*declare_key)(const AbsApi *self, int vk, const char *what);   /* a key you read yourself (GetAsyncKeyState): it goes into the loader's key list (log, F2 page "Keys"), and an F key is then kept from the game's window procedure (F11 is also the game's fullscreen toggle). on_key registers its key by itself. 0 = noted, 1 = noted but someone else uses it too (a clash, logged), 2 = you noted it already, -1 = bad arguments */
+    int   (*declare_key)(const AbsApi *self, int vk, const char *what);   /* a key you read yourself (GetAsyncKeyState): it goes into the loader's key list (log, the F1 loader window's "Keybinds" tab), and an F key is then kept from the game's window procedure (F11 is also the game's fullscreen toggle). on_key registers its key by itself. 0 = noted, 1 = noted but someone else uses it too (a clash, logged), 2 = you noted it already, -1 = bad arguments */
     int   (*input_owner)(const AbsApi *self);                              /* who has the keyboard and the pad now: 0 the game, 1 a loader menu (F1 / F2), 2 another mod's window, 3 your window (it has the focus and you hold ABS_OV_KEYS or ABS_OV_BLOCK_GAME). Act on keys you read yourself only on 0 (or 3 for keys your window uses) */
-    /* ---- v2.24: key binding (keys.inc, docs/API-REFERENCE.md). The player rebinds an action on the F2 Keys rows (choose it, press a key, mouse
+    /* ---- v2.24: key binding (keys.inc, docs/API-REFERENCE.md). The player rebinds an action on the F1 Keybinds tab (choose it, press a key, mouse
      *      button or pad button); the loader stores it (LanNative\binds.txt). Same input on several actions is allowed: actions whose contexts overlap get a
      *      warning, nothing is refused. Input names: "K", "F8", "Space", "Mouse Left" / "Mouse Right" / "Mouse Middle" / "Mouse 4" / "Mouse 5",
      *      "Pad A" "Pad B" "Pad X" "Pad Y" "Pad LB" "Pad RB" "Pad LT" "Pad RT" "Pad Back" "Pad Start" "Pad LS" "Pad RS" "Pad Up" "Pad Down" "Pad Left" "Pad Right",
@@ -347,6 +347,69 @@ struct AbsApi {
     /* ---- v2.26: network role (netrole.inc, docs/API-REFERENCE.md). Pair it with your mod.json "net" label: e.g. a "host_only" mod
      *      acts only on 0 / 1. Check self->size before using it. */
     int   (*net_role)(const AbsApi *self);   /* this machine in the current world: 0 standalone (no net driver), 1 host (a listen server: hosting a LAN game; solo with the LAN mod off has no net driver = 0), 2 a joined client, -1 no world / not known yet (loading). Reads engine pointers only (any thread; the game thread is stable during a travel) */
+    /* ---- v2.27: loader-drawn rows (uirows.inc, docs/API-REFERENCE.md). The loader draws your rows in your mod's section of the F1 loader window's Mods tab
+     *      (text menu and ImGui, after your add_menu_item entries); no ImGui code needed. key: yours, 1-39 characters A-Z a-z 0-9 _ . -; a key names one row
+     *      (calling again with the same key and kind updates label, range and callback and keeps the value; another kind is refused). 64 rows for all mods.
+     *      Toggle / number values are stored in your kv store as "ui:<key>" and come back at the next start. Every callback runs on the game thread inside your
+     *      plugin guard; each toggle / number gets one first call at the next game tick with its value (stored, else the default), then one per change.
+     *      Selecting a row (Enter, click, pad A): a toggle flips, a number goes one step up and wraps from max to min (the ImGui page also has a slider), a
+     *      button calls back. Each toggle / button is an F1 Keybinds action "ui_<key>" (unbound by default; it fires only while the game has the input).
+     *      Call them in AbsPlugin_Load (or later). Check self->size before using these. Return 0 = ok, 1 = refused (reason in lannative.log). */
+    int   (*ui_toggle)(const AbsApi *self, const char *key, const char *label, int def, void (*cb)(int on, void *user), void *user);   /* "<label>: ON / off" (label up to 63 characters); cb may be NULL (read the value with kv_get "ui:<key>") */
+    int   (*ui_number)(const AbsApi *self, const char *key, const char *label, double def, double min, double max, double step, void (*cb)(double value, void *user), void *user);   /* "<label>: 2.5  (1..10)"; needs min < max and 0 < step <= max - min; values sit on min + n * step inside min..max */
+    int   (*ui_button)(const AbsApi *self, const char *key, const char *label, void (*cb)(void *user), void *user);   /* a row that calls cb when chosen; nothing is stored */
+    int   (*ui_hint)(const AbsApi *self, const char *key, const char *text);   /* a text row (up to 95 characters, "" = empty line); call again with the same key to change the text (status lines) */
+    int   (*ui_set)(const AbsApi *self, const char *key, double value);   /* change a toggle (0 / nonzero) or number (clamped onto its grid) from your code, e.g. after your own hotkey: row + kv updated, NO callback. 1 = no toggle / number of that key */
+    /* ---- v2.28: camera claims (camclaim.inc, docs/API-REFERENCE.md). A plugin that shows its own camera claims the player's
+     *      view target instead of calling SetViewTargetWithBlend: one claim per plugin, the highest priority has the view (equal: the newest claim). Every
+     *      frame, after the plugins' on_tick, the loader puts the view back on the winner if anything else moved it. Claims are dropped when the world
+     *      changes, when the target actor is destroyed or when the plugin is switched off. Priorities: ABS_CAM_*. Game thread. Check self->size first. */
+    int   (*camera_claim)(const AbsApi *self, void *target, int priority, float blend);   /* view `target` (a live actor: your CameraActor, or a pawn); again = update (target / priority / blend). blend: seconds of the blend when your claim takes the view. 1 = you have the view now, 0 = you wait behind a higher claim (you get it when that one goes), -1 = refused (not an actor, not the game thread) */
+    int   (*camera_release)(const AbsApi *self, float blend);                             /* drop your claim; if you had the view it goes to the next claim, or back to the local pawn (blend seconds). 0 = released, 1 = you had no claim, -1 = not the game thread */
+    int   (*camera_holder)(const AbsApi *self, char *name, int cap);                      /* 1 = your claim has the view, 0 = your claim waits, -1 = you have no claim; name (may be NULL) = the plugin that has the view ("" = no claim: the game decides) */
+    /* ---- v2.29: game state (gamestate.inc, docs/API-REFERENCE.md). Check self->size first. */
+    unsigned (*game_state)(const AbsApi *self);   /* ABS_GS_* flags of the last game frame. Any thread; from another thread ABS_GS_STALLED says the game thread has not ticked for 300 ms (a load, a hang) */
+    int   (*on_world_ready)(const AbsApi *self, void (*cb)(const char *map_path, void *user), void *user);   /* once per gameplay world, when the local pawn has been there for 1 s: never for the title screen / menu worlds (StartMap, /Menu...); game thread, before your on_tick of that frame. Registered on the game thread while the world is ready already: called at once. 0 = ok, 1 = bad arguments / 16 in all */
+    /* ---- v2.30: HUD hide (hudhide.inc, docs/API-REFERENCE.md). The game's HUD (every user widget on screen + the HUD actor's bShowHUD) stays
+     *      hidden while at least one plugin holds a hide; widgets that appear later are hidden as they appear (menus the player opens are left visible).
+     *      Replaces your own for_each_object scan (75-80 ms) with a loader scan of a few ms. The loader's own toast / hud_score text is not touched. Game thread. */
+    int   (*hud_hide)(const AbsApi *self);   /* take a hide (again = scan once more for widgets that were missed). Returns the number of widgets the loader keeps hidden, -1 = refused */
+    int   (*hud_show)(const AbsApi *self);   /* drop your hide; the HUD comes back when no plugin holds one. Returns the widgets given back (0 when another mod still hides it or you held none), -1 = refused */
+    /* ---- v2.31: mode claims (modeclaim.inc, docs/API-REFERENCE.md). A plugin that runs its own mode on a Character (skating) claims it
+     *      instead of fighting the game every frame: the loader switches the native systems named by ABS_MODE_* off, saves what it changed and puts it back
+     *      exactly on release (each claim / release is logged with a read-back check). One owner per pawn. Claims are released by the loader when the plugin
+     *      is switched off or the world changes with the pawn still alive (restored), and dropped when the pawn is destroyed (nothing left to restore). Game thread. Check self->size first. */
+    int   (*mode_claim)(const AbsApi *self, void *pawn, const char *mode, unsigned flags);   /* take `pawn` (a live Character) for your mode (name up to 31 characters, for logs / mode_holder); flags = ABS_MODE_*. Again = update: added groups are taken, dropped groups given back. 1 = yours, 0 = another plugin holds this pawn, -1 = refused (not a live Character, unknown flags, not the game thread, a step failed: then nothing was changed) */
+    int   (*mode_release)(const AbsApi *self, void *pawn);                                   /* give everything back. 0 = released, 1 = you held no claim on it, -1 = not the game thread */
+    int   (*mode_holder)(const AbsApi *self, void *pawn, char *mode, int cap, unsigned *flags);   /* 1 = your claim, 0 = another plugin's, -1 = nobody's; mode / flags (may be NULL) = the holder's */
+    /* ---- v2.32: pose stage (posestage.inc, docs/API-REFERENCE.md). Smooth clip switches without a crossfade: turn a stage on for your
+     *      pawn, then at each switch CUT the clip (blend-in / blend-out 0) and call pose_handoff; from the next pose on, the loader decays the difference
+     *      between what was on screen and the new pose (inertialization in local space, on game time). The loader's FinalizeBoneTransform detour runs
+     *      before every plugin detour on that function, so your own IK on the read buffer sees the staged pose. One stage per mesh. Off by itself when
+     *      your plugin is switched off or the pawn / mesh is gone. Game thread. Check self->size first. */
+    int   (*pose_stage)(const AbsApi *self, void *pawn, int on);   /* on: keep the shown poses of the pawn's Mesh (pose_handoff needs one frame of them). 1 = on (or already yours), 0 = off / held by another plugin, -1 = refused (not live, no Mesh, more than 256 bones, 8 stages in all, the hook is not installed) */
+    int   (*pose_handoff)(const AbsApi *self, void *pawn, float decay);   /* you switched the pawn's pose this frame (cut): decay = seconds until a still offset is down to 1 % (0.2-0.3 typical; a new hand-off while one runs starts from what is shown). 1 = armed, 0 = no pose shown yet, -1 = no stage of yours on that pawn */
+};
+/* mode_claim groups (v2.31) */
+enum {
+    ABS_MODE_MOVEMENT = 1,     /* the CharacterMovement tick off (move the pawn yourself). Release: tick as it was; Walking / NavWalking / Falling come back as Falling with
+                                  bForceNextFloorCheck, so the CMC lands the pawn where you left it with the Velocity you left in the CMC; other modes as they were */
+    ABS_MODE_COLLISION = 2,    /* the capsule to QueryOnly (traces and sweeps still hit it, it blocks nothing). Release: profile, enabled, object type, every channel response */
+    ABS_MODE_POSE = 4          /* the mesh's bPauseAnims on: the AnimBP stops updating (state machines, montages, notifies); evaluation still runs. Experimental (pose_stage is the pose write path) */
+};
+/* camera_claim priorities (any int works; these are the conventions): gameplay cameras (a riding camera) < cinematic (a demo / replay camera) < tools (photo mode, editors) */
+enum { ABS_CAM_GAMEPLAY = 100, ABS_CAM_CINEMATIC = 200, ABS_CAM_TOOL = 300 };
+/* game_state flags (v2.29) */
+enum {
+    ABS_GS_WORLD = 0x001,       /* a world exists */
+    ABS_GS_MENU_WORLD = 0x002,  /* it is the title screen / a menu world (StartMap, /Menu...) */
+    ABS_GS_READY = 0x004,       /* on_world_ready has fired for this (gameplay) world */
+    ABS_GS_LOADING = 0x008,     /* no world, or a gameplay world that is not ready yet (travel, streaming, no pawn) */
+    ABS_GS_PAUSED = 0x010,      /* UGameplayStatics::IsGamePaused */
+    ABS_GS_FOCUSED = 0x020,     /* the game window is the foreground window */
+    ABS_GS_GAME_MENU = 0x040,   /* the game shows its mouse cursor (its Esc menu, inventory, meditation...) */
+    ABS_GS_LOADER_MENU = 0x080, /* the loader's F1 / F2 menu is open */
+    ABS_GS_STALLED = 0x100      /* (asked from another thread) the game thread has not ticked for 300 ms */
 };
 
 /* for_each_property: one property. Read / write it by name with get_property_text / set_property_text ("name[N]" for array_dim > 1). */

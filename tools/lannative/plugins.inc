@@ -105,8 +105,8 @@ static int safe_patch(uint8_t *dst, const uint8_t *src, size_t n) {
 // ----- hooks: first hook on a function patches the game code (jmp [rip+0] to the detour, original bytes moved to a trampoline); further hooks, by plugins or
 // by the loader's own tables, stack on top by rewriting the jmp's target address. The returned "original" is always the next function in the chain.
 static void *api_p_hook_rva(const AbsApi *self, const char *name, uint32_t rva, const uint8_t *expected, uint32_t stolen, void *detour) {
-    int p = plug_of(self); char tag[160]; snprintf(tag, sizeof tag, "%s:%s", plug_name_of(p), name ? name : "?");
-    if (p < 0 || !expected || !detour || stolen < 14 || stolen > HR_STOLEN || rva < 0x1000 || rva >= g_exe_size) { logf_("plugin hook %s refused (bad arguments)", tag); return NULL; }
+    int p = plug_of(self); char tag[160]; snprintf(tag, sizeof tag, "%s:%s", self ? plug_name_of(p) : "loader", name ? name : "?");   // self NULL = a loader unit (posestage.inc): its detour sits under every plugin's
+    if ((p < 0 && self) || !expected || !detour || stolen < 14 || stolen > HR_STOLEN || rva < 0x1000 || rva >= g_exe_size) { logf_("plugin hook %s refused (bad arguments)", tag); return NULL; }
     uint8_t *target = g_base + rva;
     EnterCriticalSection(&g_lock);
     HookEntry *h = hr_find(&g_hreg, rva); void *ret = NULL;
