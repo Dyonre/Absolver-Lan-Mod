@@ -5,7 +5,8 @@
    2. Copies AbsolverModLauncher.exe into the game folder.
    3. Keeps the game's original Absolver.exe as Absolver.exe.eac and puts the launcher in its place, so Steam's Play button asks
       Modded (no EasyAntiCheat, offline and private LAN only) or Vanilla (the original launcher with EasyAntiCheat, no loader).
-   4. Creates the Mods folder.
+   4. Creates the Mods folder and installs the mods bundled in this package (Mods\<name>; Cheats is switched on in Mods\plugins.txt the
+      first time; a plugin.cfg you already have is kept).
    5. Asks GitHub once which Absolver LAN Mod release is the newest and says so if this package is older. It never downloads anything.
       -NoUpdateCheck skips it (the loader itself never goes online).
 
@@ -22,6 +23,31 @@ $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $logFile = Join-Path $here 'install.log'
 $launcherMarker = 'Absolver Mod Launcher'      # UTF-16 title string inside our launcher exe
 $loaderMarkers = 'Gleam Loader loaded in', 'LanNative M'   # ASCII banner texts inside our version.dll (current, then the one of earlier builds)
+
+# Mods that ship in this package (Mods\<name> next to the installer, e.g. Cheats): their files are copied into the game's Mods folder on every install
+# (an existing plugin.cfg is kept: it holds the player's settings). A bundled plugin is added to Mods\plugins.txt only when it is installed for the
+# first time, so a player who removed it from plugins.txt keeps it switched off. A failure here is reported and skipped; the loader install stands.
+function Install-Bundled([string]$mods) {
+    $bundle = Join-Path $here 'Mods'
+    if (-not (Test-Path -LiteralPath $bundle)) { return }
+    foreach ($b in @(Get-ChildItem -LiteralPath $bundle -Directory)) {
+        try {
+            $dst = Join-Path $mods $b.Name; $first = -not (Test-Path -LiteralPath $dst)
+            if ($first) { New-Item -ItemType Directory -Path $dst | Out-Null }
+            foreach ($f in @(Get-ChildItem -LiteralPath $b.FullName -File)) {
+                $to = Join-Path $dst $f.Name
+                if ($f.Name -ieq 'plugin.cfg' -and (Test-Path -LiteralPath $to)) { Say "  $($b.Name)\plugin.cfg kept (your settings)"; continue }
+                Copy-Item -LiteralPath $f.FullName -Destination $to -Force
+            }
+            Say ('Bundled mod {0}: {1}' -f $b.Name, $(if ($first) { 'installed' } else { 'updated' }))
+            if ($first -and (Test-Path -LiteralPath (Join-Path $b.FullName 'plugin.dll'))) {
+                $allow = Join-Path $mods 'plugins.txt'
+                $have = if (Test-Path -LiteralPath $allow) { @(Get-Content -LiteralPath $allow | ForEach-Object { $_.Trim() }) } else { @() }
+                if ($have -notcontains $b.Name) { Add-Content -LiteralPath $allow -Value $b.Name -Encoding ASCII; Say ('  {0} added to Mods\plugins.txt (its plugin runs; remove the line to switch it off)' -f $b.Name) }
+            }
+        } catch { Say ('WARNING: bundled mod {0} was not installed: {1}' -f $b.Name, $_.Exception.Message) }
+    }
+}
 
 function Say([string]$m) {
     Write-Host $m
@@ -206,6 +232,7 @@ function Run {
 
     $mods = Join-Path $root 'Mods'
     if (-not (Test-Path -LiteralPath $mods)) { New-Item -ItemType Directory -Path $mods | Out-Null; Say "Created $mods" } else { Say "Mods folder: $mods" }
+    Install-Bundled $mods
 
     $paks = Join-Path $root 'Absolver\Content\Paks'
     if (Test-Path -LiteralPath $paks) {
