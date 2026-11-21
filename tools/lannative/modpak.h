@@ -6,6 +6,10 @@
 
 typedef struct { char path[512]; unsigned char sha1[20]; } PakEntry;
 
+// Entry count bound: a listed entry takes at least 52 bytes of index (name length 4 + offset / size / size 24 + compression 4 + SHA-1 20), so the index
+// bytes left after the count cap how many entries it can hold; a larger count is a corrupt or hostile index (no huge allocation for it).
+static int pak_count_ok(int64_t count, size_t left) { return count >= 0 && count <= 2000000 && (uint64_t)count <= (uint64_t)(left / 48); }
+
 // "../../../" + "Absolver/Content/DB/x.uasset" -> "Absolver/Content/DB/x.uasset" (forward slashes, mount-relative root stripped).
 static int modpak_path(const char *mount, const char *entry, char *out, size_t cap) {
     char full[1100];
@@ -57,7 +61,7 @@ static int modpak_read_ex(FILE *f, PakEntry **out, unsigned char index_hash[20],
     unsigned char *data = malloc((size_t)bytes); if (!data) return -1;
     if (_fseeki64(f, offset, SEEK_SET) || fread(data, 1, (size_t)bytes, f) != (size_t)bytes) { free(data); return -1; }
     PakCursor c = { data, (size_t)bytes }; char mount[512], name[512]; int32_t count;
-    if (!pak_string(&c, mount, sizeof mount) || !pak_take(&c, &count, 4) || count < 0 || count > 2000000) { free(data); return -1; }
+    if (!pak_string(&c, mount, sizeof mount) || !pak_take(&c, &count, 4) || !pak_count_ok(count, c.left)) { free(data); return -1; }
     PakEntry *list = calloc(count ? (size_t)count : 1, sizeof *list); if (!list) { free(data); return -1; }
     int ok = 1, n = 0;
     for (int32_t i = 0; i < count && ok; i++) {

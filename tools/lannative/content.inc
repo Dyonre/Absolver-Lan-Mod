@@ -123,6 +123,7 @@ static void cs_warn_unknown(const JDoc *d, const char *what, const char *id, con
 }
 
 // ================================================================ kind "items"
+#include "safebuf.h"                                              // bounded string helpers (sb_replace_keyed)
 #include "decklayout.h"                                           // DL_ID_BUF (48-character row names), dl_name_check
 #define CI_MOVES_MAX 128                                                // "moves" per item
 typedef struct {
@@ -152,12 +153,9 @@ static int items_validate(const char *json, char *err, int cap, void *u) {
 // created at engine ready (BEFORE the save resolves its item paths), copy of the stock asset, own name / icon / props, optional shop row
 static void items_replace_icons(void *o, const char *icon) {
     static char in[32768], out[32768]; int n = CA->get_property_text(CA, o, "m_Materials", in, sizeof in); if (n <= 0) return;
-    char *p = in, *q = out; const char *key = "m_InventoryIcon="; int reps = 0;
-    while (*p && q - out < (int)sizeof out - 600) {
-        if (!strncmp(p, key, strlen(key))) { q += sprintf(q, "%s%s", key, icon); p += strlen(key); while (*p && *p != ',' && *p != ')') p++; reps++; }
-        else *q++ = *p++;
-    }
-    *q = 0; if (reps) logf_("content: item icon: %d m_Materials icon(s) replaced -> %d", reps, CA->set_property_text(CA, o, "m_Materials", out));
+    int reps = sb_replace_keyed(in, "m_InventoryIcon=", icon, out, sizeof out);      // bounded: an icon that makes the text too long leaves m_Materials as it was
+    if (reps < 0) { logf_("content: item icon: the icon path is too long for m_Materials - left as it was"); return; }
+    if (reps) logf_("content: item icon: %d m_Materials icon(s) replaced -> %d", reps, CA->set_property_text(CA, o, "m_Materials", out));
 }
 // "moves": UAttackComponent::IsAttackCompatibleWithWeaponFamily (static, 0x300CA0; called by the deck editor's FilterAttack, BPF_ValidateComboAttack, AddAttackToDeckStruct,
 // BPF_GetAttackDataDamage; not by combat) answers for the item's family from "is the item equipped by the local player" for the bound rows; every other call is unchanged.

@@ -18,6 +18,7 @@
 //   lock     the character's SetTarget UFunction          move   APawn::AddMovementInput towards / away from the opponent
 // Logs: "bot: ..." lines (act / tech / link / def / match). bot_reads_inputs is NOT used: the bot sees only game state.
 #include "botcore.h"
+#include "safebuf.h"
 #include "botnn.h"
 #include "botnn_net.h"
 
@@ -719,7 +720,7 @@ static int bai_load_cfg(BaiBot *b, const BaiPreset *p) {
                     logf_("bot: %s: brain.%s.%s = %s not understood", p->id, key, d.n[t].key ? d.n[t].key : "?", d.n[t].str ? d.n[t].str : "(object)"); bad++; } }
             continue;
         }
-        if (d.n[k].t == J_ARR && !strcmp(key, "proof")) { char lst[200] = ""; for (int t = d.n[k].first; t >= 0; t = d.n[t].next) if (d.n[t].str) { strncat(lst, d.n[t].str, sizeof lst - strlen(lst) - 2); strcat(lst, ","); } bot_cfg_set(c, "proof", lst); continue; }
+        if (d.n[k].t == J_ARR && !strcmp(key, "proof")) { char lst[200] = ""; for (int t = d.n[k].first; t >= 0; t = d.n[t].next) if (d.n[t].str) sb_list_add(lst, sizeof lst, d.n[t].str); bot_cfg_set(c, "proof", lst); continue; }
         if (!d.n[k].str) continue;
         if (!bot_cfg_set(c, key, d.n[k].str) && strcmp(key, "label") && strcmp(key, "note") && strcmp(key, "powers")) { logf_("bot: %s: brain.%s = %s not understood", p->id, key, d.n[k].str); bad++; }
     }
