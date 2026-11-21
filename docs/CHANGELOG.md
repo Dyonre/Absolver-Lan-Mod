@@ -1,5 +1,42 @@
 # Changes
 
+## 5.4.0
+
+**Loader window (F1) and world menu (F2)**
+* F1 opens the loader window: tabs Mods, Keybinds, Hosting, Settings, Log, and a tab for each mod that adds one. F2 opens the world menu (maps, NPCs, host / join). Each key switches to the other window and closes its own; Esc closes the loader window; gamepad Back + Start opens it. Q / E or LB / RB switch tabs.
+* Keybinds tab: every bindable key grouped under the mod that owns it, with its context, current key and a warning when another binding uses the same key.
+* Hosting tab: a Hosting ON / OFF switch (OFF refuses every join and keeps the game out of the LAN finder; players already in the game stay), the host mod download check box and max players.
+* Settings tab: the loader's own options from `LanNative\config.txt` in a form; they apply after a restart.
+* Mods tab: coloured PAK / PLUGIN / ROWS / CONTENT / LUA labels, a profile bar (switch / save), buttons for each mod's actions, and a Details section that opens by itself when something needs a look.
+* Number fields in settings forms take typed numbers or - / + steps, kept inside the setting's range.
+
+**Version checks**
+* Joins need the same major loader version: the join carries the loader version and a host refuses another major (the minor versions may differ). Loaders 5.0-5.3 count as major 5; a vanilla game or LanNative 4.x joiner cannot be told apart at login and is allowed. A refused joiner with the loader sees the host's reason as a message and at the top of the loader window, and stays in its own world.
+* `mod.json` takes a `"loader"` field: the loader version the mod was built for (for example `"5.4"`); the SDK scaffolds fill it in. A mod built for an older major version, for a newer loader, or without the field is marked "may be out of date" in the Mods tab, which shows "Mod version mismatch (N)". The mod still loads.
+
+**Bundled: Cheats**
+* The package ships the Cheats mod (`Mods\Cheats`): the installer copies it and switches it on in `Mods\plugins.txt` the first time (remove the line to switch it off; an existing `plugin.cfg` is kept).
+* Cheats is a tab of the loader window (F10 opens it there). Every cheat is off while another player is in the game (co-op or PvP) and the tab says why; the toggles come back when you are alone again.
+* The Cheats setting "Turn cheats off when other players join" (on by default) can be switched off by the host to keep cheats working with other players (for example to test in Combat Trials). Every joiner with the loader then sees "Host has cheats enabled" at the top of the loader window and as a message when it changes; nothing is shown otherwise.
+* NPC type is a searchable, grouped picker over the loader's NPC list, including NPCs added by mods.
+* Fly works without its hover animation (that animation is not part of the package).
+
+**Plugin API**
+* 2.27: `ui_toggle`, `ui_number`, `ui_button`, `ui_hint`, `ui_set` (rows the loader draws for a plugin).
+* 2.28: `camera_claim`, `camera_release`, `camera_holder` (view-target ownership by priority).
+* 2.29: `game_state`, `on_world_ready`.
+* 2.30: `hud_hide`, `hud_show` (one loader scan instead of per-plugin object scans).
+* 2.31: `mode_claim`, `mode_release`, `mode_holder` (one owner per pawn; native movement / collision / pose switched off and restored exactly).
+* 2.32: `pose_stage`, `pose_handoff` (inertialized clip hand-offs; helpers in `tools/posekit`).
+* 2.33: `ui_tab`, `ui_tab_show` (a mod's own tab in the loader window).
+* 2.34: `npc_list` (the loader's NPC list, built-in groups and mods' npcs / bots entries).
+* 2.35: `net_notice` (a host mod's short notice, shown to every joiner with the loader).
+
+**Fixes**
+* Hardening: the host's answer to the notice request can no longer overrun its buffer with many long notices; the `LNVer` join option and the `LNMODS` message are parsed with fixed bounds; the item icon rewrite, the bot `proof` list and the pak index entry count are bounded.
+* Key binding file: `Win` and hexadecimal key names parse, spaces around the mod name are ignored, and a `binds.txt` over 64 KB is reported in the log.
+* Background (unfocused) test runs read only the game window's own keys and mouse: no menu key or Ctrl / Shift from another application reaches the loader.
+
 ## 5.3.0
 
 **Mods page (F2)**
