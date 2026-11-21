@@ -3,17 +3,18 @@
 // LAN mod check (pure text logic): the joiner sends its gameplay-mod fingerprint as URL options, the host compares
 // it in PreLogin and sends its own list back, and both sides show the same warning. "Gameplay" mods = every mod except those whose mod.json says
 // "affects_gameplay": false (texture packs and similar); cosmetic mods never cause a warning.
-//   join URL suffix : ?LNMods=<16 hex>?LNModL=<name+name+...>
+//   join URL suffix : ?LNMods=<16 hex>?LNModL=<name+name+...>?LNVer=<major>.<minor>   (LNVer since 5.4: the host refuses another MAJOR version)
 //   host -> joiner  : LNMODS|<16 hex>|<name+name+...>   (sent with the engine's ClientMessage)
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
+#include "gleam_version.h"
 
 #define LM_NAMES_MAX 240
 #define LM_LINE_MAX 100
-typedef struct { int present; uint64_t fp; char names[LM_NAMES_MAX]; } LmInfo;     // names: '+'-separated mod folder names
+typedef struct { int present; uint64_t fp; char names[LM_NAMES_MAX]; int ver_major, ver_minor; } LmInfo;   // names: '+'-separated mod folder names; ver_*: LNVer (-1 = not sent)
 typedef enum { LM_SAME = 0, LM_DIFFERENT = 1, LM_UNKNOWN = 2 } LmStatus;
 
 // keeps [A-Za-z0-9._-]; everything else becomes '_' (names travel inside URL options, where ? = & space are separators)
@@ -38,7 +39,7 @@ static int lm_join_suffix(const LmInfo *me, wchar_t *out, size_t cap) {
     wchar_t names[LM_NAMES_MAX + 1]; size_t i = 0;
     for (; me->names[i] && i < LM_NAMES_MAX; i++) names[i] = (wchar_t)(unsigned char)me->names[i];
     names[i] = 0;
-    return swprintf(out, cap, L"?LNMods=%016llX?LNModL=%ls", (unsigned long long)me->fp, names) >= 0;
+    return swprintf(out, cap, L"?LNMods=%016llX?LNModL=%ls?LNVer=%d.%d", (unsigned long long)me->fp, names, GLEAM_VER_MAJOR, GLEAM_VER_MINOR) >= 0;
 }
 
 // finds "Key=" in an options string and copies the value (up to ? & space or the end) into out
@@ -61,9 +62,10 @@ static void lm_wide_to_names(const wchar_t *w, char *out, size_t cap) {
 }
 // parses the PreLogin options string; present = 1 only when a valid 16-digit fingerprint was found
 static int lm_parse_options(const wchar_t *opt, int len, LmInfo *out) {
-    memset(out, 0, sizeof *out);
+    memset(out, 0, sizeof *out); out->ver_major = out->ver_minor = -1;
     if (!opt || len <= 0) return 0;
     wchar_t v[LM_NAMES_MAX + 8];
+    if (lm_option(opt, len, L"LNVer", v, 16)) { int a = -1, b = -1; if (swscanf(v, L"%d.%d", &a, &b) >= 1 && a >= 0 && a < 1000) { out->ver_major = a; out->ver_minor = b >= 0 ? b : 0; } }
     if (!lm_option(opt, len, L"LNMods", v, 40) || wcslen(v) != 16) return 0;
     uint64_t fp = 0;
     for (int i = 0; i < 16; i++) { wchar_t c = v[i]; int d = (c >= L'0' && c <= L'9') ? c - L'0' : (c >= L'A' && c <= L'F') ? c - L'A' + 10 : (c >= L'a' && c <= L'f') ? c - L'a' + 10 : -1; if (d < 0) return 0; fp = (fp << 4) | (uint64_t)d; }
@@ -72,6 +74,17 @@ static int lm_parse_options(const wchar_t *opt, int len, LmInfo *out) {
     return 1;
 }
 
+// Loader version rule: joins need the same MAJOR version. A joiner that sends LNVer (5.4+) is compared directly; one that sends LNMods but no LNVer is a
+// Gleam Loader 5.0-5.3 (major 5); one that sends neither is a vanilla game or LanNative 4.x and earlier - they cannot be told apart at login, so it is
+// allowed and the mod labels decide as before. Returns 1 when the join is refused (text filled); *their_major = the joiner's major (-1 = unknown).
+static int lm_ver_refuse(int my_major, const LmInfo *c, char *text, size_t cap, int *their_major) {
+    int m = c->ver_major >= 0 ? c->ver_major : c->present ? 5 : -1;
+    if (their_major) *their_major = m;
+    if (m < 0 || m == my_major) return 0;
+    snprintf(text, cap, "Join refused: host loader %d.x, your %s %d.x - %s.", my_major, m <= 4 ? "LanNative" : "Gleam Loader", m,
+             m < my_major ? "update your loader" : "the host needs a newer loader");
+    return 1;
+}
 // Both sides run the same comparison. Nothing to say when neither side has gameplay mods.
 static LmStatus lm_compare(const LmInfo *me, const LmInfo *other) {
     if (!other->present) return me->fp == 0 ? LM_SAME : LM_UNKNOWN;       // other side sent no mod info (vanilla game or a loader without the mod check)

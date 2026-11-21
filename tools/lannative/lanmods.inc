@@ -121,11 +121,22 @@ static void jg_announce_host(void) {
     toast_show(l1, 1, 12);
 }
 static void lm_on_prelogin(const char *which, void *options, void *address, void *err) {
-    if (!g_lm_mode || !g_lm_me.present) return;
-    const FStringView *o = options, *a = address; LmInfo c; memset(&c, 0, sizeof c);
+    const FStringView *o = options, *a = address; LmInfo c; memset(&c, 0, sizeof c); c.ver_major = c.ver_minor = -1;
     int olen = (o && o->data && o->num > 1 && o->num < 4000) ? o->num - 1 : 0;
     if (olen) lm_parse_options(o->data, olen, &c);
     char addr[80] = "?"; if (a && a->data && a->num > 1 && a->num < 200) narrow(a->data, a->num - 1, addr, sizeof addr);
+    {   // loader version rule (always on, whatever modmismatch says): another MAJOR version cannot join
+        char t[200]; int tm = -1, refuse = lm_ver_refuse(GLEAM_VER_MAJOR, &c, t, sizeof t, &tm); char vm[40]; jg_mask_addr(addr, vm, sizeof vm);
+        logf_("join check (%s) from %s: loader version %s (this host %d.%d) -> %s", which, vm,
+              c.ver_major >= 0 ? "sent" : c.present ? "not sent, mod check sent (Gleam 5.0-5.3)" : "nothing sent (vanilla or LanNative 4.x)", GLEAM_VER_MAJOR, GLEAM_VER_MINOR, refuse ? "REFUSED" : "ok");
+        if (c.ver_major >= 0) logf_("join check: joiner loader %d.%d", c.ver_major, c.ver_minor);
+        if (refuse) {
+            lm_refuse(err, t);
+            char l[2][LM_LINE_MAX]; snprintf(l[0], LM_LINE_MAX, "JOIN REFUSED: a joiner runs loader %d.x, this host %d.x", tm, GLEAM_VER_MAJOR); snprintf(l[1], LM_LINE_MAX, "(the major versions must match)");
+            toast_show(l, 2, 10); return;
+        }
+    }
+    if (!g_lm_mode || !g_lm_me.present) return;
     LmStatus st = lm_compare(&g_lm_me, &c);
     char maddr[40]; jg_mask_addr(addr, maddr, sizeof maddr);
     logf_("mods: join check (%s) from %s: joiner %s fp %016llX '%s', host fp %016llX '%s' -> %s", which, maddr, c.present ? "sent" : "sent no mod info",
