@@ -622,6 +622,9 @@ static void draw_mods_tab(const OvSnap &s) {
     for (int i = 0; i < s.nmods; i++) { if (s.mods[i].status == 0) on++; else if (s.mods[i].status == 1) off++; else if (s.mods[i].status == 2) skipped++; }
     if (s.safe_mode) ImGui::TextColored(yellow, "SAFE MODE - no mods, no plugins, no extender hooks%s%s", s.safe_why[0] ? ": " : "", s.safe_why);
     ImGui::Text("%d mods loaded", on); ImGui::SameLine(); ImGui::TextDisabled("%d off, %d skipped", off, skipped);
+    { int nv = 0; for (int i = 0; i < s.nmods; i++) nv += s.mods[i].ldr_note[0] != 0;                // mod.json "loader" vs this loader: information only
+      if (nv) { ImGui::SameLine(0.f, 20.f); ImGui::TextColored(ImVec4(0.85f, 0.75f, 0.45f, 1.f), "Mod version mismatch (%d)", nv);
+                if (ImGui::IsItemHovered()) ImGui::SetTooltip("%d mod(s) were built for another loader version (mod.json \"loader\").\nThey still load; a feature they expect may be missing or behave differently.", nv); } }
     for (int i = 0; i < s.nwarn; i++) ImGui::TextColored(yellow, "! %s", s.warn[i]);
     if (s.pending_n) {
         ImGui::TextColored(yellow, "Waiting for a restart: %s", s.pending_text); ImGui::SameLine();
@@ -648,6 +651,7 @@ static void draw_mods_tab(const OvSnap &s) {
             else if (m.effect == 2) ImGui::TextColored(yellow, "off after restart");
             else if (m.status == 2) { ImGui::TextColored(red, "SKIPPED"); if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", m.reason[0] ? m.reason : "skipped"); }
             else ImGui::TextColored(m.status == 0 ? green : grey, "%s", m.status == 0 ? "loaded" : m.status == 1 ? "off" : "empty");
+            if (m.ldr_note[0]) { ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.85f, 0.75f, 0.45f, 0.85f)); ImGui::TextWrapped("%s", m.ldr_note); ImGui::PopStyleColor(); if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s - it still loads (information only)", m.ldr_note); }
             if (m.nconf) { ImGui::SameLine(); ImGui::TextColored(yellow, "%d conflict%s", m.nconf, m.nconf == 1 ? "" : "s");
                 if (ImGui::IsItemHovered()) { ImGui::BeginTooltip(); for (int k = 0; k < m.nconf && k < 3; k++) ImGui::TextUnformatted(m.conf[k]); if (m.nconf > 3) ImGui::TextDisabled("... %d in all (see mods.txt)", m.nconf); ImGui::EndTooltip(); } }
             ImGui::TableSetColumnIndex(3); holds_chips(m);

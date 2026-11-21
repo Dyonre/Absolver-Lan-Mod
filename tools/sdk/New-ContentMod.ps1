@@ -63,12 +63,16 @@ $entry = switch ($Kind) {
 }
 '@ }
 }
+# mod.json "loader": the loader version this mod is built for (major.minor of tools\lannative\gleam_version.h); the Mods tab flags mods built for another one
+$gv = Get-Content -LiteralPath (Join-Path $repo 'tools\lannative\gleam_version.h') -Raw
+$ldr = '{0}.{1}' -f ([regex]::Match($gv, 'GLEAM_VER_MAJOR\s+(\d+)').Groups[1].Value), ([regex]::Match($gv, 'GLEAM_VER_MINOR\s+(\d+)').Groups[1].Value)
 $mod = @'
 {
   "id": "@@NAME@@",
   "name": "@@NAME@@",
   "version": "0.1.0",
   "api": 2,
+  "loader": "@@LDR@@",
   "author": "you",
   "description": "What this mod does.",
   "affects_gameplay": true
@@ -82,7 +86,7 @@ $rows = @'
   ]
 }
 '@
-function W($rel, $text) { [IO.File]::WriteAllText((Join-Path $dir $rel), (($text -replace '@@NAME@@', $Name -replace '@@ID@@', $id) -replace "`r?`n", "`r`n"), (New-Object Text.UTF8Encoding $false)) }
+function W($rel, $text) { [IO.File]::WriteAllText((Join-Path $dir $rel), (($text -replace '@@NAME@@', $Name -replace '@@LDR@@', $ldr -replace '@@ID@@', $id) -replace "`r?`n", "`r`n"), (New-Object Text.UTF8Encoding $false)) }
 W "content\$kindDir\$id.json" $entry; W 'mod.json' $mod
 if ($RowsJson) { W 'rows.json' $rows }
 Write-Host "created $dir (kind $Kind, id $id). Copy it to <game>\Mods\ ; check LanNative\lannative.log for 'content:' lines and F2 'Content'."

@@ -42,6 +42,7 @@ typedef struct OvMod {
     int effect;                       // 0 nothing pending, 1 switches on after a restart, 2 switches off after a restart, 3 switched on live
     int has_pak, has_lua, has_rows, has_content, has_plugin, hot_ok, nsettings, nconf;
     char conf[3][112];                // the first conflicts with other mods (tooltip); nconf counts all
+    char ldr_note[48];                // mod.json "loader" vs this loader: the "may be out of date" badge ("" = fine)
     char net_tag[20]; int joiners_optional;   // mod.json "net" label ("[host only]" ... or "") and "joiners_need": false
 } OvMod;
 #define OV_SETTINGS 24

@@ -236,6 +236,8 @@ static void mods_mount_all(void *self) {
             swprintf(pp, MAX_PATH, L"%ls\\rows.json", dd); mi->has_rows = GetFileAttributesW(pp) != INVALID_FILE_ATTRIBUTES;
             swprintf(pp, MAX_PATH, L"%ls\\content", dd); { DWORD a = GetFileAttributesW(pp); mi->has_content = a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY); }
             swprintf(pp, MAX_PATH, L"%ls\\plugin.dll", dd); mi->has_plugin = GetFileAttributesW(pp) != INVALID_FILE_ATTRIBUTES; }
+        mi->ldr_age = mf_loader_age(&mfs[i], GLEAM_VER_MAJOR, GLEAM_VER_MINOR); mf_loader_note(&mfs[i], mi->ldr_age, mi->ldr_note, sizeof mi->ldr_note);
+        if (mi->ldr_age != MF_LDR_OK) logf_("mods: %s %s - this loader is %d.%d; it still loads (information only)", mi->name, mi->ldr_note, GLEAM_VER_MAJOR, GLEAM_VER_MINOR);
     }
     {
         char ord[1400] = ""; size_t ow = 0;

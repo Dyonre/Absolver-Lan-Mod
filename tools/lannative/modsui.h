@@ -16,6 +16,7 @@ typedef struct {
     int enabled, has_pak, has_lua, has_rows, has_content, has_plugin, requires, nsettings, nconf; char conf[3][112];
     // mod.json "net" label (manifest.h mf_net_tag: "[host only]" ... or "") and "joiners_need": false (joiners_optional 1 = left out of the LAN mod check)
     char net_tag[20]; int joiners_optional;
+    char ldr_note[48]; int ldr_age;                         // mod.json "loader" vs this loader (manifest.h MF_LDR_*); note = the Mods tab badge ("" = fine)
 } ModInfo;
 
 #define MUI_LINE 96

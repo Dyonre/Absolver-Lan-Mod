@@ -97,12 +97,16 @@ cl /nologo /O2 /MT /W3 /D_CRT_SECURE_NO_WARNINGS /I "@@HDR@@" /LD plugin.c /Fe:p
 echo built %~dp0plugin.dll
 '@
 
+# mod.json "loader": the loader version this mod is built for (major.minor of tools\lannative\gleam_version.h); the Mods tab flags mods built for another one
+$gv = Get-Content -LiteralPath (Join-Path $repo 'tools\lannative\gleam_version.h') -Raw
+$ldr = '{0}.{1}' -f ([regex]::Match($gv, 'GLEAM_VER_MAJOR\s+(\d+)').Groups[1].Value), ([regex]::Match($gv, 'GLEAM_VER_MINOR\s+(\d+)').Groups[1].Value)
 $mod = @'
 {
   "id": "@@NAME@@",
   "name": "@@NAME@@",
   "version": "0.1.0",
   "api": 2,
+  "loader": "@@LDR@@",
   "author": "you",
   "description": "What this plugin does.",
   "affects_gameplay": true
@@ -110,7 +114,7 @@ $mod = @'
 '@
 
 $cfg = "# plugin.cfg: key = value (read with api->config_get)`r`nverbose = 1`r`n"
-function W($file, $text) { [IO.File]::WriteAllText((Join-Path $dir $file), (($text -replace '@@NAME@@', $Name -replace '@@CID@@', $cid -replace '@@HDR@@', $hdrDir) -replace "`r?`n", "`r`n"), (New-Object Text.UTF8Encoding $false)) }
+function W($file, $text) { [IO.File]::WriteAllText((Join-Path $dir $file), (($text -replace '@@NAME@@', $Name -replace '@@LDR@@', $ldr -replace '@@CID@@', $cid -replace '@@HDR@@', $hdrDir) -replace "`r?`n", "`r`n"), (New-Object Text.UTF8Encoding $false)) }
 W 'plugin.c' $pluginC; W 'build.bat' $buildBat; W 'mod.json' $mod; W 'plugin.cfg' $cfg
 Write-Host "created $dir : plugin.c build.bat mod.json plugin.cfg (header: $hdrDir\AbsolverSE.h)"
 if ($Build) {
