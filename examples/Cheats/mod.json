@@ -1,0 +1,64 @@
+{
+  "id": "Cheats",
+  "name": "Cheats (test menu)",
+  "version": "0.9.0",
+  "api": 2,
+  "loader": "5.4",
+  "affects_gameplay": true,
+  "net": "vanilla_visible",
+  "joiners_need": false,
+  "description": "Test helpers for playing alone, in a Cheats tab of the loader window (F1; F10 opens it there, Esc / pad B / F10 close it; the key is in F1 > Mods > Settings; loaders without mod tabs: a window of its own). While another player is in the game (co-op, PvP) every cheat is off and the tab says why; they come back when you are alone again. The setting \"Turn cheats off when other players join\" (on by default) can keep them on; joiners then see \"Host has cheats enabled\". Rows grouped Player (Infinite shards, God mode, Infinite stamina, One-hit kills, Fly, fly speed, Heal me, unlock emotes), World (teleports, saved spot, go to / bring players), NPCs (a searchable NPC picker over the loader's NPC list, mods' NPCs included; spawn, attack me, kill, remove), Game speed, Debug (game debug menu) and Items (a searchable list of the items the game has loaded, added only when you press Add to inventory). Check boxes, buttons and number fields; mouse, keys (Up / Down, Left / Right, Enter) and gamepad (D-pad, A, B). Fly: B flies / lands once enabled; W A S D level, steered by the camera, Space up, Ctrl down, Shift faster, I help (an optional hover clip gives a hover pose). The five Player toggles are also rows in its section of the F1 Mods tab. Toggles are remembered (LanNative/data/Cheats.txt); a new world always starts on the ground. Plugin: allow it in Mods/plugins.txt (the installer does it for the bundled copy).",
+  "settings": [
+    {
+      "key": "off_with_players",
+      "type": "bool",
+      "default": true,
+      "label": "Turn cheats off when other players join",
+      "help": "On: every cheat is off while another player is in the game. Off: cheats keep working with other players (e.g. testing in Combat Trials) and every joiner with the loader sees \"Host has cheats enabled\"."
+    },
+    {
+      "key": "fly_speed",
+      "type": "float",
+      "default": 900,
+      "min": 100,
+      "max": 4000,
+      "label": "Fly speed (uu/s)",
+      "help": "Speed while flying; Shift is 2.5 times faster."
+    },
+    {
+      "key": "ui_key",
+      "type": "choice",
+      "choices": [
+        "F3",
+        "F4",
+        "F5",
+        "F6",
+        "F7",
+        "F8",
+        "F9",
+        "F10",
+        "F11",
+        "F12"
+      ],
+      "default": "F10",
+      "label": "Window key",
+      "help": "Opens / closes the Cheats tab. F1 and F2 are the loader's, F11 is the game's fullscreen key and F12 Steam's screenshot. Applies after a restart."
+    },
+    {
+      "key": "default_count",
+      "type": "int",
+      "default": 1,
+      "min": 1,
+      "max": 99,
+      "label": "Default count",
+      "help": "The Count box of the Add items tab starts at this."
+    },
+    {
+      "key": "equip_after_add",
+      "type": "bool",
+      "default": false,
+      "label": "Equip after adding",
+      "help": "The Add items tab starts with Equip after adding ticked."
+    }
+  ]
+}
