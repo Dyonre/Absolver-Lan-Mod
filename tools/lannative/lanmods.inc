@@ -191,7 +191,7 @@ static void hk_clientmsg(void *pc, void *msg, uint64_t type, float seconds) {
                 toast_show(lines, 2, 20);
                 return;                                                           // our own message: not passed to the game's chat/HUD
             }
-            if (m && m->data && m->num > 24 && m->num < 600 && lm_unpack_msg(m->data, m->num - 1, &host)) {
+            if (m && m->data && m->num > LM_MSG_MIN && m->num < 600 && lm_unpack_msg(m->data, m->num - 1, &host)) {
                 LmStatus st = lm_compare(&g_lm_me, &host);
                 logf_("mods: the host reported fp %016llX '%s'; mine is %016llX '%s' -> %s", (unsigned long long)host.fp, host.names, (unsigned long long)g_lm_me.fp, g_lm_me.names,
                       st == LM_SAME ? "same" : "DIFFERENT");

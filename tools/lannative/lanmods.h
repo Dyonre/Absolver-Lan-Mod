@@ -60,12 +60,22 @@ static void lm_wide_to_names(const wchar_t *w, char *out, size_t cap) {
     size_t i = 0; for (; w[i] && i + 1 < cap; i++) out[i] = (w[i] < 128 && w[i] > 32) ? (char)w[i] : '_';
     out[i] = 0;
 }
+// LNVer value "<major>[.<minor>]": 1-4 digits per part, nothing else. Returns 1 and the numbers, or 0 (= treated as not sent).
+static int lm_parse_ver(const wchar_t *v, int *major, int *minor) {
+    int a = 0, b = 0, i = 0, d = 0;
+    if (!v) return 0;
+    for (; v[i] >= L'0' && v[i] <= L'9'; i++) { if (++d > 4) return 0; a = a * 10 + (v[i] - L'0'); }
+    if (!d) return 0;
+    if (v[i] == L'.') { i++; d = 0; for (; v[i] >= L'0' && v[i] <= L'9'; i++) { if (++d > 4) return 0; b = b * 10 + (v[i] - L'0'); } if (!d) return 0; }
+    if (v[i]) return 0;
+    *major = a; *minor = b; return 1;
+}
 // parses the PreLogin options string; present = 1 only when a valid 16-digit fingerprint was found
 static int lm_parse_options(const wchar_t *opt, int len, LmInfo *out) {
     memset(out, 0, sizeof *out); out->ver_major = out->ver_minor = -1;
     if (!opt || len <= 0) return 0;
     wchar_t v[LM_NAMES_MAX + 8];
-    if (lm_option(opt, len, L"LNVer", v, 16)) { int a = -1, b = -1; if (swscanf(v, L"%d.%d", &a, &b) >= 1 && a >= 0 && a < 1000) { out->ver_major = a; out->ver_minor = b >= 0 ? b : 0; } }
+    if (lm_option(opt, len, L"LNVer", v, 16)) { int a, b; if (lm_parse_ver(v, &a, &b)) { out->ver_major = a; out->ver_minor = b; } }
     if (!lm_option(opt, len, L"LNMods", v, 40) || wcslen(v) != 16) return 0;
     uint64_t fp = 0;
     for (int i = 0; i < 16; i++) { wchar_t c = v[i]; int d = (c >= L'0' && c <= L'9') ? c - L'0' : (c >= L'A' && c <= L'F') ? c - L'A' + 10 : (c >= L'a' && c <= L'f') ? c - L'a' + 10 : -1; if (d < 0) return 0; fp = (fp << 4) | (uint64_t)d; }
@@ -137,10 +147,19 @@ static int lm_lines(LmStatus st, const LmInfo *a, const char *a_label, const LmI
     return n;
 }
 
+// Host notices (NOTE verb): appends "<name>\t<text>\n" at out + w when the whole line fits (name cut to 95, text to 99 characters), else
+// leaves out unchanged. Needs w < cap; returns the new w (always < cap, out stays terminated).
+static int lm_note_append(char *out, size_t cap, int w, const char *name, const char *text) {
+    if (!out || w < 0 || (size_t)w >= cap) return w;
+    int r = snprintf(out + w, cap - (size_t)w, "%.95s\t%.99s\n", name ? name : "?", text ? text : "");
+    if (r < 0 || (size_t)r >= cap - (size_t)w) { out[w] = 0; return w; }
+    return w + r;
+}
 static int lm_pack_msg(const LmInfo *host, char *out, size_t cap) { return snprintf(out, cap, "LNMODS|%016llX|%s", (unsigned long long)host->fp, host->names) > 0; }
+#define LM_MSG_MIN 24                                                       // "LNMODS|<16 hex>|" with an empty name list
 static int lm_unpack_msg(const wchar_t *w, int len, LmInfo *out) {
     memset(out, 0, sizeof *out);
-    if (!w || len < 8 + 17 || wcsncmp(w, L"LNMODS|", 7) != 0) return 0;
+    if (!w || len < LM_MSG_MIN || wcsncmp(w, L"LNMODS|", 7) != 0) return 0;
     uint64_t fp = 0;
     for (int i = 0; i < 16; i++) { wchar_t c = w[7 + i]; int d = (c >= L'0' && c <= L'9') ? c - L'0' : (c >= L'A' && c <= L'F') ? c - L'A' + 10 : (c >= L'a' && c <= L'f') ? c - L'a' + 10 : -1; if (d < 0) return 0; fp = (fp << 4) | (uint64_t)d; }
     if (w[7 + 16] != L'|') return 0;

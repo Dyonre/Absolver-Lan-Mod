@@ -428,11 +428,12 @@ static char g_nn_text[PLUG_MAX][NN_LINE];                                       
 static char g_nn_got[NN_MAX][NN_LINE + 64]; static int g_nn_got_n; static volatile LONG g_nn_fetching, g_nn_changed; static char g_nn_from[64];
 static int nn_any(void) { nn_init(); EnterCriticalSection(&g_nn_cs); int a = 0; for (int i = 0; i < PLUG_MAX && !a; i++) a = g_nn_text[i][0] != 0; LeaveCriticalSection(&g_nn_cs); return a; }
 static void nn_serve(UINT_PTR c, const char *masked) {                               // host, server thread: "LNNOTE1 <n>\n" + n lines "<plugin>\t<text>\n"
-    nn_init(); static char out[NN_MAX * (NN_LINE + 80) + 32]; char body[NN_MAX * (NN_LINE + 80)] = ""; int n = 0, w = 0;
+    enum { NN_WORST = NN_MAX * (MOD_NAME_MAX + NN_LINE + 2) };                      // every line fits: name <= 95 + tab + text <= 99 + newline
+    nn_init(); static char out[NN_WORST + 32]; static char body[NN_WORST + 1]; int n = 0, w = 0; body[0] = 0;   // static: one server thread answers at a time
     EnterCriticalSection(&g_nn_cs);
-    for (int i = 0; i < PLUG_MAX && n < NN_MAX; i++) if (g_nn_text[i][0]) { w += snprintf(body + w, sizeof body - (size_t)w, "%s\t%s\n", plug_name_of(i), g_nn_text[i]); n++; }
+    for (int i = 0; i < PLUG_MAX && n < NN_MAX; i++) if (g_nn_text[i][0]) { int w2 = lm_note_append(body, sizeof body, w, plug_name_of(i), g_nn_text[i]); if (w2 == w) break; w = w2; n++; }
     LeaveCriticalSection(&g_nn_cs);
-    int len = snprintf(out, sizeof out, "LNNOTE1 %d\n%s", n, body);
+    int len = snprintf(out, sizeof out, "LNNOTE1 %d\n%s", n, body); if (len < 0) len = 0; if (len >= (int)sizeof out) len = (int)sizeof out - 1;
     int ok = hs_send_all((SOCKET)c, out, len);
     logf_("net notice: NOTE from %s -> %d line(s)%s", masked, n, ok ? "" : " - send failed");
 }
