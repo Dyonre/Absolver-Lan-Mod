@@ -55,9 +55,20 @@ LN_API(overlay) {
 }
 static void ovapi_first_tick(void) {
     InterlockedExchange(&g_ovapi_ticking, 1);
+    if (ov_bg_input_on() && ov_state() == OV_OFF) {          // -LNBgInput: the Present hook is what subclasses the window for background key input
+        __try { logf_("overlay: -LNBgInput - installing the Present hook for background key input"); ov_set_log(logf_); ov_request(); }
+        __except (EXCEPTION_EXECUTE_HANDLER) { logf_("overlay: EXCEPTION 0x%08lX while installing the Present hook (-LNBgInput) - background key input is NOT available", GetExceptionCode()); }
+    }
     if (!InterlockedExchange(&g_ovapi_pending, 0)) return;
     __try { logf_("overlay: first game tick - installing the Present hook requested during start-up"); ov_request(); }
     __except (EXCEPTION_EXECUTE_HANDLER) { logf_("overlay: EXCEPTION 0x%08lX while installing the Present hook - overlay stays off", GetExceptionCode()); }
 }
-LN_PRETICK(0050, overlay) { if (!g_ovapi_ticking) ovapi_first_tick(); }       // before plugins_tick (0300): plugins see the hook in their first on_tick
+LN_PREINIT(0050, bgguard) { ov_bg_guard_install(); }                          // -LNBgInput: before the game creates its window, its activating USER32 imports are made non-activating (no-op otherwise)
+static void ovapi_bg_tick(void) {                                             // -LNBgInput: mod DLLs (a hot reload adds new ones) get the same guard + the window's own focus / key state
+    static ULONGLONG next; ULONGLONG now = GetTickCount64(); if (now < next) return; next = now + 2000;
+    __try { ov_bg_mods_patch(); } __except (EXCEPTION_EXECUTE_HANDLER) { logf_("overlay: EXCEPTION 0x%08lX in the -LNBgInput mod patch - skipped", GetExceptionCode()); }
+    static int shown; static ULONGLONG next_sum; char sm[256]; int t = ov_bg_summary(sm, sizeof sm);   // the guard's tally, when it changed (at most every 10 s)
+    if (t != shown && now >= next_sum) { shown = t; next_sum = now + 10000; logf_("overlay: -LNBgInput: activation guard so far: %d call(s) refused / made non-activating: %s", t, sm); }
+}
+LN_PRETICK(0050, overlay) { if (!g_ovapi_ticking) ovapi_first_tick(); if (ov_bg_input_on()) ovapi_bg_tick(); }       // before plugins_tick (0300): plugins see the hook in their first on_tick
 #endif

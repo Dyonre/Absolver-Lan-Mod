@@ -96,6 +96,8 @@ static void pf_command(const char *name, int overwrite) {             // OVC_PRO
     pf_scan(); pf_save(nm, overwrite && pf_exists(nm)); g_mui_at = 0;
 }
 static void pf_snapshot(OvSnap *o) {                                   // the names of the page's last refresh (pf_rows_count)
+    { static ULONGLONG next; ULONGLONG now = GetTickCount64(); if (mui_tabs_on() && now >= next) { next = now + 1000; pf_scan(); } }   // tab mode: the profile rows are not listed, the bar needs the names (once a second)
+    o->pf_current = g_pf_current; snprintf(o->pf_msg, sizeof o->pf_msg, "%s", g_pf_msg);
     o->pf_n = g_pf_n < 32 ? g_pf_n : 32; for (int i = 0; i < o->pf_n; i++) snprintf(o->pf_names[i], sizeof o->pf_names[i], "%s", g_pf_names[i]);
     snprintf(o->pf_default, sizeof o->pf_default, "%s", g_pf_lastname); o->pf_serial = g_pf_serial;
 }

@@ -40,7 +40,11 @@ static int bind_code_parse(const char *s) {
     char b[24];
     for (int c = BIND_PAD; c <= BIND_MAX_CODE; c++) if (!_stricmp(t, bind_code_name(c, b, sizeof b))) return c;
     for (int c = 1; c < 7; c++) if (c != 3 && !_stricmp(t, bind_code_name(c, b, sizeof b))) return c;
-    int vk = keyreg_vk_parse(t); return vk > 0 ? vk : -1;
+    if (!_stricmp(t, "Win")) return 0x5B;                                                          // 5.3.0 wrote both Win keys as "Win": Left Win
+    int vk = keyreg_vk_parse(t); if (vk <= 0) return -1;
+    if (!_stricmp(keyreg_vk_name(vk, b, sizeof b), t)) return vk;                                  // the exact name
+    if (t[0] == '0' && (t[1] == 'x' || t[1] == 'X')) { char *e; strtol(t + 2, &e, 16); if (!*e) return vk; }   // "0x5C"
+    return -1;                                                                                     // "K garbage", "F8x": not an input name
 }
 static int bind_ctx_overlap(const char *a, const char *b) {
     if (!a || !a[0] || !b || !b[0]) return 1;
@@ -99,7 +103,8 @@ static int bindreg_load(BindReg *r, const char *text, int *bad) {
                 char *eq = strchr(s, '='), *sl = strchr(s, '/'); int code = eq ? bind_code_parse(eq + 1) : -1;
                 if (eq && sl && sl < eq && code >= 0) {
                     *eq = 0; size_t kl = strlen(s); while (kl && (s[kl - 1] == ' ' || s[kl - 1] == '\t')) s[--kl] = 0;
-                    *sl = 0; const char *mod = s, *id = sl + 1;
+                    *sl = 0; char *mod = s, *id = sl + 1; size_t ml = strlen(mod);                // "Mod / id" = "Mod/id"
+                    while (ml && (mod[ml - 1] == ' ' || mod[ml - 1] == '	')) mod[--ml] = 0; while (*id == ' ' || *id == '	') id++;
                     if (mod[0] && id[0]) {
                         int o = bindreg_override_of(r, mod, id);
                         if (o < 0) {
@@ -119,7 +124,7 @@ static int bindreg_load(BindReg *r, const char *text, int *bad) {
 }
 // The file text for the stored lines. Returns the length, -1 = cap too small.
 static int bindreg_save(const BindReg *r, char *out, size_t cap) {
-    int w = snprintf(out, cap, "# Gleam Loader key binds: Mod/action = input (keys like K or F8, Mouse 4, Pad A, none). Written by the F2 Keys rows; defaults are not listed.\r\n");
+    int w = snprintf(out, cap, "# Gleam Loader key binds: Mod/action = input (keys like K or F8, Mouse 4, Pad A, none). Written by the F1 > Keybinds tab; defaults are not listed.\r\n");
     for (int i = 0; i < r->no && w >= 0 && (size_t)w < cap; i++) { char b[24]; w += snprintf(out + w, cap - (size_t)w, "%s = %s\r\n", r->o[i].key, r->o[i].code ? bind_code_name(r->o[i].code, b, sizeof b) : "none"); }
     return w >= 0 && (size_t)w < cap ? w : -1;
 }

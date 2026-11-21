@@ -216,7 +216,7 @@ static int hm_prompt_lines(const char *host, const HmEntry *e, const int *want, 
     for (int i = 0; i < nns && k < max - 2; i++)
         snprintf(lines[k++], HM_LINE, "  %s%s%s%s: not shareable - get it from its author", ns[i].mod, ns[i].label[0] ? " '" : "", ns[i].label, ns[i].label[0] ? "'" : "");
     if (ini && k < max - 1) snprintf(lines[k++], HM_LINE, "CONFIG: marked files carry Config/*.ini that override the game's settings");
-    snprintf(lines[k++], HM_LINE, cnt ? "F2 > Mods: Install or Skip. Offered mods are marked shareable by their authors."
+    snprintf(lines[k++], HM_LINE, cnt ? "F1 > Hosting: Install or Skip. Offered mods are marked shareable by their authors."
                                       : "Nothing to download: only mods their authors mark shareable can travel.");
     return k;
 }

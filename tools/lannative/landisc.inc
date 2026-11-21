@@ -19,6 +19,7 @@ static SOCKET g_ld_hsock = INVALID_SOCKET, g_ld_fsock = INVALID_SOCKET;
 static LdList g_ld_list;
 static LdRate g_ld_rate;
 static char g_ld_id[12];
+static int hm_host_open(void);                                // hostmods.inc (hosting switch)
 static uint64_t g_ld_next_query, g_ld_next_poll, g_ld_next_altar, g_ld_answered;
 static int g_ld_bind_logged;
 
@@ -30,7 +31,7 @@ static void ld_install(void) {
     g_ld_wsa = 1;
     unsigned r = 0; if (rand_s(&r)) r = GetTickCount() ^ GetCurrentProcessId();
     snprintf(g_ld_id, sizeof g_ld_id, "%08X", r);
-    logf_("lan finder: on (UDP %d; answers while hosting, searches while an altar or F1 > LAN games is open; id %s)", LD_PORT, g_ld_id);
+    logf_("lan finder: on (UDP %d; answers while hosting, searches while an altar or F2 > LAN games is open; id %s)", LD_PORT, g_ld_id);
 }
 static SOCKET ld_open(unsigned short port, int broadcast) {
     SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP); if (s == INVALID_SOCKET) return s;
@@ -90,7 +91,7 @@ static void ld_host_step(uint64_t now) {
         if (n == SOCKET_ERROR) { int e = WSAGetLastError(); if (e == WSAECONNRESET || e == WSAEMSGSIZE) continue; break; }
         char qid[12]; uint32_t ip = ntohl(from.sin_addr.s_addr);
         if (!ld_is_query(buf, n, qid) || !strcmp(qid, g_ld_id)) continue;                       // not ours / our own finder
-        if (!jg_allowed_ip(&g_jg, ip) || !ld_rate_ok(&g_ld_rate, now, 20)) continue;
+        if (!hm_host_open() || !jg_allowed_ip(&g_jg, ip) || !ld_rate_ok(&g_ld_rate, now, 20)) continue;   // hosting OFF (F2 > Hosting): not listed
         if (!have) { ld_host_info(&info); have = 1; }
         char r[LD_REPLY_MAX + 1]; int rn = ld_build_reply(&info, r, sizeof r);
         if (rn > 0 && sendto(g_ld_hsock, r, rn, 0, (struct sockaddr *)&from, sizeof from) == rn) {
@@ -119,7 +120,7 @@ static void ld_send_query(void) {
     static int logged; if (logged++ < 3) logf_("lan finder: search sent to %d of %d address(es) (255.255.255.255, %d adapter broadcast(s)%s)", sent, nd, nd - 1 - (ld_ip_parse(ja, &uip) ? 1 : 0), ld_ip_parse(ja, &uip) ? ", the ip.txt address" : "");
 }
 static void ld_found_toast(const LdHost *h) {
-    char lines[1][LM_LINE_MAX]; snprintf(lines[0], LM_LINE_MAX, "LAN game found: %s on %s - press F1 to join", h->info.name[0] ? h->info.name : "a host", h->info.map[0] ? h->info.map : "?");
+    char lines[1][LM_LINE_MAX]; snprintf(lines[0], LM_LINE_MAX, "LAN game found: %s on %s - press F2 to join", h->info.name[0] ? h->info.name : "a host", h->info.map[0] ? h->info.map : "?");
     toast_show(lines, 1, 6);
 }
 static void ld_find_step(uint64_t now, int want) {
@@ -151,7 +152,7 @@ static int ld_altar_open(void) {
     if (g_ld_menu_ok < 0) {
         static const uint8_t expect[14] = { 0x48, 0x8B, 0x81, 0x48, 0x12, 0x00, 0x00, 0x48, 0x63, 0x89, 0x50, 0x12, 0x00, 0x00 };
         g_ld_menu_ok = !memcmp(g_base + RVA_PC_ISMENUINSTACK, expect, sizeof expect);
-        if (!g_ld_menu_ok) logf_("lan finder: BPF_IsMenuInStack bytes differ from this build - the altar does not start a search (F1 > LAN games still does)");
+        if (!g_ld_menu_ok) logf_("lan finder: BPF_IsMenuInStack bytes differ from this build - the altar does not start a search (F2 > LAN games still does)");
     }
     if (!g_ld_menu_ok) return 0;
     void *pc = L_local_pc(); if (!pc || !object_is_a(pc, api_cls_fightingpc())) return 0;
@@ -189,7 +190,7 @@ static void ld_tick(uint64_t now) {
             g_ld_next_altar = now + 250;
             int a = ld_altar_open();
             if (a != g_ld_altar) {
-                g_ld_altar = a; logf_("lan finder: altar menu %s", a ? "opened - searching the LAN (F1 = LAN games)" : "closed");
+                g_ld_altar = a; logf_("lan finder: altar menu %s", a ? "opened - searching the LAN (F2 = LAN games)" : "closed");
                 if (a) { if (!g_menu.open) g_menu.mem_page = MP_LAN; for (int k = 0; k < g_ld_list.n && !g_menu.open; k++) ld_found_toast(&g_ld_list.h[k]); }
                 else if (!g_menu.open && g_menu.mem_page == MP_LAN) g_menu.mem_page = MP_MAIN;
             }

@@ -18,7 +18,7 @@ static const char *keyreg_vk_name(int vk, char *buf, size_t cap) {
     static const struct { int vk; const char *n; } T[] = {
         { 0x08, "Backspace" }, { 0x09, "Tab" }, { 0x0D, "Enter" }, { 0x10, "Shift" }, { 0x11, "Ctrl" }, { 0x12, "Alt" }, { 0x13, "Pause" }, { 0x14, "Caps Lock" },
         { 0x1B, "Esc" }, { 0x20, "Space" }, { 0x21, "Page Up" }, { 0x22, "Page Down" }, { 0x23, "End" }, { 0x24, "Home" }, { 0x25, "Left" }, { 0x26, "Up" },
-        { 0x27, "Right" }, { 0x28, "Down" }, { 0x2C, "Print Screen" }, { 0x2D, "Insert" }, { 0x2E, "Delete" }, { 0x5B, "Win" }, { 0x5C, "Win" }, { 0x90, "Num Lock" },
+        { 0x27, "Right" }, { 0x28, "Down" }, { 0x2C, "Print Screen" }, { 0x2D, "Insert" }, { 0x2E, "Delete" }, { 0x5B, "Left Win" }, { 0x5C, "Right Win" }, { 0x90, "Num Lock" },
         { 0x91, "Scroll Lock" }, { 0xBA, ";" }, { 0xBB, "=" }, { 0xBC, "," }, { 0xBD, "-" }, { 0xBE, "." }, { 0xBF, "/" }, { 0xC0, "`" }, { 0xDB, "[" }, { 0xDC, "\\" },
         { 0xDD, "]" }, { 0xDE, "'" } };
     if (vk >= 0x70 && vk <= 0x87) { snprintf(buf, cap, "F%d", vk - 0x70 + 1); return buf; }

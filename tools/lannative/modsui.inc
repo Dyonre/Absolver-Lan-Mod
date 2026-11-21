@@ -41,6 +41,7 @@ static int api_p_reload_content(const AbsApi *self) {
 // ----- Mods page: load order edits, live switch-on, settings forms (commands come from the overlay: OVC_MODS_*)
 static int md_console(const char *cmd);                                           // modes.inc
 static int g_mi_live[MODS_MAX];                                                    // switched on while the game runs (rows / content only)
+#define MUI_FORM_LOADER (-2)                                                          // g_form_row of the loader's own settings (F1 > Settings)
 static int g_form_row = -1, g_form_mi = -1, g_form_ok, g_form_live, g_form_n; static unsigned g_form_serial; static char g_form_title[96], g_form_msg[200]; static OvSetting g_form[OV_SETTINGS];
 static int mods_ui_mi_of(const char *name) { for (int i = 0; i < g_mi_n; i++) if (!_stricmp(g_mi[i].name, name)) return i; return -1; }
 // 0 nothing pending, 1 switches on after a restart, 2 switches off after a restart, 3 switched on live
@@ -90,11 +91,9 @@ static void mods_ui_form_open(int row) {
     g_form_live = 0; for (int p = 0; p < g_plugins_n; p++) if (!_stricmp(g_plugins[p].name, g_mi[mi].name) && g_plugins[p].loaded && g_plugins[p].module && GetProcAddress(g_plugins[p].module, "gleam_settings_changed")) g_form_live = 1;
     logf_("mods page: settings form of %s opened (%d setting(s), changes %s)", g_mi[mi].name, g_form_n, g_form_live ? "apply live" : "apply after a restart");
 }
-static void mods_ui_form_apply(int row, const char *text) {
-    if (row != g_form_row || g_form_mi < 0) return;
-    int mi = g_form_mi; const ModSettings *set = g_mset[mi]; if (!set) return;
-    wchar_t cp[MAX_PATH]; swprintf(cp, MAX_PATH, L"%ls\\plugin.cfg", g_mi_dir[mi]); char *cfg = mods_read_text(cp, 65536);
-    static char keys[MSET_MAX][48], vals[MSET_MAX][MSET_TEXT]; const char *kp[MSET_MAX], *vp[MSET_MAX]; int n = 0;
+// the form's "key<TAB>value<LF>" lines -> the values that differ from what cfg (or the default) holds; kp / vp point into static buffers
+static int mui_form_changes(const ModSettings *set, const char *cfg, const char *text, const char **kp, const char **vp) {
+    static char keys[MSET_MAX][48], vals[MSET_MAX][MSET_TEXT]; int n = 0;
     for (const char *p = text; *p && n < MSET_MAX;) {                                // "key<TAB>value<LF>" lines; only values that differ from what the file (or the default) holds are written
         const char *e = strchr(p, '\n'); size_t len = e ? (size_t)(e - p) : strlen(p); const char *tab = memchr(p, '\t', len);
         if (tab && tab - p < 48 && len - (size_t)(tab - p) - 1 < MSET_TEXT) {
@@ -109,6 +108,15 @@ static void mods_ui_form_apply(int row, const char *text) {
         }
         if (!e) break; p = e + 1;
     }
+    return n;
+}
+static void lset_apply(const char *text);   // the loader's own settings (below)
+static void mods_ui_form_apply(int row, const char *text) {
+    if (row == MUI_FORM_LOADER && g_form_row == MUI_FORM_LOADER) { lset_apply(text); return; }
+    if (row != g_form_row || g_form_mi < 0) return;
+    int mi = g_form_mi; const ModSettings *set = g_mset[mi]; if (!set) return;
+    wchar_t cp[MAX_PATH]; swprintf(cp, MAX_PATH, L"%ls\\plugin.cfg", g_mi_dir[mi]); char *cfg = mods_read_text(cp, 65536);
+    const char *kp[MSET_MAX], *vp[MSET_MAX]; int n = mui_form_changes(set, cfg, text, kp, vp);
     if (n == 0) { snprintf(g_form_msg, sizeof g_form_msg, "Nothing changed."); g_form_ok = 1; free(cfg); return; }
     static char out[65536 + 4096]; char err[200] = "";
     if (mset_apply(set, cfg, n, kp, vp, out, sizeof out, err, sizeof err) < 0) {
@@ -130,11 +138,91 @@ static void mods_ui_form_apply(int row, const char *text) {
     mods_ui_form_open(row); snprintf(g_form_msg, sizeof g_form_msg, "%s", done); g_form_ok = 1;
     logf_("mods page: settings of %s saved (%d value(s)); %s", g_mi[mi].name, n, notified ? "the plugin was told (gleam_settings_changed)" : "restart needed");
 }
+
+// ----- the loader's own settings (F1 > Settings). The mod-settings form (same schema as a mod.json "settings" list) over LanNative\config.txt.
+// Every option below is read once when the game starts, so a change applies after a restart (the tab says so). config.txt absent: it is created, unless the
+// install still has old one-file-per-setting files (config.txt replaces them all at once: the write is refused and the tab says which file to move first).
+static const char g_lset_json[] = "{\"settings\":["
+    "{\"key\":\"menu_style\",\"type\":\"choice\",\"choices\":[\"imgui\",\"text\"],\"default\":\"imgui\",\"label\":\"Menu style\",\"help\":\"imgui = these windows; text = the plain text menu the game draws (no tabs, no mod tabs).\"},"
+    "{\"key\":\"pad_menu\",\"type\":\"choice\",\"choices\":[\"on\",\"off\"],\"default\":\"on\",\"label\":\"Gamepad in the menus\",\"help\":\"on = Back + Start opens the loader window; d-pad / A / B move in the menus.\"},"
+    "{\"key\":\"keep_keys\",\"type\":\"text\",\"default\":\"F11\",\"label\":\"Keys kept from the game\",\"help\":\"F keys the game never gets in a Modded start (comma list, or none). F11 = the game's fullscreen toggle.\"},"
+    "{\"key\":\"content_paks\",\"type\":\"choice\",\"choices\":[\"stock\",\"all\"],\"default\":\"stock\",\"label\":\"Paks in Content\\\\Paks\",\"help\":\"stock = only the game's own paks + Mods\\\\ (vanilla pak mods stay for Vanilla starts); all = every pak there.\"},"
+    "{\"key\":\"lanfinder\",\"type\":\"choice\",\"choices\":[\"on\",\"off\"],\"default\":\"on\",\"label\":\"LAN finder\",\"help\":\"on = find LAN games at an altar / F2 > LAN games, and answer while hosting.\"},"
+    "{\"key\":\"modmismatch\",\"type\":\"choice\",\"choices\":[\"warn\",\"block\",\"off\"],\"default\":\"warn\",\"label\":\"Mod check when joining\",\"help\":\"warn = say when host and joiner have different gameplay mods; block = refuse such a joiner; off = no check.\"},"
+    "{\"key\":\"autoleave\",\"type\":\"choice\",\"choices\":[\"on\",\"off\"],\"default\":\"on\",\"label\":\"Auto-leave a duel\",\"help\":\"on = when the other player's connection is gone, go back to your own game.\"},"
+    "{\"key\":\"perteam\",\"type\":\"choice\",\"choices\":[\"1\",\"2\",\"3\"],\"default\":\"1\",\"label\":\"3v3 maps: players per team\",\"help\":\"How many players a hosted 3v3 map waits for per team (3 = the game's own).\"},"
+    "{\"key\":\"soloduel\",\"type\":\"choice\",\"choices\":[\"off\",\"on\"],\"default\":\"off\",\"label\":\"Solo duel\",\"help\":\"on = a 1v1 / 3v3 map you host starts with only you in it (map testing).\"},"
+    "{\"key\":\"npc\",\"type\":\"choice\",\"choices\":[\"on\",\"off\"],\"default\":\"on\",\"label\":\"NPC spawning\",\"help\":\"on = F2 > Spawn NPC works when you are the host.\"},"
+    "{\"key\":\"parryfix\",\"type\":\"choice\",\"choices\":[\"on\",\"off\"],\"default\":\"on\",\"label\":\"Parry fix\",\"help\":\"on = the Forsaken parry bug fix (in memory, the game files are not changed).\"},"
+    "{\"key\":\"pvpfix\",\"type\":\"choice\",\"choices\":[\"on\",\"guard\",\"off\"],\"default\":\"on\",\"label\":\"PvP fixes\",\"help\":\"on = send-back guard + duel flow; guard = the guard only; off = neither.\"},"
+    "{\"key\":\"perf_stats\",\"type\":\"choice\",\"choices\":[\"on\",\"off\"],\"default\":\"on\",\"label\":\"Frame time log\",\"help\":\"on = frame time lines in lannative.log every 30 s.\"}"
+    "]}";
+static ModSettings g_lset; static int g_lset_state;                                   // 0 not parsed yet, 1 ok, -1 the list above does not parse (logged)
+static const wchar_t *const g_lset_legacy[] = { L"menu_style.txt", L"menu.txt", L"autoleave.txt", L"perteam.txt", L"soloduel.txt", L"npc.txt", L"npcrepl.txt", L"parryfix.txt",
+    L"pvpfix.txt", L"lanfinder.txt", L"modmismatch.txt", L"lan.txt", L"hostip.txt", L"telemetry.txt", L"maxplayers.txt", L"moddownload.txt", L"allow.txt" };
+static int lset_legacy_file(char *which, size_t cap) {                                // 1 = config.txt absent and an old per-setting file exists (its name in which)
+    if (g_cfg_present) return 0;
+    for (size_t i = 0; i < sizeof g_lset_legacy / sizeof g_lset_legacy[0]; i++) {
+        wchar_t p[MAX_PATH]; swprintf(p, MAX_PATH, L"%s%ls", g_dir, g_lset_legacy[i]);
+        if (GetFileAttributesW(p) != INVALID_FILE_ATTRIBUTES) { w_to_u8(g_lset_legacy[i], which, (int)cap); return 1; }
+    }
+    return 0;
+}
+static void lset_form_open(void) {
+    if (!g_lset_state) { char err[200] = ""; g_lset_state = mset_parse(g_lset_json, &g_lset, err, sizeof err) == 0 && g_lset.n ? 1 : -1; logf_("settings: loader settings list: %d option(s)%s%s", g_lset.n, err[0] ? " - " : "", err); }
+    g_form_n = 0; memset(g_form, 0, sizeof g_form);
+    for (int i = 0; g_lset_state > 0 && i < g_lset.n && g_form_n < OV_SETTINGS; i++) {
+        const ModSetting *st = &g_lset.s[i]; OvSetting *d = &g_form[g_form_n++];
+        snprintf(d->key, sizeof d->key, "%s", st->key); snprintf(d->label, sizeof d->label, "%s", st->label); snprintf(d->help, sizeof d->help, "%s", st->help); snprintf(d->def, sizeof d->def, "%s", st->def);
+        d->type = st->type; d->has_min = st->has_min; d->has_max = st->has_max; d->min = st->min; d->max = st->max; d->nchoice = st->nchoice; memcpy(d->choice, st->choice, sizeof d->choice);
+        char v[MSET_TEXT]; if (!g_cfg_present || !mset_cfg_get(g_cfg_text, st->key, v, sizeof v)) snprintf(v, sizeof v, "%s", st->def); snprintf(d->value, sizeof d->value, "%s", v);
+    }
+    g_form_row = MUI_FORM_LOADER; g_form_mi = -1; g_form_ok = 0; g_form_live = 0; g_form_serial++; snprintf(g_form_title, sizeof g_form_title, "Loader settings");
+    char old[64]; if (lset_legacy_file(old, sizeof old)) snprintf(g_form_msg, sizeof g_form_msg, "This install still uses old per-setting files (%s): put those values in LanNative\\config.txt first; Apply stays refused until then.", old);
+    else g_form_msg[0] = 0;
+    logf_("settings: loader settings form opened (%d option(s), config.txt %s)", g_form_n, g_cfg_present ? "present" : "absent - Apply creates it");
+}
+static void lset_apply(const char *text) {
+    char old[64]; if (lset_legacy_file(old, sizeof old)) { snprintf(g_form_msg, sizeof g_form_msg, "Nothing was saved: old per-setting file %s exists; LanNative\\config.txt would replace it.", old); g_form_ok = 0; logf_("settings: %s", g_form_msg); return; }
+    const char *kp[MSET_MAX], *vp[MSET_MAX]; int n = mui_form_changes(&g_lset, g_cfg_present ? g_cfg_text : NULL, text, kp, vp);
+    if (!n) { snprintf(g_form_msg, sizeof g_form_msg, "Nothing changed."); g_form_ok = 1; return; }
+    static char out[sizeof g_cfg_text]; char err[200] = "";
+    if (mset_apply(&g_lset, g_cfg_present ? g_cfg_text : "", n, kp, vp, out, sizeof out, err, sizeof err) < 0) { snprintf(g_form_msg, sizeof g_form_msg, "Nothing was saved. %.150s", err); g_form_ok = 0; logf_("settings: rejected: %s", err); return; }
+    wchar_t path[MAX_PATH], tmp[MAX_PATH]; swprintf(path, MAX_PATH, L"%sconfig.txt", g_dir); swprintf(tmp, MAX_PATH, L"%sconfig.txt.tmp", g_dir);
+    HANDLE h = CreateFileW(tmp, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL); DWORD w = 0; int ok = 0; size_t len = strlen(out);
+    if (h != INVALID_HANDLE_VALUE) { ok = WriteFile(h, out, (DWORD)len, &w, NULL) && w == (DWORD)len; CloseHandle(h); }
+    if (ok) ok = MoveFileExW(tmp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH); else DeleteFileW(tmp);
+    if (!ok) { snprintf(g_form_msg, sizeof g_form_msg, "Nothing was saved: config.txt could not be written (error %lu).", GetLastError()); g_form_ok = 0; logf_("settings: %s", g_form_msg); return; }
+    int created = !g_cfg_present; memcpy(g_cfg_text, out, len + 1); g_cfg_present = 1;
+    for (int i = 0; i < n; i++) logf_("settings: %s = %s (LanNative\\config.txt%s; applies after a restart)", kp[i], vp[i], created ? ", created" : "");
+    lset_form_open(); snprintf(g_form_msg, sizeof g_form_msg, "Saved %d setting(s) to LanNative\\config.txt%s. They apply after a restart.", n, created ? " (created)" : ""); g_form_ok = 1;
+}
 // ----- the page
 static MuiRef g_mui_ref[MUI_ACTIONS]; static int g_mui_nref, g_mui_open = -1;          // what each action line does; the open section (plugin index, -1 = all closed)
+static int g_mui_nmitem;                                                              // menu items at the last refresh: MUR_ITEM refs past it are ui rows (uirows.inc)
+static int mui_ui_row(int index) {                                                    // action line -> ui row index, -1 = not a ui row
+    return index > 0 && index < g_mui_nref && g_mui_ref[index].kind == MUR_ITEM && g_mui_ref[index].ref >= g_mui_nmitem ? g_mui_ref[index].ref - g_mui_nmitem : -1;
+}
 #define MUI_UNITS 8
 static const LnRows *g_mui_unit[MUI_UNITS]; static int g_mui_unit_n[MUI_UNITS], g_mui_units;   // the units' rows after the plugin sections (lnhooks.h LN_MODS_ROWS): whose, and how many each got
 static ModsUiIn g_mui; static char g_mui_lines[MENU_LIST_MAX][MUI_LINE]; static int g_mui_n; static ULONGLONG g_mui_at;
+// tabs of the overlay's Mods window (overlay.h OVT_*). While the overlay draws the menu, the page lists only the active tab's rows; the text menu
+// (menu_style = text, or no overlay) keeps the one long list. Each unit's rows belong to one tab (by unit name); -1 = drawn by the overlay itself in tab mode.
+static int g_mui_tab;                                                                 // OVT_* or OVT_PLUGIN + plugin index (API 2.33 ui_tab)
+#ifdef LN_OVERLAY
+#define mui_tabs_on() ov_text_hidden()
+#else
+#define mui_tabs_on() 0
+#define OVT_MODS 0
+#endif
+static int mui_unit_tab(const char *unit) {
+#ifdef LN_OVERLAY
+    if (!strcmp(unit, "keys")) return OVT_KEYS;
+    if (!strcmp(unit, "hostmods") || !strcmp(unit, "netinspect")) return OVT_HOSTING;
+    if (!strcmp(unit, "logwin") || !strcmp(unit, "profiles")) return -1;              // the Log tab draws the log itself; the Mods tab has the profile bar
+#endif
+    (void)unit; return OVT_MODS;
+}
 static void modsui_refresh(void) {
     ModsUiIn *in = &g_mui; memset(in, 0, sizeof *in);
     in->mods = g_mi; in->nmods = g_mi_n; in->safe_mode = g_safe_mode; in->safe_why = g_safe_why; in->order = g_mi_order;
@@ -145,12 +233,18 @@ static void modsui_refresh(void) {
     for (int k = 0; in->nwarn < MUI_WARN && grants_warn_line(k, in->warn[in->nwarn], sizeof in->warn[0]); k++) in->nwarn++;   // live: grants still waiting for the player's inventory (content.inc)
     in->reload_status = g_reload_status; in->info = g_vo_info;                    // modglue.inc: content paks rule info line
     static char act[MUI_ACTIONS][MUI_LINE]; in->nactions = 0;
+    int tabs = mui_tabs_on();
+    g_mui_nref = 0; g_mui_nmitem = g_mitem_n;
+    if (!tabs || g_mui_tab == OVT_MODS) {                                          // reload + plugin sections: the Mods tab (or the text menu)
     snprintf(act[0], MUI_LINE, "Reload Mods\\*\\content and rows.json now"); in->action[in->nactions++] = act[0];
-    int key[MITEM_MAX]; const char *nm[MITEM_MAX], *tx[MITEM_MAX];                     // plugin items: one collapsible section per plugin (modsui_sections)
+    int key[MITEM_MAX + UIR_MAX]; const char *nm[MITEM_MAX + UIR_MAX], *tx[MITEM_MAX + UIR_MAX];   // plugin items, then the plugins' ui rows (uirows.inc): one collapsible section per plugin (modsui_sections)
+    g_mui_nmitem = g_mitem_n;                                                      // item index >= this = ui row (index - this)
     for (int i = 0; i < g_mitem_n; i++) { key[i] = g_mitem[i].plugin; nm[i] = plug_name_of(g_mitem[i].plugin); tx[i] = g_mitem[i].text; }
-    int ns = modsui_sections(g_mitem_n, key, nm, tx, g_mui_open, act + 1, g_mui_ref + 1, MUI_ACTIONS - 1);
+    int nui = uir_lines(); for (int i = 0; i < nui; i++) { int k = g_mitem_n + i; key[k] = uir_plugin(i); nm[k] = plug_name_of(key[k]); tx[k] = g_uir_line[i]; }
+    int ns = modsui_sections(g_mitem_n + nui, key, nm, tx, g_mui_open, act + 1, g_mui_ref + 1, MUI_ACTIONS - 1);
     g_mui_ref[0].kind = 0; g_mui_ref[0].ref = 0; g_mui_nref = 1 + ns;
     for (int i = 1; i <= ns; i++) in->action[in->nactions++] = act[i];
+    }
     g_mui_units = 0; int dropped = 0; static int dropped_last;                    // dropped_last: units past the cap at the previous refresh (logged already)
     LN_FOREACH(modsrows, LnRows, u) {                                             // the units' rows, in key order: host mods, Net Inspector
         if (g_mui_units >= MUI_UNITS) {                                           // never silently: each unit past the cap is logged once (the page refreshes every 0.5 s)
@@ -158,6 +252,7 @@ static void modsui_refresh(void) {
             if (dropped > dropped_last) logf_("mods page: unit '%s' (key %s) has rows but the page holds %d units (MUI_UNITS) - its rows are NOT shown; raise MUI_UNITS in modsui.inc", u->name, u->key, MUI_UNITS);
             continue;
         }
+        if (tabs && mui_unit_tab(u->name) != g_mui_tab) continue;                // tab mode: only the active tab's units (their count() is not even called)
         int got = 0; for (int i = 0, n = u->count(); i < n && in->nactions < MUI_ACTIONS; i++, got++) in->action[in->nactions++] = u->label(i);
         g_mui_unit[g_mui_units] = u; g_mui_unit_n[g_mui_units++] = got;
     }
@@ -167,7 +262,7 @@ static void modsui_refresh(void) {
 static int modsui_count(void) { if (GetTickCount64() - g_mui_at > 500) modsui_refresh(); return g_mui_n; }
 static const char *modsui_line(int i) { return i >= 0 && i < g_mui_n ? g_mui_lines[i] : ""; }
 static void modsui_action(int index) {
-    if (index == 0) { mods_reload_all(); g_mui_at = 0; return; }
+    if (index == 0 && g_mui_nref > 0) { mods_reload_all(); g_mui_at = 0; return; }
     if (index >= g_mui_nref) {                                                    // a unit's row: the unit that owns it gets its own row index
         int at = index - g_mui_nref;
         for (int k = 0; k < g_mui_units; k++) { if (at < g_mui_unit_n[k]) { g_mui_unit[k]->action(at); break; } at -= g_mui_unit_n[k]; }
@@ -178,6 +273,7 @@ static void modsui_action(int index) {
         int k = g_mui_ref[index].ref; g_mui_open = g_mui_open == k ? -1 : k; g_mui_at = 0;
         logf_("menu: Mods section %s %s", plug_name_of(k), g_mui_open == k ? "opened" : "closed"); return;
     }
+    if (mui_ui_row(index) >= 0) { uir_choose(mui_ui_row(index), 0, 0, "Mods page"); g_mui_at = 0; return; }
     if (g_mui_ref[index].kind == MUR_ITEM && g_mui_ref[index].ref < g_mitem_n) {
         MenuItemReg *m = &g_mitem[g_mui_ref[index].ref]; if (!plug_guard(m->plugin)) { logf_("menu: item '%s' is switched off (its plugin faulted)", m->label); return; }
         logf_("menu: plugin item '%s'", m->label);
@@ -186,7 +282,16 @@ static void modsui_action(int index) {
     }
 }
 #ifdef LN_OVERLAY
-static void pf_command(const char *name, int overwrite); static void pf_snapshot(OvSnap *o);   // profiles.inc (included after this unit)
+static void pf_command(const char *name, int overwrite); static void pf_snapshot(OvSnap *o); static void pf_scan(void); static void pf_switch(int i);   // profiles.inc (included after this unit)
+static void mui_set_tab(int t, const char *why) {
+    if (!((t >= 0 && t < OVT_COUNT) || (t >= OVT_PLUGIN && t < OVT_PLUGIN + PLUG_MAX))) { logf_("mods page: tab %d refused (no such tab)", t); return; }
+    if (t == g_mui_tab) return;
+    logf_("mods page: tab %d -> %d%s%s (%s)", g_mui_tab, t, t >= OVT_PLUGIN ? " = plugin " : "", t >= OVT_PLUGIN ? plug_name_of(t - OVT_PLUGIN) : "", why);
+    if (g_form_row == MUI_FORM_LOADER) mods_ui_form_close();                     // leaving Settings
+    g_mui_tab = t; g_menu.sel = 0; g_mui_at = 0;
+    if (t == OVT_SETTINGS) lset_form_open();
+    if (t == OVT_LOG) { wchar_t p[MAX_PATH]; swprintf(p, MAX_PATH, L"%slannative.log", g_dir); ov_log_window(p, 0); }   // the Log tab shows the log (the separate window closes)
+}
 static void modsui_command(const OvCmd *c) {
     char msg[200] = "";
     switch (c->cmd) {
@@ -208,6 +313,10 @@ static void modsui_command(const OvCmd *c) {
     case OVC_MODS_FORM: if (c->index < 0) mods_ui_form_close(); else mods_ui_form_open(c->index); break;
     case OVC_MODS_APPLY: mods_ui_form_apply(c->index, c->text); break;
     case OVC_PROFILE_SAVE: pf_command(c->text, c->arg); break;
+    case OVC_MODS_TAB: mui_set_tab(c->index, "tab bar"); break;
+    case OVC_MODS_CLOSE: if (g_menu.open && g_menu.page == MP_MODS) { menu_key(&g_menu, MK_MODS); logf_("menu: loader window closed (X / Esc / pad B)"); } break;
+    case OVC_PROFILE_SWITCH: logf_("profiles: bar: switch to profile %d", c->index); pf_scan(); pf_switch(c->index); break;
+    case OVC_UI_SET: { double v; if (uir_kind(c->arg) == UIR_NUMBER && uir_parse(c->text, &v)) uir_choose(c->arg, 1, v, "Mods page slider"); else logf_("mods page: slider value '%.40s' for ui row %d ignored (not a number row)", c->text, c->arg); } break;
     default: break;
     }
     g_mui_at = 0;
@@ -218,7 +327,7 @@ static void modsui_command(const OvCmd *c) {
 static void modsui_snapshot(OvSnap *o) {
     modsui_count();                                                               // refreshes g_mui when it is older than 500 ms
     const ModsUiIn *in = &g_mui;
-    o->kind = OV_MODS; snprintf(o->title, OV_LINE, "Mods");
+    o->kind = OV_MODS; snprintf(o->title, OV_LINE, "Mods"); o->tab = g_mui_tab;
     o->safe_mode = in->safe_mode; snprintf(o->safe_why, sizeof o->safe_why, "%s", in->safe_why ? in->safe_why : "");
     snprintf(o->order, sizeof o->order, "%s", in->order ? in->order : "");
     o->nmods = 0;                                                                 // one row per entry of loadorder.txt as it is now (the page can reorder it); the row index is the index in g_order_now
@@ -244,7 +353,23 @@ static void modsui_snapshot(OvSnap *o) {
     for (int i = 0; i < o->nplug; i++) { snprintf(o->plug_name[i], sizeof o->plug_name[i], "%s", in->plug_name[i]); o->plug_faults[i] = in->plug_faults[i]; o->plug_loaded[i] = in->plug_loaded[i]; }
     snprintf(o->reload_status, sizeof o->reload_status, "%s", in->reload_status ? in->reload_status : "");
     o->nactions = in->nactions < OV_ACTIONS ? in->nactions : OV_ACTIONS;
-    for (int i = 0; i < o->nactions; i++) { snprintf(o->action[i], OV_LINE, "%s", in->action[i]); o->action_kind[i] = i < g_mui_nref ? g_mui_ref[i].kind : 0; }
+    for (int i = 0; i < o->nactions; i++) {
+        snprintf(o->action[i], OV_LINE, "%s", in->action[i]); o->action_kind[i] = i < g_mui_nref ? g_mui_ref[i].kind : 0;
+        int u = mui_ui_row(i), k = uir_kind(u);                                   // ui rows: 3 = number (slider), 4 = hint (grey text)
+        if (k == UIR_NUMBER) { o->action_kind[i] = 3; uir_range(u, o->action_num[i]); } else if (k == UIR_HINT) o->action_kind[i] = 4;
+        // the reload row, plugin menu items and ui buttons are buttons (14); ui toggles are check boxes ("[x] label", 6 / 7)
+        else if (k == UIR_TOGGLE) { double r[5]; uir_range(u, r); EnterCriticalSection(&g_lock); snprintf(o->action[i], OV_LINE, "[%c] %s", r[0] != 0 ? 'x' : ' ', u >= 0 && u < g_uir_n ? g_uir[u].label : ""); LeaveCriticalSection(&g_lock); o->action_kind[i] = r[0] != 0 ? 6 : 7; }
+        else if (k == UIR_BUTTON || (i == 0 && g_mui_nref > 0) || (i < g_mui_nref && g_mui_ref[i].kind == MUR_ITEM)) o->action_kind[i] = 14;
+        if (i >= g_mui_nref) {                                                    // units' rows: a marker at the start says how the overlay draws the row
+            char *t = o->action[i];
+            if (t[0] == '\x01') { o->action_kind[i] = 5; memmove(t, t + 1, strlen(t)); }          // group header
+            else if (t[0] == '\x02') { o->action_kind[i] = 9; memmove(t, t + 1, strlen(t)); }     // grey text
+            else if (t[0] == '\x03') { memmove(t, t + 1, strlen(t)); o->action_kind[i] = !strncmp(t, "[x] ", 4) ? 10 : 11; }   // big switch on / off (Hosting)
+            else if (!strncmp(t, "[x] ", 4)) o->action_kind[i] = 6;                                  // check box on
+            else if (!strncmp(t, "[ ] ", 4)) o->action_kind[i] = 7;                                  // check box off
+            else if (strchr(t, '\t')) o->action_kind[i] = 8;                                        // columns
+        }
+    }
     pf_snapshot(o);
 }
 #endif
@@ -257,7 +382,7 @@ static int modsui_back(int sel) {
 }
 static int modsui_open_section(void) { return g_mui_open >= 0; }
 static int modsui_form_close_if_open(void) { if (g_form_row < 0) return 0; logf_("mods page: settings form closed (Back)"); mods_ui_form_close(); g_mui_at = 0; return 1; }
-static void modsui_collapse(void) { if (g_mui_open >= 0) { g_mui_open = -1; g_mui_at = 0; } }
+static void modsui_collapse(void) { if (g_mui_open >= 0) { g_mui_open = -1; g_mui_at = 0; } if (g_mui_tab != OVT_MODS) { g_mui_tab = OVT_MODS; g_mui_at = 0; } if (g_form_row == MUI_FORM_LOADER) mods_ui_form_close(); }   // F1 opens on the Mods tab
 // called every game tick with the window focus state: LanNative\reload.txt
 static void modsui_tick(int focus) {
     static ULONGLONG next_poll; ULONGLONG now = GetTickCount64();
@@ -267,4 +392,51 @@ static void modsui_tick(int focus) {
     }
 }
 LN_TICK(0800, modsui) { modsui_tick(g_ln_focus); }
-LN_API(modsui) { a->add_menu_item = api_p_add_menu_item; a->reload_content = api_p_reload_content; }
+#ifdef LN_OVERLAY
+// ----- API 2.33 : mod tabs in the Mods window (Cyber Engine Tweaks style; docs/API-REFERENCE.md)
+static int api_p_ui_tab(const AbsApi *self, const char *title, void (*draw)(void *user), void *user) {
+    int p = plug_of(self); if (p < 0 || p >= PLUG_MAX || !draw) return 1;
+    int rc = ovapi_up(p, "ui_tab"); if (rc) return rc;
+    char t[40]; snprintf(t, sizeof t, "%s", title && title[0] ? title : plug_name_of(p));
+    rc = ov_tab_register(p, t, draw, user); logf_("plugin %s: ui_tab '%s' -> %d", plug_name_of(p), t, rc); return rc;
+}
+static int api_p_ui_tab_show(const AbsApi *self, int show) {                     // game thread: 1 open the Mods window on the caller's tab, 0 close it (only when it shows that tab), 2 toggle
+    int p = plug_of(self); if (p < 0 || p >= PLUG_MAX || show < 0 || show > 2) return -1;
+    if (!api_p_is_game_thread(self)) { logf_("plugin %s: ui_tab_show(%d) refused - not on the game thread", plug_name_of(p), show); return -1; }
+    { char t[40]; int has = 0; for (int i = 0, o; (o = ov_tab_owner_at(i, t, sizeof t)) >= 0; i++) if (o == p) has = 1;
+      if (!has) { logf_("plugin %s: ui_tab_show refused - no ui_tab registered", plug_name_of(p)); return -1; } }
+    if (!mui_tabs_on() && ov_state() != OV_STARTING) { logf_("plugin %s: ui_tab_show refused - the overlay does not draw the menu (menu_style = text?)", plug_name_of(p)); return -1; }
+    int mine = g_menu.open && g_menu.page == MP_MODS && g_mui_tab == OVT_PLUGIN + p;
+    if (show == 2) show = !mine;
+    if (!show) { if (mine) { menu_key(&g_menu, MK_MODS); logf_("menu: closed by plugin %s (ui_tab_show 0)", plug_name_of(p)); } return 0; }
+    if (!(g_menu.open && g_menu.page == MP_MODS)) { menu_key(&g_menu, MK_MODS); logf_("menu: opened on the Mods window by plugin %s (ui_tab_show)", plug_name_of(p)); }
+    mui_set_tab(OVT_PLUGIN + p, "ui_tab_show");
+    return 1;
+}
+#endif
+
+#ifdef ABS_HAS_NPC_LIST
+// API 2.34 npc_list: the F2 > Spawn NPC list (lannative.c npc_load_list: built-in groups + content npcs / bots), read by entry. Game thread (the list is rebuilt there).
+static ULONGLONG g_nl_built;
+static int api_p_npc_list(const AbsApi *self, int i, char *group, int gcap, char *label, int lcap, char *spawn, int scap, char *cls, int ccap) {
+    int p = plug_of(self); if (p < 0) return -1;
+    if (!api_p_is_game_thread(self)) { logf_("plugin %s: npc_list refused - not on the game thread", plug_name_of(p)); return -1; }
+    if (i < 0 || !g_nl_built) { npc_load_list(L"npcs.txt"); g_nl_built = GetTickCount64(); logf_("plugin %s: npc_list: %d entries in %d groups", plug_name_of(p), g_npcs_n, g_npc_ngroups); if (i < 0) return g_npcs_n; }
+    if (i >= g_npcs_n) return 0;
+    int g = 0, start = 0; while (g < g_npc_ngroups && i >= start + g_npc_group_count[g]) start += g_npc_group_count[g++];
+    if (group && gcap > 0) snprintf(group, (size_t)gcap, "%s", g < g_npc_ngroups ? g_npc_group_name[g] : "");
+    if (label && lcap > 0) snprintf(label, (size_t)lcap, "%s", g_npc_label[i]);
+    if (spawn && scap > 0) snprintf(spawn, (size_t)scap, "%s", g_npc_path[i][0] == NPC_ENTRY_MARK ? g_npc_path[i] + 1 : g_npc_path[i]);   // a content entry: its plain id
+    if (cls && ccap > 0) snprintf(cls, (size_t)ccap, "%s", g_npc_class[i]);
+    return 1;
+}
+#endif
+LN_API(modsui) {
+    a->add_menu_item = api_p_add_menu_item; a->reload_content = api_p_reload_content;
+#ifdef LN_OVERLAY
+    a->ui_tab = api_p_ui_tab; a->ui_tab_show = api_p_ui_tab_show;
+#endif
+#ifdef ABS_HAS_NPC_LIST
+    a->npc_list = api_p_npc_list;
+#endif
+}

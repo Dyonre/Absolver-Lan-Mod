@@ -759,7 +759,7 @@ static int read_join_url(wchar_t *out, int cap) {
     char *e;
     for (e = l1 + strlen(l1); e > l1 && (e[-1] == '\n' || e[-1] == '\r' || e[-1] == ' '); ) *--e = 0;
     for (e = l2 + strlen(l2); e > l2 && (e[-1] == '\n' || e[-1] == '\r' || e[-1] == ' '); ) *--e = 0;
-    if (!l1[0]) { logf_("join: ip.txt has no address yet - put the host's address in it (or paste it from the F1 menu)"); return 0; }
+    if (!l1[0]) { logf_("join: ip.txt has no address yet - put the host's address in it (or paste it from the F2 world menu)"); return 0; }
     wchar_t checkpoint[512] = L"";
     unsigned zone = 0;
     if (join_options_is_none(l2)) {
@@ -948,14 +948,25 @@ static void apply_patch_table(void) {
     }
 }
 // the per-frame work (game thread)
+// -LNBgInput (bgkeys.h): the keys come from the game window's own messages (posted by a test driver to an unfocused window), never from the
+// real keyboard. Off on every normal command line.
+#ifdef LN_OVERLAY
+#define LN_BG_INPUT() ov_bg_input_on()
+#define LN_BG_KEY(vk) ov_bg_key_down(vk)
+#else
+#define LN_BG_INPUT() 0
+#define LN_BG_KEY(vk) 0
+#endif
 static int key_edge(int vk, int *prev) {
-    int down = (GetAsyncKeyState(vk) & 0x8000) != 0;
+    int down = LN_BG_INPUT() ? LN_BG_KEY(vk) : (GetAsyncKeyState(vk) & 0x8000) != 0;
     int edge = down && !*prev;
     *prev = down;
     return edge;
 }
+static int key_down_now(int vk) { return LN_BG_INPUT() ? LN_BG_KEY(vk) : (GetAsyncKeyState(vk) & 0x8000) != 0; }   // held now; -LNBgInput: the window's own posted keys, never the user's real keyboard
 
 static int game_has_focus(void) {
+    if (LN_BG_INPUT()) return 1;                                                // -LNBgInput (lab-slot runs): the window never has the real focus; its posted keys are the input
     DWORD pid = 0;
     GetWindowThreadProcessId(GetForegroundWindow(), &pid);
     return pid == GetCurrentProcessId();
@@ -1346,7 +1357,7 @@ static void read_npc_cfg(void) {
     wchar_t path[MAX_PATH];
     char value[32] = "";
     if (setting_get("npc", L"npc.txt", 0, value, sizeof value, path) && _strnicmp(value, "off", 3) == 0) { g_npc_on = 0; logf_("npc: off (%ls)", path); }
-    else logf_("npc: on (the F1 menu can spawn NPCs when you are the host)");
+    else logf_("npc: on (the F2 world menu can spawn NPCs when you are the host)");
     value[0] = 0;
     int repl = setting_get("npcrepl", L"npcrepl.txt", 0, value, sizeof value, path) && _strnicmp(value, "on", 2) == 0;
     L_npc_set_replicated(repl);
@@ -1379,9 +1390,9 @@ static void npc_remove_action(void) {
 static int read_menu_cfg(void) {
     wchar_t path[MAX_PATH];
     char value[32] = "";
-    if (!setting_get("menu", L"menu.txt", 0, value, sizeof value, path)) { logf_("menu: on (default; not set in %ls). F1 opens it.", path); return 1; }
+    if (!setting_get("menu", L"menu.txt", 0, value, sizeof value, path)) { logf_("menu: on (default; not set in %ls). F1 opens the loader window, F2 the world menu.", path); return 1; }
     if (_strnicmp(value, "off", 3) == 0) { logf_("menu: off (%ls)", path); return 0; }
-    logf_("menu: on (%ls). F1 opens it.", path);
+    logf_("menu: on (%ls). F1 opens the loader window, F2 the world menu.", path);
     return 1;
 }
 
@@ -1449,11 +1460,11 @@ static void menu_set_ip(const char *t) {                                    // w
 }
 // The "type the join address" box: Enter on the Join address entry opens it; characters come from key edges (textinput.h), Ctrl+V pastes, Enter saves, F1 cancels.
 static TextInput g_ti; static int g_ti_active, g_ti_prev[TI_KEY_COUNT];
-static void ti_prime(void) { for (int i = 0; i < TI_KEY_COUNT; i++) g_ti_prev[i] = (GetAsyncKeyState(ti_keys[i]) & 0x8000) != 0; }
+static void ti_prime(void) { for (int i = 0; i < TI_KEY_COUNT; i++) g_ti_prev[i] = key_down_now(ti_keys[i]); }
 // Returns 1 while the box is open (the menu must not handle keys then). en / bs / f1 are this frame's edges of Enter, Backspace and F1.
 static int ti_step(int en, int bs, int f1) {
     if (!g_ti_active) return 0;
-    int shift = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0, ctrl = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+    int shift = key_down_now(VK_SHIFT), ctrl = key_down_now(VK_CONTROL);         // -LNBgInput: never the user's real Shift / Ctrl (Ctrl+V would paste his clipboard)
     for (int i = 0; i < TI_KEY_COUNT; i++) {
         if (!key_edge(ti_keys[i], &g_ti_prev[i])) continue;
         if (ctrl) { if (ti_keys[i] == 0x56) { char t[128]; if (clipboard_text(t, sizeof t)) ti_set(&g_ti, t); } }
@@ -1473,7 +1484,7 @@ static int ti_layout(char (*lines)[MENU_LINE_MAX], int *sel_line) {
     snprintf(lines[1], MENU_LINE_MAX, "> %s_", g_ti.buf);
     snprintf(lines[2], MENU_LINE_MAX, "Now: %.60s", g_joinaddr_text[0] ? g_joinaddr_text : "not set");
     snprintf(lines[3], MENU_LINE_MAX, "Type the host address (192.168.1.20 or 26.1.2.3:7777)");
-    snprintf(lines[4], MENU_LINE_MAX, "Enter = save   Ctrl+V = paste   Backspace = delete   F1 = cancel");
+    snprintf(lines[4], MENU_LINE_MAX, "Enter = save   Ctrl+V = paste   Backspace = delete   F2 = cancel");
     *sel_line = 1; return 5;
 }
 static void menu_do(MenuAct a, uint64_t now) {
@@ -1620,8 +1631,8 @@ static int keys_note(int vk, int kind, const char *who, const char *what) {
 static int binds_capturing(void);                                                  // keys.inc: 1 while the F2 Keys rows wait for a new bind (the menu leaves the keys alone)
 static void keys_boot(void) {                                                       // once, at the first menu tick
     static int done; if (done) return; done = 1;
-    keys_note(VK_F1, KR_LOADER, "Loader", "F1 menu (open / close)");
-    keys_note(VK_F2, KR_LOADER, "Loader", "F2 Mods page (open / close)");
+    keys_note(VK_F1, KR_LOADER, "Loader", "F1 loader window: mods, keybinds, hosting, log (open / close)");
+    keys_note(VK_F2, KR_LOADER, "Loader", "F2 world menu: maps, NPCs, host / join (open / close)");
     keys_note(VK_F11, KR_RESERVED, "Game", "toggle fullscreen (engine key)");
     keys_note(VK_F12, KR_RESERVED, "Steam", "screenshot (Steam overlay default)");
     wchar_t p[MAX_PATH]; swprintf(p, MAX_PATH, L"%sdevkeys.txt", g_dir);
@@ -1656,7 +1667,7 @@ static int menu_pad_read(unsigned *buttons, float *ly) {                        
     struct { DWORD packet; WORD buttons; BYTE lt, rt; SHORT lx, ly, rx, ry; } st;
     if (user >= 0) { if (get((DWORD)user, &st) == ERROR_SUCCESS) { *buttons = st.buttons; *ly = st.ly / 32767.f; return 1; } logf_("menu: gamepad %d disconnected", user); user = -1; }
     uint64_t now = GetTickCount64(); if (now < rescan_at) return 0; rescan_at = now + 2000;
-    for (int u = 0; u < 4; u++) if (get((DWORD)u, &st) == ERROR_SUCCESS) { user = u; logf_("menu: gamepad %d connected (Back + Start = F1 menu; d-pad / A / B in the menus)", u); *buttons = st.buttons; *ly = st.ly / 32767.f; return 1; }
+    for (int u = 0; u < 4; u++) if (get((DWORD)u, &st) == ERROR_SUCCESS) { user = u; logf_("menu: gamepad %d connected (Back + Start = F1 loader window; d-pad / A / B in the menus)", u); *buttons = st.buttons; *ly = st.ly / 32767.f; return 1; }
     return 0;
 }
 static void menu_tick(int focus, uint64_t now) {
@@ -1678,15 +1689,18 @@ static void menu_tick(int focus, uint64_t now) {
         keys_boot();
         menu_set_npc_groups(&g_menu, g_npc_ngroups, g_npc_group_count);
         { char v[16] = ""; wchar_t src[MAX_PATH]; if (setting_get("pad_menu", L"", 0, v, sizeof v, src) && !_strnicmp(v, "off", 3)) g_padmenu_on = 0;
-          logf_("menu: gamepad %s (pad_menu = %s)", g_padmenu_on ? "on: Back + Start opens / closes the F1 menu, d-pad or left stick moves, A selects, B goes back" : "off", g_padmenu_on ? "on" : "off");
+          logf_("menu: gamepad %s (pad_menu = %s)", g_padmenu_on ? "on: Back + Start opens / closes the F1 loader window, d-pad or left stick moves, A selects, B goes back" : "off", g_padmenu_on ? "on" : "off");
 #ifdef LN_OVERLAY
           if (g_padmenu_on && g_ov_on) ov_pad_chord_guard(1);                       // the game does not see Start while Back is held (no pause menu from the chord)
 #endif
         }
     }
-    if (!focus) { kf1 = kf2 = kup = kdn = ken = krt = klf = kbs = kesc = kspc = 0; memset(kty, 0, sizeof kty); memset(&pad, 0, sizeof pad); return; }
-    int f2 = key_edge(VK_F2, &kf2);
-    int f1 = key_edge(VK_F1, &kf1), up = key_edge(VK_UP, &kup), dn = key_edge(VK_DOWN, &kdn), en = key_edge(VK_RETURN, &ken);
+    int mtkey = 0, mtactive = 0;
+    if (!focus && !mtactive) { kf1 = kf2 = kup = kdn = ken = krt = klf = kbs = kesc = kspc = 0; memset(kty, 0, sizeof kty); memset(&pad, 0, sizeof pad); return; }
+    // F1 = the loader window (Mods / Keybinds / Hosting / Log / mod tabs = the MP_MODS page, MK_MODS), F2 = the world menu (maps, NPCs,
+    // host / join = MP_MAIN, MK_TOGGLE). Below, f1 keeps meaning "the world menu key" and f2 "the loader window key".
+    int f2 = key_edge(VK_F1, &kf2);
+    int f1 = key_edge(VK_F2, &kf1), up = key_edge(VK_UP, &kup), dn = key_edge(VK_DOWN, &kdn), en = key_edge(VK_RETURN, &ken);
     int rt = key_edge(VK_RIGHT, &krt), lf = key_edge(VK_LEFT, &klf), bs = key_edge(VK_BACK, &kbs), esc = key_edge(VK_ESCAPE, &kesc), spc = key_edge(VK_SPACE, &kspc);
     int typed = 0; for (int i = 0; i < TI_KEY_COUNT; i++) if (key_edge(ti_keys[i], &kty[i])) { char c = ti_vk_char(ti_keys[i], 0); if (c && c != ':') typed = c; }
     if (!focus) f1 = f2 = up = dn = en = rt = lf = bs = esc = spc = typed = 0;
@@ -1714,7 +1728,7 @@ static void menu_tick(int focus, uint64_t now) {
         if (g_discovered) { g_maps_n = g_discovered->shown; memcpy(g_maps, g_discovered->urls, sizeof g_maps); memcpy(g_maps_new, g_discovered->urlnew, sizeof g_maps_new); memcpy(g_maps_mod, g_discovered->urlmod, sizeof g_maps_mod); free(g_discovered); g_discovered = NULL; }
         map_apply_categories(); InterlockedExchange(&g_discovery_state, 0);
     }
-    if ((f1 || padk == MPK_TOGGLE) && !g_menu.open) {
+    if (f1 && !(g_menu.open && g_menu.page != MP_MODS)) {                       // the world menu opens (or replaces the loader window): load its lists
         joinaddr_refresh();
         request_map_discovery(); menu_load_altars(L"altars.tsv"); npc_load_list(L"npcs.txt");
         g_menu.count[MP_ALTARS] = g_menu.total[MP_ALTARS] = g_altars_n; g_menu.count[MP_NPCS] = menu_clamp_list(g_npcs_n); g_menu.total[MP_NPCS] = g_npcs_n < MENU_VIEW_MAX ? g_npcs_n : MENU_VIEW_MAX;
@@ -1726,7 +1740,8 @@ static void menu_tick(int focus, uint64_t now) {
     int searchable = g_menu.open && !in_box && (menu_is_list(g_menu.page) || g_menu.page == MP_MAPGROUPS || g_menu.page == MP_NPCGROUPS);
     if (searchable && spc && g_menu.filter[0] && menu_is_list(g_menu.page)) { typed = ' '; spc = 0; }   // Space inside a search is a space; otherwise it selects
     if (searchable && typed && !in_box) { __try { menu_type(&g_menu, typed); logf_("menu: search '%s' -> %d row(s)", g_menu.filter, g_menu.count[g_menu.page]); } __except (EXCEPTION_EXECUTE_HANDLER) { logf_("menu: EXCEPTION 0x%08lX in the search", GetExceptionCode()); g_menu.filter[0] = 0; } }
-    int key = in_box ? 0 : (f1 || padk == MPK_TOGGLE) ? MK_TOGGLE : f2 ? MK_MODS : !g_menu.open ? 0 : (up || padk == MPK_UP) ? MK_UP : (dn || padk == MPK_DOWN) ? MK_DOWN :
+    int key = in_box ? 0 : f1 ? MK_TOGGLE : (f2 || padk == MPK_TOGGLE) ? MK_MODS :   // pad Back + Start = the loader window (F1)
+                                                                                  !g_menu.open ? 0 : (up || padk == MPK_UP) ? MK_UP : (dn || padk == MPK_DOWN) ? MK_DOWN :
               (en || rt || spc || padk == MPK_SELECT) ? MK_SELECT : (lf || esc || padk == MPK_BACK) ? MK_BACK : bs ? MK_ERASE : 0;
 #ifdef LN_OVERLAY
     { OvCmd oc;                                                                   // a click in the overlay runs as the key that does the same
@@ -1888,10 +1903,10 @@ static void on_tick(float dt) {
     }
     int focus = g_ln_focus = game_has_focus();
     LN_RUN(tick);                                           // units' frame work (lnhooks.h): arena lights, rooms, shot runner, host mods, Net Inspector, LAN finder, F1 menu, Mods page
-    if (!focus) { k10 = k9 = k11 = 0; return; }
-    // F keys: players get F1 (menu) and F2 (Mods page) only. Host / Join / Bring joiners / State dump / Log marker are F1 menu items,
-    // hot reload is an F2 page item, F3 is left free for other mods. F9 cam.txt / F10 goto.txt / F11 lmtest.txt are developer keys, on only when
-    // LanNative\devkeys.txt exists.
+    if (!focus && !LN_BG_INPUT()) { k10 = k9 = k11 = 0; return; }   // -LNBgInput: the keys come from the window's own messages, no focus needed
+    // F keys: players get F1 (loader window) and F2 (world menu) only. Host / Join / Bring joiners / State dump / Log marker are world-menu items,
+    // hot reload is a Mods tab item, F3 is left free for other mods. F9 cam.txt / F10 goto.txt / F11 lmtest.txt are TEST keys, on only when
+    // LanNative\devkeys.txt exists (test runs ship it).
     if (devkeys < 0) { wchar_t p[MAX_PATH]; swprintf(p, MAX_PATH, L"%sdevkeys.txt", g_dir); devkeys = GetFileAttributesW(p) != INVALID_FILE_ATTRIBUTES; logf_("keys: test keys F9 / F10 / F11 %s", devkeys ? "ON (devkeys.txt)" : "off"); }
     if (!devkeys) return;
     if (key_edge(VK_F10, &k10)) goto_file();
@@ -2133,7 +2148,7 @@ static void init(HMODULE self) {
     g_orig_tick = (Tick_t)hook(IDX_TICK, (void *)hk_tick);
     if (!g_orig_tick) { logf_("tick hook NOT installed - LanNative does nothing (game runs untouched)"); g_disabled = 1; return; }
     LN_RUN(init);                                           // units' start-up (lnhooks.h): extender, mod loader / pak list, LAN mod check, LAN finder, host mods, server mode, rows
-    int lan_on = read_lan();
+    int lan_on = read_lan(); g_lan_on = lan_on;
     { int mode = pvpfix_mode(); g_pvpfix_on = mode >= 1; g_pvpflow_on = mode >= 2; }
     if (lan_on) {
         g_orig_clientrestart = (ClientRestart_t)hook(IDX_CLIENTRESTART, (void *)hk_clientrestart);
@@ -2171,7 +2186,7 @@ static void init(HMODULE self) {
         g_orig_scorekill = (ScoreKill_t)hook(IDX_SCOREKILL, (void *)hk_scorekill);
         if (!g_orig_scorekill) logf_("pvp score: hook NOT installed - NPC kills will count in duels");
     }
-    logf_("ready (%s%s%s%s%s%s%s): F1 menu, F2 Mods page; console initializes after the viewport exists",
+    logf_("ready (%s%s%s%s%s%s%s): F1 loader window, F2 world menu; console initializes after the viewport exists",
           g_orig_clientrestart ? "joiner fixes " : "", g_orig_serverack ? "host tracking " : "", g_orig_netcleanup ? "body cleanup " : "",
           g_orig_settravel ? "travel log " : "", g_orig_returnprev ? "pvp guard " : "", g_pvpflow_on ? "pvp flow " : "", g_orig_notifyparry ? "parry log" : "");
 }

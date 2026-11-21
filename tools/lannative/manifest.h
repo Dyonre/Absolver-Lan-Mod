@@ -71,7 +71,9 @@ static int manifest_parse(const char *json, const char *folder, Manifest *m, cha
     if ((s = mf_str(&d, 0, "api"))) m->api = atoi(s);
     int c = jfind(&d, 0, "affects_gameplay"); if (c >= 0 && d.n[c].t == J_BOOL && d.n[c].str && !strcmp(d.n[c].str, "False")) m->affects_gameplay = 0;
     c = jfind(&d, 0, "joiners_need"); if (c >= 0 && d.n[c].t == J_BOOL && d.n[c].str && !strcmp(d.n[c].str, "False")) m->joiners_need = 0;
-    if ((s = mf_str(&d, 0, "net"))) {                                        // case-insensitive; an unknown value is a warning, the mod still loads without a label
+    if (c >= 0 && d.n[c].t != J_BOOL) { if (err && !err[0]) snprintf(err, cap, "mod.json: 'joiners_need' must be true or false without quotes (joiners need the mod)"); if (!rc) rc = 1; }   // safe side: kept in the LAN check
+    c = jfind(&d, 0, "net"); if (c >= 0 && d.n[c].t != J_STR) { if (err && !err[0]) snprintf(err, cap, "mod.json: 'net' must be a text: \"host_only\", \"local\", \"vanilla_visible\" or \"all\" (no label)"); if (!rc) rc = 1; }
+    else if ((s = mf_str(&d, 0, "net"))) {                                        // case-insensitive; an unknown value is a warning, the mod still loads without a label
         for (int k = MF_NET_HOST_ONLY; k <= MF_NET_ALL; k++) if (!_stricmp(s, MF_NET_KEY[k])) m->net = k;
         if (!m->net) { if (err && !err[0]) snprintf(err, cap, "mod.json: 'net' must be host_only, local, vanilla_visible or all (got '%.24s'; no label)", s); if (!rc) rc = 1; }
     }

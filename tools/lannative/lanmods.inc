@@ -113,9 +113,11 @@ static int jg_on_prelogin(const char *which, void *address, void *err) {
     return 1;
 }
 // shown on the host's screen when a listen server starts (lannative.c hostip_on_travel, servermode.inc)
+static int g_lan_on;                                              // lan = on (lannative.c read_lan): the LAN finder, join check and mod check run
 static void jg_announce_host(void) {
+    if (!g_lan_on) { logf_("host: listen server with LAN play off (lan = off): no HOSTING notice (the LAN games list does not run)"); return; }   // e.g. a plugin's own ?listen travel
     if (g_jg.invalid) { jg_warn_invalid(20); return; }
-    char l1[1][LM_LINE_MAX]; snprintf(l1[0], LM_LINE_MAX, "HOSTING - players on your LAN / VPN find this game at an altar (F1 > LAN games)");
+    char l1[1][LM_LINE_MAX]; snprintf(l1[0], LM_LINE_MAX, "HOSTING - players on your LAN / VPN find this game at an altar (F2 > LAN games)");
     toast_show(l1, 1, 12);
 }
 static void lm_on_prelogin(const char *which, void *options, void *address, void *err) {
@@ -174,7 +176,7 @@ static void hk_clientmsg(void *pc, void *msg, uint64_t type, float seconds) {
             if (m && m->data && m->num > 7 && m->num < 300 && !wcsncmp(m->data, L"LNKICK|", 7)) {    // kick.inc on the host: shown here, the joiner then lands on its title screen
                 char why[200]; narrow(m->data + 7, m->num - 8, why, sizeof why);
                 logf_("join: KICKED by the host: %s", why);
-                char lines[2][LM_LINE_MAX]; snprintf(lines[0], LM_LINE_MAX, "KICKED: %s", why); snprintf(lines[1], LM_LINE_MAX, "You can join again from an altar (F1 > LAN games) if the host lets you.");
+                char lines[2][LM_LINE_MAX]; snprintf(lines[0], LM_LINE_MAX, "KICKED: %s", why); snprintf(lines[1], LM_LINE_MAX, "You can join again from an altar (F2 > LAN games) if the host lets you.");
                 toast_show(lines, 2, 20);
                 return;                                                           // our own message: not passed to the game's chat/HUD
             }

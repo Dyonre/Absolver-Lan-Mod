@@ -539,7 +539,7 @@ static int api_p_on_key(const AbsApi *self, int vk, void (*cb)(int, void *), voi
     return 0;
 }
 static void se_poll_keys(void) {                                  // key-down edges, only while the game window has the focus
-    if (!g_keycb_n) return; DWORD pid = 0; HWND fg = GetForegroundWindow(); if (fg) GetWindowThreadProcessId(fg, &pid); int focus = pid == GetCurrentProcessId();
+    if (!g_keycb_n) return; DWORD pid = 0; HWND fg = GetForegroundWindow(); if (fg) GetWindowThreadProcessId(fg, &pid); int focus = pid == GetCurrentProcessId() || LN_BG_INPUT();   // -LNBgInput: the keys come from the window's own messages (an unfocused, posted-to game)
     // one input owner: while the F1 / F2 menu is open, or another plugin's window has the keyboard, only F keys reach on_key callbacks
     // (typing a search in the F1 list must not fire a mod's letter key)
     int menu_keys = g_menu.open, focus_owner = -2;

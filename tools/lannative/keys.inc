@@ -19,7 +19,8 @@ typedef DWORD (WINAPI *BindXiGet_t)(DWORD, void *);
 static unsigned binds_pad_bits(void) {                          // XInput bits 0..15, bit 16 LT, bit 17 RT (triggers past half way)
     if (g_padsim < 0) { g_padsim = cmdline_has_flag(GetCommandLineW(), L"lnpadsim") ? 1 : 0; if (g_padsim) logf_("binds: -LNPadSim: NumPad 0-9 act as pad buttons (0 A, 1 B, 2 X, 3 Y, 4 LB, 5 RB, 6 Back, 7 Start, 8 LT, 9 RT)"); }
     unsigned bits = 0;
-    if (g_padsim) { static const int bit[10] = { 12, 13, 14, 15, 8, 9, 5, 4, 16, 17 }; for (int i = 0; i < 10; i++) if (GetAsyncKeyState(VK_NUMPAD0 + i) & 0x8000) bits |= 1u << bit[i]; }
+    if (g_padsim) { static const int bit[10] = { 12, 13, 14, 15, 8, 9, 5, 4, 16, 17 }; for (int i = 0; i < 10; i++) if (LN_BG_INPUT() ? LN_BG_KEY(VK_NUMPAD0 + i) : (GetAsyncKeyState(VK_NUMPAD0 + i) & 0x8000)) bits |= 1u << bit[i]; }
+    if (LN_BG_INPUT()) return bits;                                // -LNBgInput: never the user's real pad (only the NumPad simulation above, from the window's messages)
     static BindXiGet_t get; static int tried, user = -1; static ULONGLONG rescan_at;
     if (!tried) {
         tried = 1; static const wchar_t *dll[] = { L"xinput1_3.dll", L"xinput1_4.dll", L"xinput9_1_0.dll" };
@@ -36,6 +37,7 @@ static int binds_numpad_is_pad(int vk) { return g_padsim > 0 && vk >= VK_NUMPAD0
 static int binds_down(int code, unsigned pad) {                // is this input held now (game window focus is the caller's business)
     if (code <= 0) return 0;
     if (code >= BIND_PAD) return (pad >> (code - BIND_PAD)) & 1;
+    if (LN_BG_INPUT()) return code > 6 && !binds_numpad_is_pad(code) && LN_BG_KEY(code);   // -LNBgInput: keys from the window's own messages; never the real mouse (codes 1-6) or keyboard
     return binds_numpad_is_pad(code) ? 0 : (GetAsyncKeyState(code) & 0x8000) != 0;
 }
 static int binds_first_down(unsigned pad) {                     // the first input held now: a key / mouse button, else a pad button; 0 = none
@@ -52,7 +54,8 @@ static void binds_load_locked(void) {
     if (g_binds_loaded) return; g_binds_loaded = 1;
     wchar_t p[MAX_PATH]; swprintf(p, MAX_PATH, L"%sbinds.txt", g_dir);
     FILE *f = _wfopen(p, L"rb"); if (!f) { logf_("binds: no LanNative\\binds.txt - every action uses its default input"); return; }
-    char *t = (char *)calloc(1, 65537); size_t n = t ? fread(t, 1, 65536, f) : 0; fclose(f); if (!t) return; t[n] = 0;
+    char *t = (char *)calloc(1, 65537); size_t n = t ? fread(t, 1, 65536, f) : 0; int more = n == 65536 && fgetc(f) != EOF; fclose(f); if (!t) return; t[n] = 0;
+    if (more) logf_("binds: LanNative\binds.txt is over 64 KB - only its first 64 KB are read (a cut last line is ignored)");
     int bad = 0, used = bindreg_load(&g_binds, t, &bad); free(t);
     logf_("binds: LanNative\\binds.txt: %d bind(s) read%s", used, bad ? " - some lines were not understood and are ignored (format: docs/MODS.md)" : "");
     if (bad) logf_("binds: %d line(s) of binds.txt ignored (format: Mod/action = K | F8 | Mouse 4 | Pad A | none)", bad);
@@ -116,7 +119,7 @@ static void binds_capture_tick(int focus) {
     if (g_cap_state == 1) { if (!held) { InterlockedExchange(&g_cap_state, 2); g_cap_t = now; } return; }
     if (g_cap_state == 3) { if (!held) { InterlockedExchange(&g_cap_state, 0); g_cap_act = -1; } return; }
     if (now - g_cap_t > 10000) { logf_("binds: capture timed out (10 s) - nothing changed"); InterlockedExchange(&g_cap_state, 3); return; }
-    if (!focus || !held) return;
+    if (!focus || !held) return;                                  // (the F2 rebind capture is a player feature: it reads the real keyboard, also under -LNBgInput)
     EnterCriticalSection(&g_lock);
     int i = g_cap_act; BindAct *a = i >= 0 && i < g_binds.n ? &g_binds.a[i] : NULL; char nm[24], was[24];
     if (!a) { LeaveCriticalSection(&g_lock); InterlockedExchange(&g_cap_state, 3); return; }
@@ -147,6 +150,33 @@ static int keys_rows_count(void) {
     for (int i = 0; i < g_binds.n; i++) if (bindreg_conflicts(&g_binds, i, NULL, 0) || binds_fixed_clash_locked(g_binds.a[i].code, g_binds.a[i].mod, fx, sizeof fx)) warn++;
     char kl[96][128]; int nk = keyreg_lines(&g_keys, kl, 96); fixed_n = nk;
     if (g_keys_shown < 0) g_keys_shown = 1;                                         // shown by default (the binds live here); Enter on the header hides it
+#ifdef LN_OVERLAY
+    if (ov_text_hidden()) {                                                         // the overlay's Keybinds tab - grouped under each mod's name, columns label / when / key / warning
+        // row markers (modsui_snapshot): \x01 group header, \x02 grey text, '\t' between columns. No header row: the tab is the list.
+        snprintf(g_keyrows[rows], 128, "\x02%d bindable, %d warning(s). Click a row (or Enter), then press a key, mouse or pad button.", g_binds.n, warn); g_keyrow_act[rows++] = -1;
+        snprintf(g_keyrows[rows], 128, "\x02" "Esc cancels, Del unbinds, Backspace = default. A key used twice is only warned (!)."); g_keyrow_act[rows++] = -1;
+        int done[160] = { 0 };
+        for (int i = 0; i < g_binds.n && i < 160 && rows < 150; i++) {             // mods in order of their first action; each mod's actions in declaration order
+            if (done[i]) continue;
+            snprintf(g_keyrows[rows], 128, "\x01%s", g_binds.a[i].mod); g_keyrow_act[rows++] = -1;
+            for (int j = i; j < g_binds.n && j < 160 && rows < 155; j++) {
+                if (done[j] || _stricmp(g_binds.a[j].mod, g_binds.a[i].mod)) continue;
+                done[j] = 1; BindAct *a = &g_binds.a[j]; char nm[24], dn[24], wtxt[64] = ""; bind_code_name(a->code, nm, sizeof nm); bind_code_name(a->def, dn, sizeof dn);
+                int who[2], nc = bindreg_conflicts(&g_binds, j, who, 2);
+                if (nc) snprintf(wtxt, sizeof wtxt, "! also %s: %.24s%s", g_binds.a[who[0]].mod, g_binds.a[who[0]].label, nc > 1 ? " +more" : "");
+                else if (binds_fixed_clash_locked(a->code, a->mod, fx, sizeof fx)) snprintf(wtxt, sizeof wtxt, "! also %.40s", fx);
+                if (g_cap_state && g_cap_act == j) snprintf(g_keyrows[rows], 128, "%.44s\t%s\tpress a key ...\tEsc cancels", a->label, a->ctx);
+                else snprintf(g_keyrows[rows], 128, "%.44s\t%s\t%s%s%s%s\t%.40s", a->label, a->ctx, nm, a->code != a->def ? " (default " : "", a->code != a->def ? dn : "", a->code != a->def ? ")" : "", wtxt);
+                g_keyrow_act[rows++] = j;
+            }
+        }
+        if (nk && rows < 158) { snprintf(g_keyrows[rows], 128, "\x01" "Fixed keys (the loader, the game, Steam, mods that read a key themselves)"); g_keyrow_act[rows++] = -1; }
+        for (int k = 0; k < nk && rows < 160; k++) { snprintf(g_keyrows[rows], 128, "\x02%s", kl[k]); g_keyrow_act[rows++] = -1; }
+        LeaveCriticalSection(&g_lock);
+        g_keyrows_n = rows; g_keyhead[0] = 0;
+        return rows;                                                                // no header row: row i = g_keyrows[i] (keys_rows_label / _action check g_keyhead)
+    }
+#endif
     if (g_keys_shown) {
         // fixed keys first, then the bindable actions (in declaration order)
         if (nk) { snprintf(g_keyrows[rows], 128, "  Fixed keys (the loader, the game, Steam, or a mod that reads the key itself):"); g_keyrow_act[rows++] = -1; }
@@ -168,8 +198,9 @@ static int keys_rows_count(void) {
     g_keyrows_n = rows;
     return 1 + rows;
 }
-static const char *keys_rows_label(int i) { return i == 0 ? g_keyhead : i - 1 < g_keyrows_n ? g_keyrows[i - 1] : ""; }
+static const char *keys_rows_label(int i) { if (!g_keyhead[0]) return i >= 0 && i < g_keyrows_n ? g_keyrows[i] : ""; return i == 0 ? g_keyhead : i - 1 < g_keyrows_n ? g_keyrows[i - 1] : ""; }
 static void keys_rows_action(int i) {
+    if (!g_keyhead[0]) { if (i >= 0 && i < g_keyrows_n && g_keyrow_act[i] >= 0 && !g_cap_state) binds_capture_start(g_keyrow_act[i]); return; }   // tab mode (no header row)
     if (i == 0) { g_keys_shown = !g_keys_shown; logf_("mods page: key list %s", g_keys_shown ? "shown" : "hidden"); return; }
     if (i - 1 < g_keyrows_n && g_keyrow_act[i - 1] >= 0 && !g_cap_state) binds_capture_start(g_keyrow_act[i - 1]);
 }
@@ -203,7 +234,7 @@ static int api_p_bind_state(const AbsApi *self, int handle, int *pressed) {
     int p = plug_of(self); if (pressed) *pressed = 0;
     EnterCriticalSection(&g_lock); int ok = binds_owned(p, handle), code = ok ? g_binds.a[handle].code : 0; LeaveCriticalSection(&g_lock);
     if (!ok) return -1;
-    int d = g_ln_focus && !binds_capturing() && binds_down(code, code >= BIND_PAD ? binds_pad_bits() : 0);
+    int d = (g_ln_focus || LN_BG_INPUT()) && !binds_capturing() && binds_down(code, code >= BIND_PAD ? binds_pad_bits() : 0);
     if (handle < (int)sizeof g_bind_was) { if (pressed) *pressed = d && !g_bind_was[handle]; g_bind_was[handle] = (unsigned char)d; }
     return d;
 }

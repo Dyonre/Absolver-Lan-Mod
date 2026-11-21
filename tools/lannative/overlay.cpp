@@ -15,6 +15,10 @@
 #include "imgui_internal.h"
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx11.h"
+#include "bgkeys.h"
+#include "bgact.h"
+#include "gleamui.h"
+#include <tlhelp32.h>
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
 
 typedef HRESULT(STDMETHODCALLTYPE *Present_t)(IDXGISwapChain *, UINT, UINT);
@@ -57,6 +61,9 @@ static volatile LONG g_chord_guard;                                // the game d
 static volatile LONG g_focus_owner = -2;                           // ov_focus_owner: -2 nobody, -1 a loader window, >= 0 a plugin window that takes keys
 static volatile LONG g_cursor_mode;                                // 0 none, 1 virtual cursor, 2 the game's OS cursor
 static ImGuiStorage g_win_owner, g_win_frame;                      // window id -> owner + 2, frame it was last seen (render thread)
+static volatile LONG g_tabkey_q, g_tabkey_e, g_tabkey_esc;         // Q / E / Esc presses while a loader menu shows (window thread counts, draw_mods takes them)
+static volatile LONG g_text_input;                                 // 1 = an overlay text box has the keyboard (set each frame)
+static volatile LONG g_bgm_x = -1, g_bgm_y = -1;                   // -LNBgInput: the last posted mouse position (client px); -1 = none yet
 
 extern "C" void ov_set_log(void (*fn)(const char *fmt, ...)) { g_log = fn; }
 extern "C" void ov_set_guard(int (*alive)(int), void (*fault)(int, unsigned long), const char *(*name)(int)) { g_alive = alive; g_fault = fault; g_name = name; }
@@ -93,6 +100,7 @@ extern "C" int ov_set_mode(int owner, unsigned flags) {
     if (flags != old && g_xi_hooked > 0) LOG("overlay: XInputGetState seen %ld time(s), %ld neutralised", g_xi_calls, g_xi_zeroed);
     return 0;
 }
+static int tab_drop_owner(int owner);                              // mod tabs (below)
 extern "C" void ov_release_owner(int owner) {
     if (owner < 0 || owner > 63 || !g_installed) return;
     EnterCriticalSection(&g_cs);
@@ -100,6 +108,7 @@ extern "C" void ov_release_owner(int owner) {
     g_mode[owner] = 0; recompute_any();
     if (was_mouse && !(g_any & OVM_MOUSE)) InterlockedExchange(&g_clear, 1);
     for (int i = 0; i < g_nreg; ) { if (g_reg[i].owner == owner) { memmove(g_reg + i, g_reg + i + 1, sizeof(DrawReg) * (size_t)(g_nreg - i - 1)); g_nreg--; dropped++; } else i++; }
+    dropped += tab_drop_owner(owner);
     LeaveCriticalSection(&g_cs);
     if (old || dropped) LOG("overlay: plugin %s released (mode 0x%x, %d callback(s) removed)", owner_name(owner), old, dropped);
 }
@@ -159,6 +168,118 @@ extern "C" void ov_pad_chord_guard(int on) {
     if (InterlockedExchange(&g_chord_guard, on ? 1 : 0) != (on ? 1 : 0)) LOG("overlay: gamepad chord guard %s (the game %s Start while Back is held)", on ? "on" : "off", on ? "does not see" : "sees");
 }
 
+/* ---------- background mode : -LNBgInput on the command line, never on a player's ---------- */
+// A test driver posts keys to an unfocused game window and the game must never take the foreground from the user's windows:
+//  1. the loader's binds / on_key / test keys read the window's own key messages (bgkeys.h table) instead of the real keyboard;
+//  2. activation guard: UE4 activates its own window after creating it, so the game's (and every mod DLL's) user32 imports SetForegroundWindow / SetActiveWindow /
+//     SetFocus / BringWindowToTop / SwitchToThisWindow / AttachThreadInput become no-ops and ShowWindow / ShowWindowAsync / SetWindowPos lose their activation
+//     (bgact.h decides); WM_MOUSEACTIVATE answers MA_NOACTIVATE;
+//  3. mods (DLLs under a Mods folder) also see the game window as the foreground window and the window's own key state in GetAsyncKeyState, so their own
+//     focus checks and polls work on an unfocused window with no change to the mod.
+static int bg_on(void) { static int v = -1; if (v < 0) v = bgk_flag(GetCommandLineW()); return v; }
+static HWND g_bg_hwnd; static WNDPROC g_bg_old;
+static volatile LONG g_bg_msgn, g_bg_seen[256];
+static void bg_key_msg(UINT m, WPARAM w) {                             // window thread: every key message of the game window (why was a posted key not acked? this log answers)
+    bgk_msg(m, w, GetTickCount64());
+    LONG n = InterlockedIncrement(&g_bg_msgn);
+    if (n <= 40) LOG("overlay: -LNBgInput: key message %s vk 0x%02X (#%ld)", (m == WM_KEYDOWN || m == WM_SYSKEYDOWN) ? "down" : "up", (unsigned)(w & 0xFF), (long)n);
+}
+extern "C" int ov_bg_input_on(void) { return bg_on(); }
+extern "C" int ov_bg_key_down(int vk) {
+    int d = bgk_down(vk, GetTickCount64());
+    if (d && vk > 0 && vk < 256 && !InterlockedExchange(&g_bg_seen[vk], 1)) LOG("overlay: -LNBgInput: vk 0x%02X first read as down by a bind / mod (so the posted key reached the loader's table)", vk);
+    return d;
+}
+// ---- the activation guard
+static BOOL (WINAPI *o_ShowWindow)(HWND, int); static BOOL (WINAPI *o_ShowWindowAsync)(HWND, int); static BOOL (WINAPI *o_SetWindowPos)(HWND, HWND, int, int, int, int, UINT);
+static SHORT (WINAPI *o_GetAsyncKeyState)(int); static HWND (WINAPI *o_GetForegroundWindow)(void);
+static volatile LONG g_bga_n[16];
+static void bga_note(int i, const char *fn) {                          // the first few refusals of each call are logged, then every 1000th
+    LONG n = InterlockedIncrement(&g_bga_n[i]);
+    if (n <= 3 || n % 1000 == 0) LOG("overlay: -LNBgInput: activation refused: %s (call %ld)", fn, (long)n);
+}
+static BOOL WINAPI bga_SetForegroundWindow(HWND h) { (void)h; bga_note(0, "SetForegroundWindow"); return TRUE; }
+static HWND WINAPI bga_SetActiveWindow(HWND h) { (void)h; bga_note(1, "SetActiveWindow"); return GetActiveWindow(); }
+static HWND WINAPI bga_SetFocus(HWND h) { (void)h; bga_note(2, "SetFocus"); return GetFocus(); }
+static BOOL WINAPI bga_BringWindowToTop(HWND h) { (void)h; bga_note(3, "BringWindowToTop"); return TRUE; }
+static void WINAPI bga_SwitchToThisWindow(HWND h, BOOL b) { (void)h; (void)b; bga_note(4, "SwitchToThisWindow"); }
+static BOOL WINAPI bga_AttachThreadInput(DWORD a, DWORD b, BOOL f) { (void)a; (void)b; (void)f; bga_note(5, "AttachThreadInput"); return TRUE; }   // it would share the input state with the user's app
+static BOOL WINAPI bga_ShowWindow(HWND h, int c) { int n = bga_showcmd(c); if (n != c) bga_note(6, "ShowWindow (made non-activating)"); return o_ShowWindow ? o_ShowWindow(h, n) : FALSE; }
+static BOOL WINAPI bga_ShowWindowAsync(HWND h, int c) { int n = bga_showcmd(c); if (n != c) bga_note(7, "ShowWindowAsync (made non-activating)"); return o_ShowWindowAsync ? o_ShowWindowAsync(h, n) : FALSE; }
+static BOOL WINAPI bga_SetWindowPos(HWND h, HWND a, int x, int y, int cx, int cy, UINT f) {
+    if (!(f & SWP_NOACTIVATE)) bga_note(8, "SetWindowPos (made non-activating)");
+    return o_SetWindowPos ? o_SetWindowPos(h, a, x, y, cx, cy, bga_swpflags(f)) : FALSE;
+}
+static HWND WINAPI bga_GetForegroundWindow(void) { return g_bg_hwnd ? g_bg_hwnd : (o_GetForegroundWindow ? o_GetForegroundWindow() : NULL); }   // mods: "the game window has the focus"
+static SHORT WINAPI bga_GetAsyncKeyState(int vk) { return bga_asynckey(vk, bgk_down(vk, GetTickCount64())); }                                          // mods: the window's own key state
+typedef struct { const char *name; void *hook; } BgImp;
+static const BgImp g_bga_act[] = { { "SetForegroundWindow", (void *)bga_SetForegroundWindow }, { "SetActiveWindow", (void *)bga_SetActiveWindow }, { "SetFocus", (void *)bga_SetFocus },
+    { "BringWindowToTop", (void *)bga_BringWindowToTop }, { "SwitchToThisWindow", (void *)bga_SwitchToThisWindow }, { "AttachThreadInput", (void *)bga_AttachThreadInput },
+    { "ShowWindow", (void *)bga_ShowWindow }, { "ShowWindowAsync", (void *)bga_ShowWindowAsync }, { "SetWindowPos", (void *)bga_SetWindowPos } };
+static const BgImp g_bga_mod[] = { { "GetForegroundWindow", (void *)bga_GetForegroundWindow }, { "GetAsyncKeyState", (void *)bga_GetAsyncKeyState } };
+// route the named USER32 imports of one module through the hooks (import address table, like xi_install); returns how many slots were changed
+static int bga_patch_one(HMODULE mod, const BgImp *list, int n) {
+    int hit = 0; BYTE *base = (BYTE *)mod; if (!base) return 0;
+    __try {
+        IMAGE_DOS_HEADER *dos = (IMAGE_DOS_HEADER *)base; if (dos->e_magic != IMAGE_DOS_SIGNATURE) return 0;
+        IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)(base + dos->e_lfanew); if (nt->Signature != IMAGE_NT_SIGNATURE) return 0;
+        IMAGE_DATA_DIRECTORY dd = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT]; if (!dd.VirtualAddress) return 0;
+        for (IMAGE_IMPORT_DESCRIPTOR *d = (IMAGE_IMPORT_DESCRIPTOR *)(base + dd.VirtualAddress); d->Name; d++) {
+            if (_stricmp((const char *)(base + d->Name), "user32.dll") != 0) continue;
+            ULONGLONG *thunk = (ULONGLONG *)(base + (d->OriginalFirstThunk ? d->OriginalFirstThunk : d->FirstThunk)); void **iat = (void **)(base + d->FirstThunk);
+            for (int i = 0; thunk[i]; i++) {
+                if (thunk[i] & IMAGE_ORDINAL_FLAG64) continue;
+                const char *fn = (const char *)((IMAGE_IMPORT_BY_NAME *)(base + thunk[i]))->Name;
+                for (int k = 0; k < n; k++) {
+                    if (strcmp(fn, list[k].name) != 0 || iat[i] == list[k].hook) continue;
+                    DWORD old; if (!VirtualProtect(&iat[i], sizeof(void *), PAGE_READWRITE, &old)) continue;
+                    iat[i] = list[k].hook; VirtualProtect(&iat[i], sizeof(void *), old, &old); hit++;
+                }
+            }
+        }
+    } __except (EXCEPTION_EXECUTE_HANDLER) { LOG("overlay: -LNBgInput: EXCEPTION 0x%08lX while reading a module's imports - skipped", GetExceptionCode()); }
+    return hit;
+}
+static int g_bga_inst, g_bga_routed = -1;
+extern "C" int ov_bg_summary(char *out, int cap) {                    // total refused / changed activation calls so far, and which (for the periodic log line; 0 = none)
+    static const char *const nm[9] = { "SetForegroundWindow", "SetActiveWindow", "SetFocus", "BringWindowToTop", "SwitchToThisWindow", "AttachThreadInput", "ShowWindow", "ShowWindowAsync", "SetWindowPos" };
+    int total = 0, len = 0; if (out && cap > 0) out[0] = 0;
+    for (int i = 0; i < 9; i++) { LONG n = g_bga_n[i]; if (!n) continue; total += (int)n; if (out && len < cap - 40) len += snprintf(out + len, (size_t)(cap - len), "%s%s x%ld", len ? ", " : "", nm[i], (long)n); }
+    return total;
+}
+extern "C" void ov_bg_guard_install(void) {                          // as early as possible (before the game creates its window): the game's own imports
+    if (!bg_on() || g_bga_inst) return; g_bga_inst = 1;
+    HMODULE u = GetModuleHandleW(L"user32.dll"); if (!u) { LOG("overlay: -LNBgInput: user32.dll not loaded - activation guard NOT installed"); return; }
+    o_ShowWindow = (BOOL (WINAPI *)(HWND, int))(void *)GetProcAddress(u, "ShowWindow"); o_ShowWindowAsync = (BOOL (WINAPI *)(HWND, int))(void *)GetProcAddress(u, "ShowWindowAsync");
+    o_SetWindowPos = (BOOL (WINAPI *)(HWND, HWND, int, int, int, int, UINT))(void *)GetProcAddress(u, "SetWindowPos");
+    o_GetAsyncKeyState = (SHORT (WINAPI *)(int))(void *)GetProcAddress(u, "GetAsyncKeyState"); o_GetForegroundWindow = (HWND (WINAPI *)(void))(void *)GetProcAddress(u, "GetForegroundWindow");
+    int n = bga_patch_one(GetModuleHandleW(NULL), g_bga_act, (int)(sizeof g_bga_act / sizeof g_bga_act[0])); g_bga_routed = n;   // (no log sink yet at start-up: bg_hook logs this once the overlay has one)
+    LOG("overlay: -LNBgInput: activation guard installed in the game's import table (%d of %d activating USER32 imports routed; 0 means this build imports none of them)", n, (int)(sizeof g_bga_act / sizeof g_bga_act[0]));
+}
+extern "C" void ov_bg_mods_patch(void) {                             // every few seconds: mod DLLs (a hot reload loads new ones) get the guard + the focus / key reads
+    if (!bg_on() || !g_bga_inst) return;
+    // no "done" list: a hot-reloaded mod can load at the same base with a fresh import table; bga_patch_one skips slots already hooked, so a module counts only when it changed
+    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, GetCurrentProcessId()); if (snap == INVALID_HANDLE_VALUE) return;
+    MODULEENTRY32W me; me.dwSize = sizeof me;
+    for (BOOL ok = Module32FirstW(snap, &me); ok; ok = Module32NextW(snap, &me)) {
+        char p[MAX_PATH]; if (!WideCharToMultiByte(CP_UTF8, 0, me.szExePath, -1, p, sizeof p, NULL, NULL) || !bga_is_mod_path(p)) continue;
+        int a = bga_patch_one(me.hModule, g_bga_act, (int)(sizeof g_bga_act / sizeof g_bga_act[0])), b = bga_patch_one(me.hModule, g_bga_mod, (int)(sizeof g_bga_mod / sizeof g_bga_mod[0]));
+        if (a || b) LOG("overlay: -LNBgInput: mod %ls: %d activating import(s) guarded, %d focus / key import(s) routed to the window's own state", me.szModule, a, b);
+    }
+    CloseHandle(snap);
+}
+static LRESULT CALLBACK bg_wndproc(HWND h, UINT m, WPARAM w, LPARAM l) {
+    long long r; if (bga_wndmsg(m, &r)) return (LRESULT)r;            // WM_MOUSEACTIVATE: a click never activates
+    if (m == WM_KEYDOWN || m == WM_SYSKEYDOWN || m == WM_KEYUP || m == WM_SYSKEYUP) bg_key_msg(m, w);
+    return CallWindowProcW(g_bg_old, h, m, w, l);
+}
+static void bg_hook(IDXGISwapChain *sc) {                              // render thread, first Present: subclass the window once (g_imgui_init later chains on top of this)
+    static int tried; if (tried) return; tried = 1;
+    DXGI_SWAP_CHAIN_DESC d; if (FAILED(sc->GetDesc(&d)) || !d.OutputWindow) { LOG("overlay: -LNBgInput: no output window - background key input is NOT available"); return; }
+    { char sm[256]; int t = ov_bg_summary(sm, sizeof sm); LOG("overlay: -LNBgInput: activation guard in the game's import table: %d of %d activating USER32 imports routed (made at start-up); %d call(s) refused / made non-activating so far%s%s", g_bga_routed, (int)(sizeof g_bga_act / sizeof g_bga_act[0]), t, t ? ": " : "", sm); }
+    g_bg_hwnd = d.OutputWindow; g_bg_old = (WNDPROC)SetWindowLongPtrW(g_bg_hwnd, GWLP_WNDPROC, (LONG_PTR)bg_wndproc);
+    LOG("overlay: -LNBgInput: game window %p subclassed for background key input (old %p); binds read the window's own key messages, not the real keyboard", (void *)g_bg_hwnd, (void *)g_bg_old);
+}
 /* ---------- input: while the overlay takes input, the game window's messages go to ImGui first ---------- */
 // where a raw mouse movement goes: ov_raw_mouse while a plugin has OVM_RAW, the virtual cursor for a loader menu or a plugin with OVM_MOUSE (not while OVM_RAW is set, unless a menu is open)
 static void raw_move(LONG dx, LONG dy, LONG menu, LONG mouse_on, LONG raw_on) {
@@ -185,7 +306,10 @@ enum { R_PASS = 0, R_SWALLOW, R_DEFAULT };                         // what the w
 static unsigned char g_game_btn, g_kept_btn;                       // mouse buttons whose press the game saw / whose press was kept from it (window thread only)
 // Decides for one message. feed(...) hands it to ImGui. Window thread only.
 static int route(HWND h, UINT m, WPARAM w, LPARAM l, void (*feed)(HWND, UINT, WPARAM, LPARAM)) {
-    if (m == WM_KILLFOCUS || (m == WM_ACTIVATEAPP && !w) || (m == WM_ACTIVATE && LOWORD(w) == WA_INACTIVE)) {   // focus lost: nothing is swallowed until it returns, ImGui forgets held keys and buttons
+    if (bg_on() && (m == WM_KEYDOWN || m == WM_SYSKEYDOWN || m == WM_KEYUP || m == WM_SYSKEYUP)) bg_key_msg(m, w);   // -LNBgInput: the key table of the game window (bgkeys.h)
+    if (bg_on()) InterlockedExchange(&g_focus, 1);                                   // -LNBgInput: the window never has the real focus; its posted messages are the input
+    if (bg_on() && m >= WM_MOUSEFIRST && m <= WM_MOUSELAST && m != WM_MOUSEWHEEL && m != WM_MOUSEHWHEEL) { InterlockedExchange(&g_bgm_x, (LONG)(short)LOWORD(l)); InterlockedExchange(&g_bgm_y, (LONG)(short)HIWORD(l)); }   // posted mouse = the cursor
+    else if (m == WM_KILLFOCUS || (m == WM_ACTIVATEAPP && !w) || (m == WM_ACTIVATE && LOWORD(w) == WA_INACTIVE)) {   // focus lost: nothing is swallowed until it returns, ImGui forgets held keys and buttons
         InterlockedExchange(&g_focus, 0); InterlockedExchange(&g_clear, 1); InterlockedExchange(&g_rdx, 0); InterlockedExchange(&g_rdy, 0);
     } else if (m == WM_SETFOCUS || (m == WM_ACTIVATEAPP && w) || (m == WM_ACTIVATE && LOWORD(w) != WA_INACTIVE)) InterlockedExchange(&g_focus, 1);
     if ((m == WM_KEYUP || m == WM_SYSKEYUP) && w < 256 && g_swallowed[w]) {         // the game never saw this key go down: it must not see it come up
@@ -195,6 +319,9 @@ static int route(HWND h, UINT m, WPARAM w, LPARAM l, void (*feed)(HWND, UINT, WP
     if (down == 0 && (g_kept_btn & btn)) { g_kept_btn &= (unsigned char)~btn; if (feed) feed(h, m, w, l); return R_SWALLOW; }   // same for a mouse button
     if (g_focus && (m == WM_KEYDOWN || m == WM_SYSKEYDOWN) && w < 256 && g_keep[w]) { g_swallowed[w] = 1; return R_SWALLOW; }   // an F key a mod owns (F11 = the game's fullscreen toggle too): the game never sees it
     LONG menu = g_vis, any = g_any;
+    if (menu && g_focus && (m == WM_KEYDOWN) && !(l & 0x40000000) && !g_text_input) {   // first press only (not auto-repeat), not while typing
+        if (w == 'Q') InterlockedIncrement(&g_tabkey_q); else if (w == 'E') InterlockedIncrement(&g_tabkey_e); else if (w == VK_ESCAPE) InterlockedIncrement(&g_tabkey_esc);
+    }
     LONG block = any & OVM_BLOCK;                                    // keep every key and mouse message from the game
     LONG mouse_on = menu || (any & OVM_MOUSE), keys_on = menu || (any & OVM_KEYS), raw_on = any & OVM_RAW;
     if (g_focus && g_state == OV_READY && (mouse_on || keys_on || raw_on || block)) {
@@ -221,6 +348,7 @@ static int route(HWND h, UINT m, WPARAM w, LPARAM l, void (*feed)(HWND, UINT, WP
 }
 static void feed_imgui(HWND h, UINT m, WPARAM w, LPARAM l) { if (!g_imgui) return; EnterCriticalSection(&g_cs); ImGui_ImplWin32_WndProcHandler(h, m, w, l); LeaveCriticalSection(&g_cs); }
 static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l) {
+    long long bgr; if (bg_on() && bga_wndmsg(m, &bgr)) return (LRESULT)bgr;   // -LNBgInput: WM_MOUSEACTIVATE -> MA_NOACTIVATE
     int r = route(h, m, w, l, feed_imgui);
     if (r == R_SWALLOW) return 0;
     if (r == R_DEFAULT) return DefWindowProcW(h, m, w, l);           // the default procedure releases the raw input buffer
@@ -320,7 +448,7 @@ static void draw_menu(const OvSnap &s) {
         if (s.filter[0]) ImGui::TextColored(ImVec4(1.f, 0.85f, 0.35f, 1.f), "Search: %s_", s.filter);
         else ImGui::TextDisabled("Type to search");
     }
-    float foot = ImGui::GetFrameHeightWithSpacing() * 2.f + 4.f;
+    float foot = ImGui::GetFrameHeightWithSpacing() * 2.f + ImGui::GetTextLineHeightWithSpacing() + 4.f;
     ImGui::BeginChild("rows", ImVec2(0, -foot), ImGuiChildFlags_Borders);
     if (!s.count && s.empty[0]) ImGui::TextDisabled("%s", s.empty);
     for (int i = 0; i < s.count; i++) {
@@ -334,7 +462,8 @@ static void draw_menu(const OvSnap &s) {
     ImGui::EndChild();
     if (s.has_back) { if (ImGui::Button("Back")) post(OVC_MENU_BACK, 0); ImGui::SameLine(); }
     if (ImGui::Button("Close")) post(OVC_TOGGLE, 0);
-    ImGui::TextDisabled("Up/Down + Enter (or click)   Esc / Left = back   F1 closes   Pad: d-pad, A, B");
+    ImGui::TextDisabled("Up/Down + Enter (or click)   Esc / Left = back   F2 closes   Pad: d-pad, A, B");
+    ImGui::TextDisabled("F1: the loader window (mods, keybinds, hosting, log and the mods' own tabs)");
 }
 
 static void content_text(const OvMod &m, char *out, size_t cap) {
@@ -348,127 +477,319 @@ static void content_text(const OvMod &m, char *out, size_t cap) {
     if (m.net_tag[0] && l + 1 < cap) l += (size_t)snprintf(out + l, cap - l, " %s", m.net_tag);
     if (m.joiners_optional && m.affects_gameplay && l + 1 < cap) snprintf(out + l, cap - l, " [joiners need not]");
 }
-static void draw_mods(const OvSnap &s) {
+/* ---------- the loader window (F1; the Mods page) as tabs - Mods | Keybinds | Hosting | Log | one tab per plugin that asked for one (API 2.33 ui_tab) ----------
+ * The game thread owns the active tab (OvSnap.tab) and lists only its rows; a click on a tab, Q / E or the pad's LB / RB post OVC_MODS_TAB. A plugin tab calls
+ * the plugin's draw callback inside the tab body (fault guard + stack recovery as for overlay callbacks); while it shows, the plugin has the keys (focus owner). */
+typedef struct { int owner; char title[40]; void (*draw)(void *); void *user; } TabReg;
+#define TABMAX 16
+static TabReg g_tabs[TABMAX]; static int g_ntabs;                // guarded by g_cs
+static int g_tab_owner = -1;                                     // render thread: the plugin whose tab was drawn this frame (-1 none)
+extern "C" int ov_tab_register(int owner, const char *title, void (*draw)(void *), void *user) {
+    if (!draw || owner < 0 || owner > 63 || !g_installed) return 1;
+    EnterCriticalSection(&g_cs); int rc = 1, i = 0;
+    while (i < g_ntabs && g_tabs[i].owner != owner) i++;
+    if (i < TABMAX) { if (i == g_ntabs) g_ntabs++; g_tabs[i].owner = owner; snprintf(g_tabs[i].title, sizeof g_tabs[i].title, "%s", title && title[0] ? title : owner_name(owner)); g_tabs[i].draw = draw; g_tabs[i].user = user; rc = 0; }
+    LeaveCriticalSection(&g_cs);
+    if (!rc) LOG("overlay: plugin %s has a tab in the Mods window: '%s'", owner_name(owner), title ? title : "");
+    return rc;
+}
+extern "C" int ov_tab_owner_at(int i, char *title, int cap) {
+    if (!g_installed) return -1;
+    EnterCriticalSection(&g_cs); int o = i >= 0 && i < g_ntabs ? g_tabs[i].owner : -1; if (o >= 0 && title && cap > 0) snprintf(title, (size_t)cap, "%s", g_tabs[i].title); LeaveCriticalSection(&g_cs);
+    return o;
+}
+static int tab_drop_owner(int owner) {                              // caller holds g_cs
+    int n = 0; for (int i = 0; i < g_ntabs; ) { if (g_tabs[i].owner == owner) { memmove(g_tabs + i, g_tabs + i + 1, sizeof(TabReg) * (size_t)(g_ntabs - i - 1)); g_ntabs--; n++; } else i++; }
+    return n;
+}
+static void call_draw(const DrawReg &r);
+static void lv_poll(void); static void draw_log_body(void); static int draw_form_body(const OvSnap &s, int tab);
+
+// The rows of the active tab (keyboard / pad selection = s.sel, the mouse moving onto a row selects it). Kinds: overlay.h OvSnap.action_kind.
+static void draw_rows(const OvSnap &s) {
+    const ImVec4 grey(0.6f, 0.6f, 0.65f, 1), yellow(1.f, 0.85f, 0.35f, 1);
+    static int last_sel = -1; int scroll_to = s.sel != last_sel && s.sel != g_hover_posted; if (s.sel != last_sel && s.sel != g_hover_posted) g_hover_posted = -1; last_sel = s.sel;
+    float W = ImGui::GetContentRegionAvail().x;
+    for (int i = 0; i < s.nactions; i++) {
+        ImGui::PushID(1000 + i);
+        int k = s.action_kind[i], item = k == 2 || k == 3 || k == 4 || k == 8 || ((k == 14 || k == 6 || k == 7) && i > 0 && s.action_kind[0] == 14);   // 3 / 4: plugin ui rows (API 2.27): a number gets a slider, a hint is grey; section items indented on the Mods tab
+        if (k == 5) {                                                    // group header (Keybinds: the mod that owns the keys below)
+            if (i) ImGui::Spacing();
+            ImGui::PushStyleColor(ImGuiCol_Text, i == s.sel ? yellow : ImVec4(0.55f, 0.8f, 1.f, 1.f)); ImGui::SeparatorText(s.action[i]); ImGui::PopStyleColor();
+            if (i == s.sel && scroll_to) ImGui::SetScrollHereY(0.3f);
+            ImGui::PopID(); continue;
+        }
+        if (k == 10 || k == 11) {                                        // big switch (Hosting: ON / OFF): a wide coloured button, the state in words
+            const char *t = s.action[i] + 4; const char *dash = strstr(t, " - ");
+            char head[48]; snprintf(head, sizeof head, "%.*s", dash ? (int)(dash - t) : (int)strlen(t), t);
+            ImVec4 c = k == 10 ? ImVec4(0.18f, 0.55f, 0.25f, 1.f) : ImVec4(0.45f, 0.18f, 0.18f, 1.f);
+            ImGui::PushStyleColor(ImGuiCol_Button, c); ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(c.x + 0.1f, c.y + 0.1f, c.z + 0.1f, 1.f)); ImGui::PushStyleColor(ImGuiCol_ButtonActive, c);
+            if (i == s.sel) ImGui::PushStyleColor(ImGuiCol_Border, yellow);
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, i == s.sel ? 2.f : 0.f);
+            ImGui::SetWindowFontScale(1.6f);
+            if (ImGui::Button(head, ImVec2(ImGui::GetContentRegionAvail().x * 0.45f, 0.f))) post(OVC_MODS_ACT, i);
+            row_hover(i, s.sel);
+            ImGui::SetWindowFontScale(1.f);
+            ImGui::PopStyleVar(); if (i == s.sel) ImGui::PopStyleColor(); ImGui::PopStyleColor(3);
+            ImGui::SameLine(); ImGui::AlignTextToFramePadding(); ImGui::TextWrapped("%s", dash ? dash + 3 : "");
+            ImGui::TextDisabled("Click (or Enter / pad A) to switch. Players already here stay; F2 > Kick player removes one.");
+            ImGui::Spacing(); ImGui::Separator();
+            if (i == s.sel && scroll_to) ImGui::SetScrollHereY(0.3f);
+            ImGui::PopID(); continue;
+        }
+        if (k == 9) {                                                    // grey text
+            ImGui::PushStyleColor(ImGuiCol_Text, i == s.sel ? yellow : grey); ImGui::TextWrapped("%s", s.action[i]); ImGui::PopStyleColor();
+            if (i == s.sel && scroll_to) ImGui::SetScrollHereY(0.3f);
+            ImGui::PopID(); continue;
+        }
+        if (item) ImGui::Indent(16.f);
+        if (i == s.sel) ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImGui::GetStyleColorVec4(ImGuiCol_Header));
+        if (k == 4) ImGui::PushStyleColor(ImGuiCol_Text, grey);
+        bool hit;
+        if (k == 14) {                                                   // a button: click, or select it with the keys / pad and press Enter / A
+            const char *t = s.action[i]; while (*t == ' ') t++;
+            if (i == s.sel) { ImGui::PushStyleColor(ImGuiCol_Border, yellow); ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 2.f); }
+            hit = ImGui::Button(t);
+            if (i == s.sel) { ImGui::PopStyleVar(); ImGui::PopStyleColor(); }
+            row_hover(i, s.sel);
+        } else if (k == 6 || k == 7 || k == 8) {                         // a full-width selectable row with widgets / columns drawn over it
+            hit = ImGui::Selectable("##row", i == s.sel, ImGuiSelectableFlags_AllowOverlap);
+            row_hover(i, s.sel);
+            float x0 = ImGui::GetItemRectMin().x - ImGui::GetWindowPos().x + ImGui::GetScrollX();
+            if (k == 8) {                                                // columns: label | when | key | warning
+                const char *p = s.action[i]; static const float at[4] = { 0.f, 0.40f, 0.51f, 0.67f };
+                for (int c = 0; c < 4 && p; c++) {
+                    const char *e = strchr(p, '\t'); int n = e ? (int)(e - p) : (int)strlen(p);
+                    ImGui::SameLine(x0 + W * at[c] + 4.f);
+                    if (c == 3 && n) ImGui::TextColored(yellow, "%.*s", n, p); else if (c == 1) ImGui::TextDisabled("%.*s", n, p); else ImGui::Text("%.*s", n, p);
+                    p = e ? e + 1 : NULL;
+                }
+            } else {                                                     // check box: the row and the box both toggle
+                ImGui::SameLine(x0 + 4.f); bool b = k == 6;
+                if (ImGui::Checkbox(s.action[i] + 4, &b)) hit = true;
+            }
+        } else {
+            hit = ImGui::Selectable(s.action[i], i == s.sel, 0, ImVec2(k == 3 ? ImGui::GetContentRegionAvail().x * 0.55f : 0.f, 0.f));
+            row_hover(i, s.sel);
+        }
+        if (k == 4) ImGui::PopStyleColor();
+        if (i == s.sel) ImGui::PopStyleColor();
+        if (hit) post(OVC_MODS_ACT, i);
+        if (k == 3) {                                                    // the slider holds its own value while dragged (snapshots keep arriving); sent once on release
+            static int drag_i = -1; static float drag_v;
+            const double *n = s.action_num[i]; float v = drag_i == i ? drag_v : (float)n[0];
+            ImGui::SameLine(); ImGui::SetNextItemWidth(-1.f);
+            ImGui::SliderFloat("##uinum", &v, (float)n[1], (float)n[2], "%.6g");
+            if (ImGui::IsItemActive()) { drag_i = i; drag_v = v; }
+            if (ImGui::IsItemDeactivatedAfterEdit()) { char t[40]; snprintf(t, sizeof t, "%.9g", (double)v); post(OVC_UI_SET, i, (int)n[4], t); }
+            if (!ImGui::IsItemActive() && drag_i == i) drag_i = -1;
+        }
+        if (i == s.sel && scroll_to) ImGui::SetScrollHereY(0.3f);
+        if (item) ImGui::Unindent(16.f);
+        ImGui::PopID();
+    }
+}
+// What a mod holds, as coloured words (PAK / PLUGIN / ROWS / CONTENT / LUA) + its network tags in grey
+static void holds_chips(const OvMod &m) {
+    struct { int on; const char *t; ImVec4 c; } w[5] = {
+        { m.has_pak, "PAK", ImVec4(0.50f, 0.75f, 1.f, 1) }, { m.has_plugin, "PLUGIN", ImVec4(0.80f, 0.62f, 1.f, 1) }, { m.has_rows, "ROWS", ImVec4(0.55f, 0.90f, 0.60f, 1) },
+        { m.has_content, "CONTENT", ImVec4(0.95f, 0.80f, 0.50f, 1) }, { m.has_lua, "LUA", ImVec4(0.50f, 0.90f, 0.90f, 1) } };
+    int first = 1;
+    for (int k = 0; k < 5; k++) {
+        if (!w[k].on) continue;
+        if (!first) ImGui::SameLine(); first = 0;
+        if (k == 0 && m.status == 0 && m.paks_total) ImGui::TextColored(w[k].c, "PAK %d/%d", m.paks_ok, m.paks_total);
+        else if (k == 2 && m.rows_ops) ImGui::TextColored(w[k].c, "ROWS %d", m.rows_ops);
+        else ImGui::TextColored(w[k].c, "%s", w[k].t);
+    }
+    char tags[96]; int l = 0; tags[0] = 0;
+    if (!m.affects_gameplay) l += snprintf(tags + l, sizeof tags - (size_t)l, "[cosmetic] ");
+    if (m.net_tag[0] && l < (int)sizeof tags - 24) l += snprintf(tags + l, sizeof tags - (size_t)l, "%s ", m.net_tag);
+    if (m.joiners_optional && m.affects_gameplay && l < (int)sizeof tags - 24) snprintf(tags + l, sizeof tags - (size_t)l, "[joiners need not]");
+    if (tags[0]) {
+        if (!first) ImGui::SameLine(); ImGui::TextDisabled("%s", tags);
+        if (ImGui::IsItemHovered()) { ImGui::BeginTooltip(); ImGui::TextUnformatted(tags);
+            ImGui::TextDisabled("[cosmetic]: left out of the LAN mod check. [host only] / [local only] / [vanilla visible] / [all need it]: who needs the mod (mod.json \"net\").");
+            ImGui::TextDisabled("[joiners need not]: joiners can play without it (mod.json \"joiners_need\": false; left out of the LAN mod check)."); ImGui::EndTooltip(); }
+    }
+    if (m.plugin == 2) ImGui::TextColored(ImVec4(1.f, 0.45f, 0.4f, 1), "plugin BLOCKED (list it in Mods\\plugins.txt)");
+}
+static void draw_mods_tab(const OvSnap &s) {
     const ImVec4 green(0.45f, 0.9f, 0.5f, 1), red(1.f, 0.45f, 0.4f, 1), yellow(1.f, 0.85f, 0.35f, 1), grey(0.6f, 0.6f, 0.65f, 1);
     int on = 0, off = 0, skipped = 0;
     for (int i = 0; i < s.nmods; i++) { if (s.mods[i].status == 0) on++; else if (s.mods[i].status == 1) off++; else if (s.mods[i].status == 2) skipped++; }
-    ImGui::Text("Safe mode:"); ImGui::SameLine();
-    if (s.safe_mode) ImGui::TextColored(yellow, "ON - no mods, no plugins, no extender hooks%s%s", s.safe_why[0] ? ": " : "", s.safe_why); else ImGui::TextColored(green, "off");
-    ImGui::Text("Mods: %d loaded, %d off, %d skipped", on, off, skipped);
-    ImGui::TextWrapped("Load order: %s", s.order[0] ? s.order : "(none)");
-    if (s.info[0]) { ImGui::PushStyleColor(ImGuiCol_Text, grey); ImGui::TextWrapped("%s", s.info); ImGui::PopStyleColor(); }
-    {   // profile box: save the current on/off + order set under a typed name, or update (overwrite) the profile of that name
-        static char nm[44]; static unsigned seen = 0xFFFFFFFFu;
-        if (s.pf_serial != seen) { snprintf(nm, sizeof nm, "%s", s.pf_default); seen = s.pf_serial; }   // starts with the current / last used profile; kept while typing
+    if (s.safe_mode) ImGui::TextColored(yellow, "SAFE MODE - no mods, no plugins, no extender hooks%s%s", s.safe_why[0] ? ": " : "", s.safe_why);
+    ImGui::Text("%d mods loaded", on); ImGui::SameLine(); ImGui::TextDisabled("%d off, %d skipped", off, skipped);
+    for (int i = 0; i < s.nwarn; i++) ImGui::TextColored(yellow, "! %s", s.warn[i]);
+    if (s.pending_n) {
+        ImGui::TextColored(yellow, "Waiting for a restart: %s", s.pending_text); ImGui::SameLine();
+        if (ImGui::Button("Restart game now")) post(OVC_MODS_RESTART, 0);
+    }
+    // the mods: one row each, in load order (a later mod wins when two change the same thing)
+    if (ImGui::BeginTable("mods", 6, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingStretchProp)) {
+        ImGui::TableSetupColumn("On", ImGuiTableColumnFlags_WidthFixed, 30.f * g_scale); ImGui::TableSetupColumn("Mod", ImGuiTableColumnFlags_WidthFixed, 230.f * g_scale);
+        ImGui::TableSetupColumn("State", ImGuiTableColumnFlags_WidthFixed, 120.f * g_scale); ImGui::TableSetupColumn("Holds");
+        ImGui::TableSetupColumn("Order", ImGuiTableColumnFlags_WidthFixed, 50.f * g_scale); ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 160.f * g_scale);
+        ImGui::TableHeadersRow();
+        for (int i = 0; i < s.nmods; i++) {
+            const OvMod &m = s.mods[i]; ImGui::PushID(i);
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            { bool b = m.enabled != 0; if (s.safe_mode) ImGui::BeginDisabled(); if (ImGui::Checkbox("##on", &b)) post(OVC_MODS_ENABLE, i, b ? 1 : 0); if (s.safe_mode) ImGui::EndDisabled();
+              if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", m.hot_ok ? "Switching a rows/content-only mod on takes effect now; everything else after a restart." : "Takes effect after a restart."); }
+            ImGui::TableSetColumnIndex(1); ImGui::TextUnformatted(m.name);
+            if (m.version[0] && strcmp(m.version, "0")) { ImGui::SameLine(); ImGui::TextDisabled("v%s", m.version); }
+            if (m.id[0] && strcmp(m.id, m.name) && ImGui::IsItemHovered()) ImGui::SetTooltip("id: %s", m.id);
+            ImGui::TableSetColumnIndex(2);
+            if (m.effect == 3) ImGui::TextColored(green, "loaded now (live)");
+            else if (m.effect == 1) ImGui::TextColored(yellow, "on after restart");
+            else if (m.effect == 2) ImGui::TextColored(yellow, "off after restart");
+            else if (m.status == 2) { ImGui::TextColored(red, "SKIPPED"); if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", m.reason[0] ? m.reason : "skipped"); }
+            else ImGui::TextColored(m.status == 0 ? green : grey, "%s", m.status == 0 ? "loaded" : m.status == 1 ? "off" : "empty");
+            if (m.nconf) { ImGui::SameLine(); ImGui::TextColored(yellow, "%d conflict%s", m.nconf, m.nconf == 1 ? "" : "s");
+                if (ImGui::IsItemHovered()) { ImGui::BeginTooltip(); for (int k = 0; k < m.nconf && k < 3; k++) ImGui::TextUnformatted(m.conf[k]); if (m.nconf > 3) ImGui::TextDisabled("... %d in all (see mods.txt)", m.nconf); ImGui::EndTooltip(); } }
+            ImGui::TableSetColumnIndex(3); holds_chips(m);
+            ImGui::TableSetColumnIndex(4);
+            if (ImGui::SmallButton("^")) post(OVC_MODS_MOVE, i, -1); ImGui::SameLine(); if (ImGui::SmallButton("v")) post(OVC_MODS_MOVE, i, 1);
+            ImGui::TableSetColumnIndex(5);
+            int tab = -1; for (int t = 0; t < g_ntabs; t++) if (!_stricmp(owner_name(g_tabs[t].owner), m.name)) tab = g_tabs[t].owner;
+            if (tab >= 0) { if (ImGui::SmallButton("Open tab")) post(OVC_MODS_TAB, OVT_PLUGIN + tab); if (m.nsettings) ImGui::SameLine(); }
+            if (m.nsettings && ImGui::SmallButton("Settings")) post(OVC_MODS_FORM, i);
+            ImGui::PopID();
+        }
+        ImGui::EndTable();
+    }
+    // profile bar: switch to a saved on/off + order set, or save the current one under a name
+    ImGui::Spacing();
+    {
+        static char nm[44]; static unsigned seen = 0xFFFFFFFFu; static int pick = -1;
+        if (s.pf_serial != seen) { snprintf(nm, sizeof nm, "%s", s.pf_default); seen = s.pf_serial; pick = s.pf_current; }
+        if (pick >= s.pf_n) pick = -1;
+        ImGui::AlignTextToFramePadding(); ImGui::TextUnformatted("Profile"); ImGui::SameLine(); ImGui::SetNextItemWidth(200.f * g_scale);
+        char cur[64]; snprintf(cur, sizeof cur, "%s", s.pf_current >= 0 && s.pf_current < s.pf_n ? s.pf_names[s.pf_current] : s.pf_n ? "(not a saved profile)" : "(none saved)");
+        if (ImGui::BeginCombo("##pfpick", pick >= 0 ? s.pf_names[pick] : cur)) {
+            for (int k = 0; k < s.pf_n; k++) if (ImGui::Selectable(s.pf_names[k], k == pick)) pick = k;
+            ImGui::EndCombo();
+        }
+        ImGui::SameLine(); bool nosw = s.safe_mode || pick < 0 || pick == s.pf_current; if (nosw) ImGui::BeginDisabled();
+        if (ImGui::Button("Switch")) post(OVC_PROFILE_SWITCH, pick);
+        if (nosw) ImGui::EndDisabled();
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) ImGui::SetTooltip("Writes the profile's on/off + order set into Mods\\loadorder.txt (old file: .bak); it takes effect after a restart.");
         int exists = 0; for (int k = 0; k < s.pf_n; k++) if (!_stricmp(nm, s.pf_names[k])) exists = 1;
-        ImGui::AlignTextToFramePadding(); ImGui::TextUnformatted("Profile:"); ImGui::SameLine(); ImGui::SetNextItemWidth(220.f * g_scale);
-        ImGui::InputTextWithHint("##pfname", "name (letters, digits, space, - _)", nm, sizeof nm);
-        ImGui::SameLine(); bool off = s.safe_mode || !nm[0]; if (off) ImGui::BeginDisabled();
-        char b[96]; snprintf(b, sizeof b, !nm[0] ? "Save as###pfsave" : exists ? "Update '%s'###pfsave" : "Save as '%s'###pfsave", nm);
-        if (ImGui::Button(b)) post(OVC_PROFILE_SAVE, 0, exists, nm);
-        if (off) ImGui::EndDisabled();
-        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) ImGui::SetTooltip("%s", s.safe_mode ? "Safe mode: nothing is written." : exists ? "Overwrites this profile with the current on/off + order set (the old file is kept as .bak)." : "Saves the current on/off + order set as a new profile in Mods\\profiles.");
+        ImGui::SameLine(0.f, 24.f * g_scale); ImGui::SetNextItemWidth(170.f * g_scale);
+        ImGui::InputTextWithHint("##pfname", "new name", nm, sizeof nm);
+        ImGui::SameLine(); bool nosave = s.safe_mode || !nm[0]; if (nosave) ImGui::BeginDisabled();
+        if (ImGui::Button(exists ? "Update###pfsave" : "Save as###pfsave")) post(OVC_PROFILE_SAVE, 0, exists, nm);
+        if (nosave) ImGui::EndDisabled();
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) ImGui::SetTooltip("%s", s.safe_mode ? "Safe mode: nothing is written." : exists ? "Overwrites this profile with the current on/off + order set (the old file is kept as .bak)." : "Saves the current on/off + order set as a new profile in Mods\\profiles (letters, digits, space, - _).");
+        if (s.pf_msg[0]) ImGui::TextDisabled("%s", s.pf_msg);
     }
-    ImGui::TextDisabled("Rows: Up/Down + Enter, or click   Esc / F2 close   Pad: d-pad, A, B");
-    ImGui::Separator();
-    static int last_sel = -1; int scroll_to = s.sel != last_sel && s.sel != g_hover_posted; if (s.sel != last_sel && s.sel != g_hover_posted) g_hover_posted = -1; last_sel = s.sel;
-    for (int i = 0; i < s.nactions; i++) {                           // actions: the reload line, plugin sections / items, the units' rows - all the same kind of row, so the keyboard selection shows on each
-        ImGui::PushID(1000 + i);
-        if (s.action_kind[i] == 2) ImGui::Indent(16.f);
-        if (i == s.sel) ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImGui::GetStyleColorVec4(ImGuiCol_Header));
-        bool hit = ImGui::Selectable(s.action[i], i == s.sel);
-        if (i == s.sel) ImGui::PopStyleColor();
-        if (hit) post(OVC_MODS_ACT, i);
-        row_hover(i, s.sel);
-        if (i == s.sel && scroll_to) ImGui::SetScrollHereY(0.3f);
-        if (s.action_kind[i] == 2) ImGui::Unindent(16.f);
-        ImGui::PopID();
-    }
-    if (s.nactions) ImGui::Separator();
-    if (s.nwarn && ImGui::CollapsingHeader("Warnings", ImGuiTreeNodeFlags_DefaultOpen)) for (int i = 0; i < s.nwarn; i++) ImGui::TextColored(yellow, "%s", s.warn[i]), ImGui::Spacing();
-    if (ImGui::CollapsingHeader("Mods", ImGuiTreeNodeFlags_DefaultOpen)) {
-        if (s.pending_n) {
-            ImGui::TextColored(yellow, "Waiting for a restart: %s", s.pending_text); ImGui::SameLine();
-            if (ImGui::Button("Restart game now")) post(OVC_MODS_RESTART, 0);
-            ImGui::TextDisabled("The game quits cleanly; start it again from Steam. A later mod in the list wins when two mods change the same thing.");
-        }
-        if (ImGui::BeginTable("mods", 7, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingStretchProp)) {
-            ImGui::TableSetupColumn("On", ImGuiTableColumnFlags_WidthFixed, 34.f * g_scale); ImGui::TableSetupColumn("Mod", ImGuiTableColumnFlags_WidthFixed, 200.f * g_scale); ImGui::TableSetupColumn("State", ImGuiTableColumnFlags_WidthFixed, 140.f * g_scale);
-            ImGui::TableSetupColumn("Holds"); ImGui::TableSetupColumn("Conflicts", ImGuiTableColumnFlags_WidthFixed, 70.f * g_scale);
-            ImGui::TableSetupColumn("Order", ImGuiTableColumnFlags_WidthFixed, 56.f * g_scale); ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 80.f * g_scale);
-            ImGui::TableHeadersRow();
-            for (int i = 0; i < s.nmods; i++) {
-                const OvMod &m = s.mods[i]; char c[200]; ImGui::PushID(i);
-                ImGui::TableNextRow();
-                ImGui::TableSetColumnIndex(0);
-                { bool on = m.enabled != 0; if (s.safe_mode) ImGui::BeginDisabled(); if (ImGui::Checkbox("##on", &on)) post(OVC_MODS_ENABLE, i, on ? 1 : 0); if (s.safe_mode) ImGui::EndDisabled();
-                  if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", m.hot_ok ? "Switching a rows/content-only mod on takes effect now; everything else after a restart." : "Takes effect after a restart."); }
-                ImGui::TableSetColumnIndex(1); ImGui::TextUnformatted(m.name); if (m.id[0] && strcmp(m.id, m.name)) { ImGui::SameLine(); ImGui::TextDisabled("(%s)", m.id); }
-                if (m.version[0] && strcmp(m.version, "0")) { ImGui::SameLine(); ImGui::TextDisabled("v%s", m.version); }
-                ImGui::TableSetColumnIndex(2);
-                if (m.effect == 3) ImGui::TextColored(green, "loaded now (live)");
-                else if (m.effect == 1) ImGui::TextColored(yellow, "on after restart");
-                else if (m.effect == 2) ImGui::TextColored(yellow, "off after restart");
-                else if (m.status == 2) { ImGui::TextColored(red, "SKIPPED"); if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", m.reason[0] ? m.reason : "skipped"); }
-                else ImGui::TextColored(m.status == 0 ? green : grey, "%s", m.status == 0 ? "loaded" : m.status == 1 ? "off" : "empty");
-                ImGui::TableSetColumnIndex(3);
-                { int w = 0; c[0] = 0;
-                  if (m.has_pak) w += snprintf(c + w, sizeof c - (size_t)w, m.status == 0 && m.paks_total ? "%d/%d pak  " : "pak  ", m.paks_ok, m.paks_total);
-                  if (m.has_rows) w += snprintf(c + w, sizeof c - (size_t)w, m.rows_ops ? "%d row edit(s)  " : "rows  ", m.rows_ops);
-                  if (m.has_content) w += snprintf(c + w, sizeof c - (size_t)w, "content  ");
-                  if (m.has_plugin) w += snprintf(c + w, sizeof c - (size_t)w, "plugin  ");
-                  if (m.has_lua) w += snprintf(c + w, sizeof c - (size_t)w, "Lua  ");
-                  if (!m.affects_gameplay) snprintf(c + w, sizeof c - (size_t)w, "[cosmetic]");
-                  { size_t l = strlen(c);                                           // net / joiners_need tags
-                    if (m.net_tag[0] && l + 1 < sizeof c) l += (size_t)snprintf(c + l, sizeof c - l, " %s", m.net_tag);
-                    if (m.joiners_optional && m.affects_gameplay && l + 1 < sizeof c) snprintf(c + l, sizeof c - l, " [joiners need not]"); }
-                  ImGui::TextWrapped("%s", c);                                     // wraps inside the column: long tag lists ("[joiners need not]") are not cut off
-                  if ((m.net_tag[0] || m.joiners_optional || !m.affects_gameplay) && ImGui::IsItemHovered()) { ImGui::BeginTooltip(); ImGui::TextUnformatted(c);
-                      ImGui::TextDisabled("[cosmetic]: left out of the LAN mod check. [host only] / [local only] / [vanilla visible] / [all need it]: who needs the mod (mod.json \"net\").");
-                      ImGui::TextDisabled("[joiners need not]: joiners can play without it (mod.json \"joiners_need\": false; left out of the LAN mod check)."); ImGui::EndTooltip(); }
-                  if (m.plugin == 2) { ImGui::SameLine(); ImGui::TextColored(red, "plugin BLOCKED (list it in Mods\\plugins.txt)"); } }
-                ImGui::TableSetColumnIndex(4);
-                if (m.nconf) { ImGui::TextColored(yellow, "%d", m.nconf);
-                    if (ImGui::IsItemHovered()) { ImGui::BeginTooltip(); for (int k = 0; k < m.nconf && k < 3; k++) ImGui::TextUnformatted(m.conf[k]); if (m.nconf > 3) ImGui::TextDisabled("... %d in all (see mods.txt)", m.nconf); ImGui::EndTooltip(); } }
-                else ImGui::TextDisabled("-");
-                ImGui::TableSetColumnIndex(5);
-                if (ImGui::SmallButton("^")) post(OVC_MODS_MOVE, i, -1); ImGui::SameLine(); if (ImGui::SmallButton("v")) post(OVC_MODS_MOVE, i, 1);
-                ImGui::TableSetColumnIndex(6);
-                if (m.nsettings && ImGui::SmallButton("Settings")) post(OVC_MODS_FORM, i);
-                ImGui::PopID();
-            }
-            ImGui::EndTable();
-        }
-    }
-    if (ImGui::CollapsingHeader("Conflicts", ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::Text("files %d (%d differ), row edits %d, data assets %d, split assets %d", s.pak_conflicts, s.pak_conflicts_real, s.row_conflicts, s.obj_conflicts, s.split_assets);
+    // each mod's own rows (menu items, ui rows): one collapsible section per mod, under the reload row
+    ImGui::Spacing(); ImGui::SeparatorText("Mod actions");
+    draw_rows(s);
+    // the rest only informs: open by itself when something is wrong
+    int bad_plug = 0; for (int i = 0; i < s.nplug; i++) if (!s.plug_loaded[i] || s.plug_faults[i]) bad_plug = 1;
+    int problem = s.split_assets || s.pak_conflicts_real || s.ncconf || s.c_invalid || bad_plug;
+    ImGui::Spacing();
+    if (problem) ImGui::SetNextItemOpen(true, ImGuiCond_Appearing);
+    ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.20f, 0.25f, 0.33f, 1.f));
+    bool det = ImGui::CollapsingHeader(problem ? "Details  (something needs a look)###mdet" : "Details: load order, conflicts, plugins###mdet");
+    ImGui::PopStyleColor();
+    if (det) {
+        ImGui::TextWrapped("Load order: %s", s.order[0] ? s.order : "(none)");
+        if (s.info[0]) { ImGui::PushStyleColor(ImGuiCol_Text, grey); ImGui::TextWrapped("%s", s.info); ImGui::PopStyleColor(); }
+        ImGui::Text("Conflicts: files %d (%d differ), row edits %d, data assets %d, split assets %d", s.pak_conflicts, s.pak_conflicts_real, s.row_conflicts, s.obj_conflicts, s.split_assets);
         if (s.split_assets) { ImGui::SameLine(); ImGui::TextColored(red, "LIKELY CRASH"); }
-    }
-    if (ImGui::CollapsingHeader("Content registry", ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::Text("%d file(s), %d entr%s in use, %d invalid, %d conflict(s)", s.c_files, s.c_entries, s.c_entries == 1 ? "y" : "ies", s.c_invalid, s.ncconf);
+        ImGui::Text("Content registry: %d file(s), %d entr%s in use, %d invalid, %d conflict(s)", s.c_files, s.c_entries, s.c_entries == 1 ? "y" : "ies", s.c_invalid, s.ncconf);
         for (int i = 0; i < s.ncconf; i++) ImGui::TextColored(yellow, "  %s", s.cconf[i]);
-    }
-    if (ImGui::CollapsingHeader("Plugins", ImGuiTreeNodeFlags_DefaultOpen)) {
-        if (!s.nplug) ImGui::TextDisabled("none loaded");
+        if (!s.nplug) ImGui::TextDisabled("Plugins: none loaded");
         for (int i = 0; i < s.nplug; i++) {
-            ImGui::TextUnformatted(s.plug_name[i]); ImGui::SameLine();
+            ImGui::Text("Plugin %s", s.plug_name[i]); ImGui::SameLine();
             if (!s.plug_loaded[i]) ImGui::TextColored(red, "not running (load failed or refused)");
             else if (s.plug_faults[i] >= 3) ImGui::TextColored(red, "SWITCHED OFF after 3 faults");
             else if (s.plug_faults[i]) ImGui::TextColored(yellow, "running, %d of 3 faults", s.plug_faults[i]);
             else ImGui::TextColored(green, "running, no faults");
         }
+        ImGui::TextWrapped("Last reload: %s", s.reload_status[0] ? s.reload_status : "none yet (the Reload row, or a LanNative\\reload.txt file, reloads Mods\\*\\content and rows.json)");
     }
-    ImGui::Separator();
-    ImGui::TextWrapped("Last reload: %s", s.reload_status[0] ? s.reload_status : "none yet (the Reload line of this page, or a LanNative\\reload.txt file, reloads Mods\\*\\content and rows.json)");
+}
+// the pad's shoulder buttons and B, read from the real XInputGetState (the game's import is the neutralised one): edges, render thread
+static unsigned pad_edges(void) {
+    struct { DWORD packet; WORD buttons; BYTE lt, rt; SHORT lx, ly, rx, ry; } st; static WORD was;
+    if (!g_xi_orig || !g_focus) { was = 0; return 0; }
+    memset(&st, 0, sizeof st); if (g_xi_orig(0, &st) != ERROR_SUCCESS) { was = 0; return 0; }
+    WORD now = st.buttons, e = (WORD)(now & ~was); was = now; return e;
+}
+static void draw_mods(const OvSnap &s) {
+    // tab order: Mods, Keybinds, Hosting, Log, then the plugins' tabs in registration order
+    int ids[OVT_COUNT + TABMAX], n = 0; const char *names[OVT_COUNT + TABMAX];
+    static const char *const fixed[OVT_COUNT] = { "Mods", "Keybinds", "Hosting", "Settings", "Log" };
+    for (int t = 0; t < OVT_COUNT; t++) { ids[n] = t; names[n++] = fixed[t]; }
+    for (int t = 0; t < g_ntabs; t++) {                                // the mods' tabs by title (registration order depends on when each mod loads)
+        int k = n++; ids[k] = OVT_PLUGIN + g_tabs[t].owner; names[k] = g_tabs[t].title;
+        while (k > OVT_COUNT && _stricmp(names[k - 1], names[k]) > 0) { int ti = ids[k]; ids[k] = ids[k - 1]; ids[k - 1] = ti; const char *tn = names[k]; names[k] = names[k - 1]; names[k - 1] = tn; k--; }
+    }
+    int at = -1; for (int i = 0; i < n; i++) if (ids[i] == s.tab) at = i;
+    if (at < 0) { if (s.tab >= OVT_PLUGIN) post(OVC_MODS_TAB, OVT_MODS); at = 0; }          // the plugin's tab is gone (switched off, faulted): back to Mods
+    // Q / E and the pad's LB / RB step through the tabs (not while typing); in a plugin tab Esc / B close the window (the plugin has the other keys)
+    unsigned pe = pad_edges();
+    int kq = (int)InterlockedExchange(&g_tabkey_q, 0), ke = (int)InterlockedExchange(&g_tabkey_e, 0), kesc = (int)InterlockedExchange(&g_tabkey_esc, 0);
+    int step = ke - kq; if (pe & 0x0100) step--; if (pe & 0x0200) step++;
+    if (step) { post(OVC_MODS_TAB, ids[((at + step) % n + n) % n]); LOG("overlay: tab key %+d (Q %d, E %d, pad 0x%04X)", step, kq, ke, pe & 0x0300); }
+    if (s.tab >= OVT_PLUGIN && !ImGui::IsAnyItemActive() && (kesc || (pe & 0x2000))) { post(OVC_MODS_CLOSE, 0); LOG("overlay: %s closes the window (plugin tab)", kesc ? "Esc" : "pad B"); }
+    static int last_tab = -1; int force = s.tab != last_tab; last_tab = s.tab;              // the game thread changed the tab (key, pad, ui_tab_show): show it
+    int shown = -1;
+    if (ImGui::BeginTabBar("lntabs", ImGuiTabBarFlags_FittingPolicyScroll)) {
+        for (int i = 0; i < n; i++) {
+            if (i == OVT_COUNT) { ImGui::PushStyleColor(ImGuiCol_Tab, ImVec4(0.25f, 0.22f, 0.40f, 0.86f)); }   // the mods' own tabs in another colour
+            char lbl[64]; snprintf(lbl, sizeof lbl, "%s###t%d", names[i], ids[i]);
+            if (ImGui::BeginTabItem(lbl, NULL, force && i == at ? ImGuiTabItemFlags_SetSelected : 0)) { shown = ids[i]; ImGui::EndTabItem(); }
+            if (i == n - 1 && n > OVT_COUNT) ImGui::PopStyleColor();
+        }
+        ImGui::EndTabBar();
+    }
+    static int asked = -1;                                                                // a click on a tab: asked once (the game thread answers with s.tab)
+    if (shown == s.tab) asked = -1; else if (shown >= 0 && !force && shown != asked) { asked = shown; post(OVC_MODS_TAB, shown); }
+    g_tab_owner = -1;
+    float foot = ImGui::GetTextLineHeightWithSpacing() + 4.f;
+    ImGui::BeginChild("##tabbody", ImVec2(0, -foot));
+    if (shown != s.tab) ImGui::TextDisabled("...");                                       // one tick until the game thread lists the new tab's rows
+    else if (s.tab == OVT_MODS) draw_mods_tab(s);
+    else if (s.tab == OVT_KEYS) draw_rows(s);
+    else if (s.tab == OVT_HOSTING) {
+        ImGui::TextDisabled("Hosting = other players can join this game. Joining someone else: F2 > Join / LAN games.");
+        ImGui::Separator(); draw_rows(s);
+    }
+    else if (s.tab == OVT_SETTINGS) {
+        ImGui::TextColored(ImVec4(1.f, 0.85f, 0.35f, 1.f), "The loader reads these when the game starts: every change here applies after a restart.");
+        ImGui::TextDisabled("Saved in LanNative\\config.txt. Hosting, host mod download and max players are on the Hosting tab and apply at once.");
+        ImGui::Separator();
+        if (s.form_mod == -2) draw_form_body(s, 1); else ImGui::TextDisabled("...");
+    }
+    else if (s.tab == OVT_LOG) { lv_poll(); draw_log_body(); }
+    else {
+        int owner = s.tab - OVT_PLUGIN; DrawReg r = { -1, NULL, NULL };
+        for (int t = 0; t < g_ntabs; t++) if (g_tabs[t].owner == owner) { r.owner = owner; r.draw = g_tabs[t].draw; r.user = g_tabs[t].user; }
+        if (r.draw) { g_tab_owner = owner; call_draw(r); }
+    }
+    ImGui::EndChild();
+    ImGui::TextDisabled(s.tab >= OVT_PLUGIN ? "Q / E or LB / RB: tabs   Esc / B / F1: close   F2: world" : "Q / E or LB / RB: tabs   Up/Down + Enter, or click   Esc / F1: close   F2: world   Pad: d-pad, A, B");
 }
 
+static int draw_form_body(const OvSnap &s, int tab);
 static void draw_form(const OvSnap &s) {
-    static char buf[OV_SETTINGS][128]; static unsigned seen = 0xFFFFFFFFu; static int seen_mod = -2;
-    if (s.form_serial != seen || s.form_mod != seen_mod) { for (int i = 0; i < s.nform; i++) snprintf(buf[i], sizeof buf[i], "%s", s.form[i].value); seen = s.form_serial; seen_mod = s.form_mod; }
     bool open = true;
-    float fw = 520.f * g_scale, fx = 40.f + 860.f * g_scale + 20.f; if (fx + fw > (float)g_cw - 10.f) fx = (float)g_cw - fw - 10.f; if (fx < 10.f) fx = 10.f;     // beside the Mods window when there is room, otherwise on top of its right edge
+    float fw = 520.f * g_scale, fx = 40.f + 1000.f * g_scale + 20.f; if (fx + fw > (float)g_cw - 10.f) fx = (float)g_cw - fw - 10.f; if (fx < 10.f) fx = 10.f;     // beside the Mods window when there is room, otherwise on top of its right edge
     ImGui::SetNextWindowPos(ImVec2(fx, 100.f), ImGuiCond_Appearing); ImGui::SetNextWindowSize(ImVec2(fw, 420.f * g_scale), ImGuiCond_Appearing); ImGui::SetNextWindowBgAlpha(1.0f);
-    if (ImGui::Begin(s.form_title[0] ? s.form_title : "Mod settings###lnform", &open, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse)) {
+    if (ImGui::Begin(s.form_title[0] ? s.form_title : "Mod settings###lnform", &open, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse)) { if (!draw_form_body(s, 0)) open = false; }
+    ImGui::End();
+    if (!open) post(OVC_MODS_FORM, -1);
+}
+// the fields + Apply / Defaults (/ Close in the window); 0 = Close was clicked. tab = 1: inside the F1 Settings tab (the loader's own settings, form_mod -2)
+static int draw_form_body(const OvSnap &s, int tab) {
+    static char buf[OV_SETTINGS][128]; static unsigned seen = 0xFFFFFFFFu; static int seen_mod = -3; int keep = 1;
+    if (s.form_serial != seen || s.form_mod != seen_mod) { for (int i = 0; i < s.nform; i++) snprintf(buf[i], sizeof buf[i], "%s", s.form[i].value); seen = s.form_serial; seen_mod = s.form_mod; }
+    {
         ImGui::BeginChild("fields", ImVec2(0, -(ImGui::GetFrameHeightWithSpacing() * 3.f + 12.f)));     // the buttons below stay visible however many settings there are
         for (int i = 0; i < s.nform; i++) {
             const OvSetting &st = s.form[i]; ImGui::PushID(i); char *v = buf[i];
@@ -476,8 +797,10 @@ static void draw_form(const OvSnap &s) {
             if (st.type == 0) { bool b = v[0] == '1' || !_stricmp(v, "true") || !_stricmp(v, "on") || !_stricmp(v, "yes"); if (ImGui::Checkbox("##v", &b)) snprintf(v, 128, "%s", b ? "1" : "0"); }
             else if (st.type == 3) {
                 if (ImGui::BeginCombo("##v", v[0] ? v : "(choose)")) { for (int k = 0; k < st.nchoice; k++) if (ImGui::Selectable(st.choice[k], !strcmp(v, st.choice[k]))) snprintf(v, 128, "%s", st.choice[k]); ImGui::EndCombo(); }
-            } else { ImGui::SetNextItemWidth(260.f * g_scale); ImGui::InputText("##v", v, 128, st.type == 1 ? ImGuiInputTextFlags_CharsDecimal : st.type == 2 ? ImGuiInputTextFlags_CharsScientific : 0); }
-            if (st.type == 1 || st.type == 2) { if (st.has_min || st.has_max) { ImGui::SameLine(); ImGui::TextDisabled("(%g .. %g)", st.has_min ? st.min : -1e9, st.has_max ? st.max : 1e9); } }
+            } else if (st.type == 1 || st.type == 2) {                    // numbers: digits only, - / + steps, clamped to the setting's range (gleamui.h, shared with plugins)
+                gleam_number_text("##v", v, 128, st.has_min ? st.min : -1e18, st.has_max ? st.max : 1e18, st.type == 1, 220.f * g_scale);
+                if (st.has_min || st.has_max) { ImGui::SameLine(); ImGui::TextDisabled("(%g .. %g)", st.has_min ? st.min : -1e9, st.has_max ? st.max : 1e9); }
+            } else { ImGui::SetNextItemWidth(260.f * g_scale); ImGui::InputText("##v", v, 128); }
             if (st.help[0]) ImGui::TextDisabled("%s", st.help);
             ImGui::PopID(); ImGui::Spacing();
         }
@@ -489,12 +812,11 @@ static void draw_form(const OvSnap &s) {
             post(OVC_MODS_APPLY, s.form_mod, 0, out);
         }
         ImGui::SameLine(); if (ImGui::Button("Defaults")) for (int i = 0; i < s.nform; i++) snprintf(buf[i], sizeof buf[i], "%s", s.form[i].def);
-        ImGui::SameLine(); if (ImGui::Button("Close")) open = false;
+        if (!tab) { ImGui::SameLine(); if (ImGui::Button("Close")) keep = 0; }
         ImGui::TextDisabled("%s", s.form_live ? "Changes apply immediately." : "Changes apply after a restart.");
-        if (s.form_msg[0]) ImGui::TextColored(s.form_ok ? ImVec4(0.45f, 0.9f, 0.5f, 1) : ImVec4(1.f, 0.45f, 0.4f, 1), "%s", s.form_msg);
+        if (s.form_msg[0]) { ImGui::PushStyleColor(ImGuiCol_Text, s.form_ok ? ImVec4(0.45f, 0.9f, 0.5f, 1) : ImVec4(1.f, 0.45f, 0.4f, 1)); ImGui::TextWrapped("%s", s.form_msg); ImGui::PopStyleColor(); }
     }
-    ImGui::End();
-    if (!open) post(OVC_MODS_FORM, -1);
+    return keep;
 }
 static int guarded_draw(void (*draw)(void *), void *user, unsigned long *code) {
     __try { draw(user); return 1; } __except (EXCEPTION_EXECUTE_HANDLER) { *code = GetExceptionCode(); return 0; }
@@ -537,13 +859,14 @@ static void update_focus_owner(void) {
         if (wn->LastFrameActive == g.FrameCount && g_win_frame.GetInt(wn->ID, -1) == g.FrameCount) { owner = g_win_owner.GetInt(wn->ID, 1) - 2; break; }
     if (owner >= 0 && (owner > 63 || !(g_mode[owner] & (OVM_KEYS | OVM_BLOCK)))) owner = g_vis ? -1 : -2;   // a HUD / mouse-only plugin window does not take the keys
     if (owner == -2 && g_vis) owner = -1;
+    if (owner == -1 && g_tab_owner >= 0 && g_vis) owner = g_tab_owner;     // the loader window shows a plugin's tab
     LONG old = InterlockedExchange(&g_focus_owner, owner);
     if (old != owner) LOG("overlay: focus %s", owner >= 0 ? owner_name(owner) : owner == -1 ? "loader menu" : "nobody");
 }
 /* ---------- log window: the last lines of lannative.log, filter + "errors only", mod tags; read-only. Drawn beside the loader's
  * window while a loader menu is open (F2 row "Log window"); the file is read here on the render thread, incrementally, twice a second while shown. ---------- */
 #include "logview.h"
-static LogView g_lv; static wchar_t g_lv_path[MAX_PATH]; static volatile LONG g_lv_shown, g_text_input; static ULONGLONG g_lv_next; static long long g_lv_off = -1;
+static LogView g_lv; static wchar_t g_lv_path[MAX_PATH]; static volatile LONG g_lv_shown; static ULONGLONG g_lv_next; static long long g_lv_off = -1;
 static char g_lv_filter[64]; static bool g_lv_err;
 extern "C" void ov_log_window(const wchar_t *path, int on) {
     if (path) { wcsncpy(g_lv_path, path, MAX_PATH - 1); g_lv_path[MAX_PATH - 1] = 0; }
@@ -571,11 +894,7 @@ static void lv_poll(void) {
     }
     CloseHandle(h);
 }
-static void draw_log(int w, int h) {
-    bool open = true; float ww = 900.f * g_scale, wh = 520.f * g_scale; if (ww > w - 40) ww = (float)(w - 40); if (wh > h - 40) wh = (float)(h - 40);
-    ImGui::SetNextWindowPos(ImVec2((float)w - ww - 20.f, (float)h - wh - 20.f), ImGuiCond_Appearing); ImGui::SetNextWindowSize(ImVec2(ww, wh), ImGuiCond_Appearing);
-    ImGui::SetNextWindowBgAlpha(0.90f);
-    if (ImGui::Begin("Log - lannative.log###lnlog", &open, ImGuiWindowFlags_NoSavedSettings)) {
+static void draw_log_body(void) {                                  // the Mods window's Log tab, and the separate log window
         ImGui::SetNextItemWidth(260.f * g_scale); if (ImGui::InputTextWithHint("##lvf", "filter: text or mod name", g_lv_filter, sizeof g_lv_filter)) LOG("overlay: log filter = '%s'", g_lv_filter);
         ImGui::SameLine(); if (ImGui::Checkbox("Errors only", &g_lv_err)) LOG("overlay: log window errors only = %s", g_lv_err ? "on" : "off");
         static int idx[LV_MAX]; int m = 0;
@@ -591,7 +910,12 @@ static void draw_log(int w, int h) {
         }
         if (at_end) ImGui::SetScrollHereY(1.f);                      // follows new lines while scrolled to the bottom
         ImGui::EndChild();
-    }
+}
+static void draw_log(int w, int h) {
+    bool open = true; float ww = 900.f * g_scale, wh = 520.f * g_scale; if (ww > w - 40) ww = (float)(w - 40); if (wh > h - 40) wh = (float)(h - 40);
+    ImGui::SetNextWindowPos(ImVec2((float)w - ww - 20.f, (float)h - wh - 20.f), ImGuiCond_Appearing); ImGui::SetNextWindowSize(ImVec2(ww, wh), ImGuiCond_Appearing);
+    ImGui::SetNextWindowBgAlpha(0.90f);
+    if (ImGui::Begin("Log - lannative.log###lnlog", &open, ImGuiWindowFlags_NoSavedSettings)) draw_log_body();
     ImGui::End();
     if (!open) ov_log_window(NULL, 0);
 }
@@ -602,23 +926,23 @@ static void draw_ui(int w, int h) {
     static int last_kind = OV_NONE;
     if (s.kind != OV_NONE) {                                         // the loader's own windows first, balanced by construction
         bool open = true;
-        float ww = s.kind == OV_MODS ? 860.f * g_scale : 560.f * g_scale, wh = s.kind == OV_MODS ? 620.f * g_scale : 470.f * g_scale;
+        float ww = s.kind == OV_MODS ? 1000.f * g_scale : 560.f * g_scale, wh = s.kind == OV_MODS ? 620.f * g_scale : 470.f * g_scale;
         if (ww > w - 40) ww = (float)(w - 40); if (wh > h - 40) wh = (float)(h - 40);
         ImGuiCond cond = s.kind != last_kind ? ImGuiCond_Always : ImGuiCond_Appearing;   // F1 <-> F2 share one window: each page gets its own size and place
         ImGui::SetNextWindowPos(ImVec2(s.kind == OV_MODS ? 40.f : 60.f, s.kind == OV_MODS ? 40.f : 80.f), cond);
         ImGui::SetNextWindowSize(ImVec2(ww, wh), cond);
         ImGui::SetNextWindowBgAlpha(0.88f);
-        const char *name = s.kind == OV_MODS ? "Mods###lnwin" : "Gleam Loader###lnwin";   // product name; the ###id stays
+        const char *name = s.kind == OV_MODS ? "Gleam Loader  (F1)###lnwin" : "World  (F2)###lnwin";   // F1 = the loader window, F2 = the world menu   // product name; the ###id stays
         // one clear highlight: the selected row (keys, pad, or the row the mouse moved onto) is strong, a row the cursor only rests on is faint
         // (ImGui's default style paints hover brighter than selection, so a resting mouse looked like a second selection - UX-B1 key_b05)
         const ImVec4 hl = ImGui::GetStyleColorVec4(ImGuiCol_HeaderHovered);
         ImGui::PushStyleColor(ImGuiCol_Header, hl); ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(hl.x, hl.y, hl.z, hl.w * 0.30f));
-        if (ImGui::Begin(name, &open, ImGuiWindowFlags_NoSavedSettings | (s.kind == OV_MODS && s.form_mod >= 0 ? ImGuiWindowFlags_NoBringToFrontOnFocus : 0))) {   // an open settings form stays above the page
+        if (ImGui::Begin(name, &open, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse | (s.kind == OV_MODS && s.form_mod >= 0 ? ImGuiWindowFlags_NoBringToFrontOnFocus : 0))) {   // an open settings form stays above the page
             if (s.kind == OV_MODS) draw_mods(s); else if (s.kind == OV_MENU) draw_menu(s); else draw_lines(s);
         }
         ImGui::End();
         ImGui::PopStyleColor(2);
-        if (!open) post(OVC_TOGGLE, 0);
+        if (!open) post(s.kind == OV_MODS ? OVC_MODS_CLOSE : OVC_TOGGLE, 0);   // the X of the loader window closes it (OVC_TOGGLE = the world key)
         if (s.kind == OV_MODS && s.form_mod >= 0) draw_form(s);
         if (g_lv_shown) { lv_poll(); draw_log(w, h); }               // beside the loader's window, only while a loader menu is open
     }
@@ -675,13 +999,14 @@ static void frame(IDXGISwapChain *sc) {
     // that one - ImGui follows the OS cursor and draws none of its own. Only while the game hides it (gameplay: it pins the hidden cursor) the overlay draws
     // its virtual cursor, moved by raw mouse input.
     int want_cursor = g_vis || ((g_any & OVM_MOUSE) && !(g_any & OVM_HIDECURSOR)), os_cursor = 0;
-    if (want_cursor && g_focus) {
+    if (want_cursor && g_focus && !bg_on()) {                         // -LNBgInput: never the real OS cursor (it belongs to whoever uses the PC; its moves would "hover" rows)
         CURSORINFO ci; ci.cbSize = sizeof ci; POINT p;
         if (GetCursorInfo(&ci) && (ci.flags & CURSOR_SHOWING) && ci.hCursor && GetCursorPos(&p) && ScreenToClient(g_hwnd, &p) && p.x >= 0 && p.y >= 0 && p.x < w && p.y < h) {
             os_cursor = 1; g_vx = (float)p.x; g_vy = (float)p.y; InterlockedExchange(&g_dx, 0); InterlockedExchange(&g_dy, 0);
         }
     }
     if (!os_cursor) { g_vx += (float)InterlockedExchange(&g_dx, 0); g_vy += (float)InterlockedExchange(&g_dy, 0); }
+    if (bg_on() && g_bgm_x >= 0) { g_vx = (float)g_bgm_x; g_vy = (float)g_bgm_y; }      // -LNBgInput: posted mouse messages place the cursor (lab-slot runs)
     if (g_vx < 0) g_vx = 0; if (g_vy < 0) g_vy = 0; if (g_vx > w - 1) g_vx = (float)(w - 1); if (g_vy > h - 1) g_vy = (float)(h - 1);
     io.MouseDrawCursor = want_cursor && !os_cursor;
     { LONG cm = !want_cursor ? 0 : os_cursor ? 2 : 1; if (InterlockedExchange(&g_cursor_mode, cm) != cm) LOG("overlay: cursor = %s", cm == 2 ? "the game's own cursor (it shows one): no second cursor drawn" : cm == 1 ? "the overlay's cursor (the game hides its own)" : "none"); }
@@ -743,6 +1068,7 @@ static HRESULT STDMETHODCALLTYPE hk_present(IDXGISwapChain *sc, UINT sync, UINT 
 }
 static HRESULT STDMETHODCALLTYPE hk_present_body(IDXGISwapChain *sc, UINT sync, UINT flags) {
     InterlockedIncrement(&g_present_calls);
+    if (bg_on() && !g_bg_hwnd) bg_hook(sc);
     if ((g_vis || g_any) && g_state != OV_DEAD) {
         g_was_vis = 1;
         if (!frame_guarded(sc)) {

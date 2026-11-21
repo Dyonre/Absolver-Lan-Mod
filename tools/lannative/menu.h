@@ -1,6 +1,7 @@
 // In-game F1 menu: pure state machine + text layout (no engine calls, so it can be driven by fake input).
 // lannative.c feeds it key edges, performs the action it returns, and draws the lines it lays out.
-// Keys (GetAsyncKeyState edges, only while the game window has focus): F1 open/close, Up/Down move, Enter or Right select, Left or Backspace back.
+// Keys (GetAsyncKeyState edges, only while the game window has focus): MK_TOGGLE (F2) opens / closes the world menu, MK_MODS (F1) the
+// loader window (MP_MODS page), Up/Down move, Enter or Right select, Left or Backspace back.
 // The game also sees those keys (it has no idea the menu exists); Esc is deliberately not used because it opens the game's own pause menu.
 #ifndef LANNATIVE_MENU_H
 #define LANNATIVE_MENU_H
@@ -9,7 +10,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-enum { MK_TOGGLE = 1, MK_UP, MK_DOWN, MK_SELECT, MK_BACK, MK_MODS, MK_ERASE };   // MK_MODS = F2: open the menu straight on the Mods page (or close it when it is already there); MK_ERASE = Backspace: deletes a search character, else Back
+enum { MK_TOGGLE = 1, MK_UP, MK_DOWN, MK_SELECT, MK_BACK, MK_MODS, MK_ERASE };   // MK_TOGGLE = F2 world menu; MK_MODS = F1: open the menu straight on the Mods page (or close it when it is already there); MK_ERASE = Backspace: deletes a search character, else Back
 enum { MA_NONE = 0, MA_HOST, MA_JOIN, MA_SUMMON, MA_STATE, MA_MARK, MA_AUTOLEAVE, MA_PERTEAM, MA_HOSTIP, MA_OPEN_MAPS, MA_OPEN_ALTARS, MA_TRAVEL, MA_TELEPORT,
        MA_OPEN_NPCS, MA_SPAWN_NPC, MA_REMOVE_NPCS, MA_SOLODUEL, MA_EDIT_IP, MA_MODS_ACT, MA_MODS_BACK, MA_QUIT, MA_OPEN_LAN, MA_LAN_JOIN, MA_OPEN_KICK, MA_KICK };   // MA_MODS_ACT: index = line of the Mods page (the first lines are actions: reload, plugin menu items); MA_MODS_BACK: Left on the Mods page while a section is open (index = line)
 enum { MP_MAIN = 0, MP_MAPS, MP_ALTARS, MP_NPCS, MP_NPCGROUPS, MP_MODS, MP_LAN, MP_MAPGROUPS, MP_KICK, MP_COUNT };   // MP_LAN: hosts found by the LAN finder (landisc.inc; MA_LAN_JOIN index = host); MP_MAPGROUPS: map categories
@@ -159,6 +160,7 @@ static MenuAct menu_key(Menu *m, int key) {
 }
 static MenuAct menu_key_raw(Menu *m, int key) {
     MenuAct none = { MA_NONE, 0 };
+    if (key == MK_TOGGLE && m->open && m->page == MP_MODS) m->open = 0;      // the world key on the loader window switches to the world menu (reopened below)
     if (key == MK_TOGGLE) { m->open = !m->open;
         if (m->open) {
             int p = m->mem_page;
@@ -187,7 +189,7 @@ static MenuAct menu_key_raw(Menu *m, int key) {
     if (key == MK_DOWN) { if (n > 0) m->sel = (m->sel + 1) % n; return none; }
     if (key == MK_BACK) {
         if (m->page == MP_MODS && m->mods_sub) { MenuAct a = { MA_MODS_BACK, m->sel }; return a; }
-        if (m->page == MP_MODS) { m->page = MP_MAIN; m->sel = 0; }
+        if (m->page == MP_MODS) { m->open = 0; return none; }                     // Back on the loader window (F1) closes it; the world menu is F2
         else if (m->page == MP_NPCS && m->ngroups > 0) { m->page = MP_NPCGROUPS; m->sel = m->group >= 0 ? m->group : 0; }       // back to the group list
         else if (m->page == MP_MAPS && m->mgroups > 0) { m->page = MP_MAPGROUPS; m->sel = m->mgroup >= 0 ? m->mgroup : 0; }      // back to the map categories
         else if (m->page != MP_MAIN) { m->sel = (m->page == MP_MAPS || m->page == MP_MAPGROUPS) ? 8 : (m->page == MP_ALTARS) ? 9 : (m->page == MP_LAN) ? MENU_MAIN_LAN : (m->page == MP_KICK) ? MENU_MAIN_KICK : 10; m->page = MP_MAIN; }   // back to the entry that opened the list
@@ -244,7 +246,7 @@ static int menu_layout(const Menu *m, const MenuStatus *s, const char *(*list_te
     int n = 0; *sel_line = -1;
     if (!m->open) return 0;
     if (m->page == MP_MAIN) {
-        n = menu_append(lines, n, "Gleam Loader  (F1 close, F2 mods, Up/Down, Enter)%s", "", 0);
+        n = menu_append(lines, n, "World  (F2 close, F1 loader window, Up/Down, Enter)%s", "", 0);
         const char *items[MENU_MAIN_COUNT] = { "Host: %s", "Join: %s", "Bring joiners to me: %s", "State dump to log: %s", "Log marker: %s", "Auto-leave: %s", "3v3 players per team: %s", "Host address: %s", "Map list...%s", "Altar teleport...%s", "Spawn NPC...%s", "Remove all NPCs: %s", "Solo duel (test maps alone): %s", "Join address (Enter to type it): %s", "LAN games...%s", "Kick player...%s", "Quit to main menu: %s" };
         for (int i = 0; i < MENU_MAIN_COUNT; i++) {
             char val[32] = "";
@@ -289,7 +291,7 @@ static int menu_layout(const Menu *m, const MenuStatus *s, const char *(*list_te
         n = menu_append(lines, n, "%s", title, 0);
     } else
         n = menu_append(lines, n, m->page == MP_MAPS ? "Maps  (Enter = travel, Left = back)%s" : m->page == MP_NPCS ? "NPCs  (Enter = spawn next to you, Left = back)%s" :
-                                  m->page == MP_NPCGROUPS ? "NPC groups  (Enter = open, Left = back, type to search all NPCs)%s" : m->page == MP_MODS ? "Mods  (F2 close, Up/Down scroll, Enter on a >> line runs it, Left = menu)%s" :
+                                  m->page == MP_NPCGROUPS ? "NPC groups  (Enter = open, Left = back, type to search all NPCs)%s" : m->page == MP_MODS ? "Mods  (F1 close, Up/Down scroll, Enter on a >> line runs it, Left = close, F2 world)%s" :
                                   m->page == MP_LAN ? "LAN games  (Enter = join, Left = back)%s" : m->page == MP_KICK ? "Kick player  (Enter twice = kick, Left = back)%s" : m->page == MP_MAPGROUPS ? "Map categories  (Enter = open, Left = back, type to search all maps)%s" :
                                   "Altars  (Enter = teleport, Left = back)%s", "", 0);
     int count = m->count[m->page];

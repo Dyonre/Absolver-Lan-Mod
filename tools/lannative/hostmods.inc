@@ -9,7 +9,7 @@
 //            author's opt-in; other gameplay mods are only named): LIST / GET <index>. Only addresses that passed its PreLogin are answered,
 //            the allow list (config "allow") applies, paths come only from its own table.
 //   joiner : once connected to a host as a client ("moddownload = prompt"), asks the host it joined (ip.txt) for the list; if the host's
-//            gameplay-mod fingerprint differs from its own, keeps what it does not load already and shows the offer (toast + F2 Mods page).
+//            gameplay-mod fingerprint differs from its own, keeps what it does not load already and shows the offer (toast + F1 > Hosting).
 //            Nothing is fetched or written before Install is clicked.
 //            Install: download each file to <pak>.part, check size + SHA-256 + "is a UE pak" + allowed packed types + Config/*.ini flag, then rename
 //            to Mods\_FromHost\<host>\<Mod>\<pak> and mark that host active (Mods\_FromHost\active.txt). Those mods mount at the next start
@@ -25,6 +25,8 @@
 #endif
 
 static int g_mp_cap = MP_DEFAULT;
+static int g_host_open = 1;                                  // config 'hosting = on | off' (F1 > Hosting): off = every join is refused in PreLogin, the LAN finder does not answer
+static int hm_host_open(void) { return g_host_open; }
 static int g_hm_mode = HM_PROMPT;
 static unsigned g_hm_port = HM_PORT;
 
@@ -43,6 +45,12 @@ static void hm_cfg_write(const char *key, const char *value) {         // config
 static void hs_on_login(uint32_t ip);
 // ----- PreLogin: player cap, then remember the joiner's address for the download side channel. 1 = refused.
 static int hm_on_prelogin(const char *which, void *address, void *err) {
+    if (!g_host_open) {                                      // hosting OFF: nobody joins (players already here stay; F2 > Kick player removes one)
+        logf_("hosting (%s): login REFUSED - hosting is OFF (F1 > Hosting, config.txt hosting = off)", which);
+        lm_refuse(err, "Join refused: the host is not accepting players right now.");
+        char lines[1][LM_LINE_MAX]; snprintf(lines[0], LM_LINE_MAX, "JOIN REFUSED: hosting is OFF (F1 > Hosting)"); toast_show(lines, 1, 8);
+        return 1;
+    }
     int peers = 0;
     __try { peers = T_peers_now(); } __except (EXCEPTION_EXECUTE_HANDLER) { logf_("max players (%s): EXCEPTION 0x%08lX reading the connection count - login allowed", which, GetExceptionCode()); peers = -1; }
     if (peers >= 0 && mp_refuse(g_mp_cap, peers)) {
@@ -398,13 +406,20 @@ static void *hj_server_conn(void) {
 }
 
 // ----- F2 Mods page rows (modsui.inc appends them after its own actions; clicking one calls hm_menu_action)
-enum { HMA_MODE = 1, HMA_MAXP, HMA_UNLOAD, HMA_INSTALL, HMA_SKIP, HMA_QUIT, HMA_INFO };
+enum { HMA_MODE = 1, HMA_MAXP, HMA_UNLOAD, HMA_INSTALL, HMA_SKIP, HMA_QUIT, HMA_INFO, HMA_HOST };
 static char g_hm_lbl[2 * HM_MAX + 12][96]; static int g_hm_act[2 * HM_MAX + 12], g_hm_nl;
 static int hm_menu_count(void) {
     hm_init_once(); int n = 0;
 #define HM_ROW(kind, ...) do { if (n < (int)(sizeof g_hm_act / sizeof g_hm_act[0])) { snprintf(g_hm_lbl[n], sizeof g_hm_lbl[0], __VA_ARGS__); g_hm_act[n++] = (kind); } } while (0)
-    HM_ROW(HMA_MODE, "Host mod download: %s", g_hm_mode == HM_OFF ? "OFF  (click: prompt)" : "PROMPT  (click: off)");
-    if (g_mp_cap) HM_ROW(HMA_MAXP, "Max players when hosting: %d  (click: next)", g_mp_cap); else HM_ROW(HMA_MAXP, "Max players when hosting: off  (click: 2)");
+    // the hosting switch first, drawn big ("\x03" + "[x] " / "[ ] ", modsui_snapshot; the text menu shows the plain text)
+    { int here = 0; __try { here = T_peers_now(); } __except (EXCEPTION_EXECUTE_HANDLER) { here = -1; }
+      char who[40] = ""; if (here > 0) snprintf(who, sizeof who, " - %d other player%s here now", here, here == 1 ? "" : "s");
+      if (ov_text_hidden()) HM_ROW(HMA_HOST, g_host_open ? "\x03[x] Hosting: ON - other players can join this game%s" : "\x03[ ] Hosting: OFF - joins are refused%s", who);
+      else HM_ROW(HMA_HOST, g_host_open ? "Hosting: ON - other players can join this game%s  (click: off)" : "Hosting: OFF - joins are refused%s  (click: on)", who); }
+    // a check box in the overlay ("[x] " / "[ ] ", modsui_snapshot), readable as text in the text menu
+    if (g_hm_mode == HM_OFF) HM_ROW(HMA_MODE, "[ ] Download the host's mods when I join: OFF");
+    else HM_ROW(HMA_MODE, "[x] Download the host's mods when I join: ON (asks before installing anything)");
+    if (g_mp_cap) HM_ROW(HMA_MAXP, "Max players when I host: %d  (Enter / click: next)", g_mp_cap); else HM_ROW(HMA_MAXP, "Max players when I host: game default  (Enter / click: 2)");
     if (g_hm_active[0]) HM_ROW(HMA_UNLOAD, "Host mods from %s load at start (%d)  (click: stop at next start)", g_hm_active, g_hfm_n);
     EnterCriticalSection(&g_hm_cs);
     char sz[24], sz2[24];
@@ -433,6 +448,8 @@ static void hm_menu_action(int i) {
     if (i < 0 || i >= g_hm_nl) return;
     int a = g_hm_act[i]; char v[16];
     switch (a) {
+    case HMA_HOST: g_host_open = !g_host_open; logf_("hosting: %s (F1 > Hosting)%s", g_host_open ? "ON - joins are accepted again" : "OFF - every join is refused, the LAN finder stays silent", g_host_open ? "" : "; players already here stay");
+        hm_cfg_write("hosting", g_host_open ? "on" : "off"); break;
     case HMA_MODE: g_hm_mode = g_hm_mode == HM_OFF ? HM_PROMPT : HM_OFF; hm_cfg_write("moddownload", g_hm_mode == HM_OFF ? "off" : "prompt"); break;
     case HMA_MAXP: g_mp_cap = mp_next(g_mp_cap); if (g_mp_cap) snprintf(v, sizeof v, "%d", g_mp_cap); else snprintf(v, sizeof v, "off"); hm_cfg_write("maxplayers", v); break;
     case HMA_UNLOAD: { wchar_t d[MAX_PATH], p[MAX_PATH]; hm_fromhost_dir(NULL, NULL, d); swprintf(p, MAX_PATH, L"%ls\\active.txt", d);
@@ -515,6 +532,8 @@ static void hm_mount_fromhost(void *self, PakMount_t mount, int *position, uint6
 static void hostmods_install(void) {
     char v[32] = ""; wchar_t path[MAX_PATH]; int bad = 0;
     if (setting_get("maxplayers", L"maxplayers.txt", 0, v, sizeof v, path)) { g_mp_cap = mp_parse(v, &bad); if (bad) logf_("max players: '%s' in %ls is not 2-%d or off - using %d", v, path, MP_MAX, MP_DEFAULT); }
+    v[0] = 0; if (setting_get("hosting", L"", 0, v, sizeof v, path)) g_host_open = _strnicmp(v, "off", 3) != 0;
+    logf_("hosting: %s (config.txt hosting = on | off; F1 > Hosting switches it)", g_host_open ? "ON - joins are accepted" : "OFF - every join is refused");
     if (g_mp_cap) logf_("max players: %d when hosting (the host included; 'maxplayers = off' in config.txt removes the cap)", g_mp_cap); else logf_("max players: off (no cap)");
     v[0] = 0; if (setting_get("moddownload", L"moddownload.txt", 0, v, sizeof v, path)) g_hm_mode = hm_parse_mode(v);
     v[0] = 0; if (setting_get("moddownload_port", L"", 0, v, sizeof v, path)) { int p = atoi(v); if (p > 0 && p < 65536) g_hm_port = (unsigned)p; else logf_("host mods: moddownload_port '%s' invalid - using %u", v, HM_PORT); }

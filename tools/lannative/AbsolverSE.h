@@ -389,6 +389,17 @@ struct AbsApi {
      *      your plugin is switched off or the pawn / mesh is gone. Game thread. Check self->size first. */
     int   (*pose_stage)(const AbsApi *self, void *pawn, int on);   /* on: keep the shown poses of the pawn's Mesh (pose_handoff needs one frame of them). 1 = on (or already yours), 0 = off / held by another plugin, -1 = refused (not live, no Mesh, more than 256 bones, 8 stages in all, the hook is not installed) */
     int   (*pose_handoff)(const AbsApi *self, void *pawn, float decay);   /* you switched the pawn's pose this frame (cut): decay = seconds until a still offset is down to 1 % (0.2-0.3 typical; a new hand-off while one runs starts from what is shown). 1 = armed, 0 = no pose shown yet, -1 = no stage of yours on that pawn */
+    /* ---- v2.33: mod tabs (modsui.inc + overlay.cpp, docs/API-REFERENCE.md). Your own tab in the loader's Mods window (F1), after Mods / Keybinds /
+     *      Hosting / Log (Cyber Engine Tweaks style). draw(user) runs on the render thread inside the tab body while your tab is shown: no Begin / End, draw widgets (a child
+     *      window is fine); bind ImGui as in an overlay_register callback (overlay_info). Same fault guard and ImGui stack recovery as overlay callbacks. While your tab shows,
+     *      input_owner() returns 3: read your own keys / pad; the loader keeps F1 / F2, Q / E and pad LB / RB (tabs), Esc and pad B (close). A mod without a tab keeps the
+     *      loader-drawn Settings form and rows. Check self->size first. */
+    int   (*ui_tab)(const AbsApi *self, const char *title, void (*draw)(void *user), void *user);   /* any thread; one tab per plugin (again = new title / callback); title "" = the mod's name (up to 39 characters). 0 = ok, 1 = bad arguments / 16 tabs in all, 2 = the overlay is unavailable */
+    int   (*ui_tab_show)(const AbsApi *self, int show);   /* game thread: 1 opens the Mods window on your tab, 0 closes it (only while it shows your tab), 2 toggles. Returns 1 shown, 0 hidden, -1 refused (no ui_tab, text menu, bad argument) */
+    /* ---- v2.34: the loader's NPC list (modsui.inc, docs/API-REFERENCE.md). The same list as F2 > Spawn NPC: the built-in groups plus every
+     *      Mods\*\content "npcs" / "bots" entry (groups "Mod NPCs" / "Bots"), each group sorted by label. Game thread. Check self->size first. */
+#define ABS_HAS_NPC_LIST 1                /* v2.34 is in this header (plugins / units can #ifdef on it) */
+    int   (*npc_list)(const AbsApi *self, int i, char *group, int gcap, char *label, int lcap, char *spawn, int scap, char *cls, int ccap);   /* i = -1: (re)build the list now (content may have changed), returns the entry count. i >= 0: entry i -> 1 (strings filled; any pointer may be NULL), 0 = past the end. spawn = what npc_spawn takes as archetype (an asset path, or a content entry id); cls = its class_path ("" = the game's generic AI character). -1 = refused (not the game thread) */
 };
 /* mode_claim groups (v2.31) */
 enum {

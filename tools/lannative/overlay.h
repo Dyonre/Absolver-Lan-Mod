@@ -18,7 +18,13 @@ enum { OVC_NONE = 0, OVC_MENU_SELECT, OVC_MENU_BACK, OVC_TOGGLE, OVC_MODS_ACT,  
        OVC_MODS_FORM,          // index = row whose settings form opens; -1 closes the form
        OVC_MODS_APPLY,         // index = row, text = "key<TAB>value<LF>" for every setting of the form
        OVC_MENU_HOVER,         // the mouse moved onto row `index` of an F1 list page / the Mods page rows: it becomes the selected row (one highlight for mouse and keys)
-       OVC_PROFILE_SAVE };     // Mods page profile box: text = profile name, arg 1 = update (overwrite) that existing profile, 0 = save as a new one
+       OVC_PROFILE_SAVE,       // Mods page profile box: text = profile name, arg 1 = update (overwrite) that existing profile, 0 = save as a new one
+       OVC_UI_SET,             // Mods page number row (API 2.27 ui_number): arg = ui row index (stable: rows are never removed), text = the slider's value
+       OVC_MODS_TAB,           // show tab `index` of the Mods window (OVT_* or OVT_PLUGIN + plugin index)
+       OVC_PROFILE_SWITCH,     // Mods tab profile bar: index = profile (OvSnap.pf_names) to switch to
+       OVC_MODS_CLOSE };       // close the loader window (its X, Esc / pad B on a mod tab); OVC_TOGGLE would be the world key (F2) since the swap
+// tabs of the Mods (F2) window. The game thread owns the active tab (the rows it lists are that tab's); a plugin tab (API 2.33 ui_tab) has no rows.
+enum { OVT_MODS = 0, OVT_KEYS, OVT_HOSTING, OVT_SETTINGS, OVT_LOG, OVT_COUNT, OVT_PLUGIN = 100 };   // OVT_SETTINGS: form_mod = -2
 
 #define OV_LINE 96
 #define OV_ROWS 192                                                     // rows of a list page
@@ -62,7 +68,10 @@ typedef struct OvSnap {
     int c_files, c_entries, c_invalid, ncconf; char cconf[OV_CCONF][160];
     int nplug; char plug_name[OV_PLUG][64]; int plug_faults[OV_PLUG], plug_loaded[OV_PLUG];
     char reload_status[240];
-    int nactions; char action[OV_ACTIONS][OV_LINE]; int action_kind[OV_ACTIONS];   // kind: 0 reload, 1 plugin section header, 2 plugin item
+    int nactions; char action[OV_ACTIONS][OV_LINE]; int action_kind[OV_ACTIONS];   // kind: 0 reload, 1 plugin section header, 2 plugin item, 3 ui number row, 4 ui hint row,
+                                                                                   // 5 group header, 6 / 7 check box on / off ("[x] " / "[ ] "), 8 columns ('\t' between them), 9 grey text,
+                                                                                   // 10 / 11 big switch on / off ("\x03" + "[x] " / "[ ] "), 14 button
+    double action_num[OV_ACTIONS][5];                // kind 3: value, min, max, step, ui row index (uirows.inc; OVC_UI_SET arg)
     int pending_n; char pending_text[160];           // load order changes that wait for a restart
     int form_mod; unsigned form_serial;              // row whose settings form is open (-1 = none); the serial changes whenever the values below were reloaded
     char form_title[96], form_msg[200]; int form_ok, form_live, nform; OvSetting form[OV_SETTINGS];   // form_live: the mod's plugin takes changes without a restart
@@ -70,6 +79,8 @@ typedef struct OvSnap {
     int searchable; char filter[32]; char empty[96];
     // OV_MODS profile box (profiles.inc): saved profile names, the name the box starts with (current / last used profile), serial = reload the box
     int pf_n; char pf_names[32][44]; char pf_default[44]; unsigned pf_serial;
+    // the active tab (OVT_*), the current profile (-1 = the set is no profile) and the profiles' last message
+    int tab, pf_current; char pf_msg[160];
 } OvSnap;
 
 typedef struct OvCmd { int cmd, index, arg; char text[1536]; } OvCmd;
@@ -108,7 +119,15 @@ int  ov_poll(OvCmd *c);                                                 // game 
 int  ov_focus_owner(void);                                              // who has ImGui's focus (keyboard / pad): -2 nobody, -1 a loader window, >= 0 that plugin's window
 void ov_pad_chord_guard(int on);                                        // 1: the game does not see Start while Back is held (the Back + Start menu chord); installs the gamepad hook
 void ov_keep_key(int vk, int on);                                       // 1: key presses of vk (an F key a mod uses) are kept from the game's window procedure (the release too)
-int  ov_cursor_mode(void);                                              // 0 none drawn, 1 the overlay's virtual cursor, 2 the game's own OS cursor is used (one cursor)
+int  ov_bg_input_on(void);                                              // 1: -LNBgInput on the command line (test runs): binds read the game window's own key messages, not the real keyboard
+void ov_bg_guard_install(void);                                         // -LNBgInput: the game's activating USER32 imports become no-ops / non-activating (early, before the window exists)
+int  ov_bg_summary(char *out, int cap);                                 // -LNBgInput: how many activation calls were refused so far (0 = none), and which ones, as text
+void ov_bg_mods_patch(void);                                           // -LNBgInput: the same for mod DLLs, plus their GetForegroundWindow / GetAsyncKeyState read the window's own state (call every few seconds)
+int  ov_bg_key_down(int vk);                                          // that table: is vk held now (the window saw its WM_KEYDOWN and no WM_KEYUP yet)
+// one tab per plugin in the Mods window; draw(user) runs inside the tab body (no Begin / End) while the tab is shown
+int  ov_tab_register(int owner, const char *title, void (*draw)(void *user), void *user);   // 0 = ok (again = new title / callback), 1 = bad arguments / not installed
+int  ov_tab_owner_at(int i, char *title, int cap);                     // i-th registered tab: its owner (-1 = past the end); title copied
+int  ov_cursor_mode(void);
 
 #ifdef __cplusplus
 }
