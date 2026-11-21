@@ -85,6 +85,16 @@ static int lm_ver_refuse(int my_major, const LmInfo *c, char *text, size_t cap, 
              m < my_major ? "update your loader" : "the host needs a newer loader");
     return 1;
 }
+// Joiner side of a refused join: UEngine::HandleNetworkFailure gets the host's PreLogin text (NMT_Failure). type = ENetworkFailure (5 FailureReceived,
+// 8 PendingConnectionFailure; 3 / 4 lost / timeout are ordinary disconnects and say nothing). Returns 1 and the line to show, or 0.
+static int lm_join_fail_text(int type, const char *err, char *out, size_t cap) {
+    if (type != 5 && type != 8) return 0;
+    if (!err) err = "";
+    if (!strncmp(err, "Join refused", 12)) snprintf(out, cap, "%s", err);
+    else if (err[0]) snprintf(out, cap, "Join failed: %s", err);
+    else snprintf(out, cap, "Join failed (the host gave no reason).");
+    return 1;
+}
 // Both sides run the same comparison. Nothing to say when neither side has gameplay mods.
 static LmStatus lm_compare(const LmInfo *me, const LmInfo *other) {
     if (!other->present) return me->fp == 0 ? LM_SAME : LM_UNKNOWN;       // other side sent no mod info (vanilla game or a loader without the mod check)

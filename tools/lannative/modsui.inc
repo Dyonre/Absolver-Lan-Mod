@@ -462,10 +462,35 @@ static DWORD WINAPI nn_fetch_thread(LPVOID u) {                                 
     InterlockedExchange(&g_nn_fetching, 0);
     return 0;
 }
+// A refused / failed join on this joiner (the host's PreLogin text arrives in UEngine::HandleNetworkFailure): a toast at once and the first line of
+// the loader window's notice for 60 s. Game thread. RVA = USCGameEngine::HandleNetworkFailure (the game's override; the engine's delegate calls it).
+static char g_jf_text[LM_LINE_MAX]; static ULONGLONG g_jf_until;
+typedef void (*NetFail_t)(void *engine, void *world, void *netdriver, int type, const FStringView *err);
+static NetFail_t o_netfail;
+static void nn_publish_overlay(int toast_too);
+static void hk_netfail(void *engine, void *world, void *netdriver, int type, const FStringView *err) {
+    __try {
+        char e[LM_LINE_MAX] = ""; if (err && err->data && err->num > 1 && err->num < 2000) narrow(err->data, err->num - 1, e, sizeof e);
+        char l[1][LM_LINE_MAX];
+        logf_("join: network failure type %d '%s'", type, e);
+        if (lm_join_fail_text(type, e, l[0], LM_LINE_MAX)) {
+            snprintf(g_jf_text, sizeof g_jf_text, "%s", l[0]); g_jf_until = GetTickCount64() + 60000;
+            toast_show(l, 1, 12); nn_publish_overlay(0);
+        }
+    } __except (EXCEPTION_EXECUTE_HANDLER) { logf_("join: EXCEPTION 0x%08lX reading a network failure (the game handles it as usual)", GetExceptionCode()); }
+    o_netfail(engine, world, netdriver, type, err);
+}
+LN_INIT(0520, joinfail) {
+    if (g_safe_mode) return;
+    static const uint8_t e[15] = { 0x48,0x89,0x5C,0x24,0x08, 0x48,0x89,0x6C,0x24,0x10, 0x48,0x89,0x74,0x24,0x18 };
+    o_netfail = (NetFail_t)api_p_hook_rva(NULL, "USCGameEngine::HandleNetworkFailure", 0x398AA0u, e, 15, (void *)hk_netfail);
+    logf_("join: refused-join message %s", o_netfail ? "installed (a joiner sees the host's reason)" : "NOT installed - a refused joiner sees no reason");
+}
 static void nn_publish_overlay(int toast_too) {                                      // game thread: the lines into the loader windows (+ a toast when they changed)
     char all[400] = ""; int w = 0; char toast[2][LM_LINE_MAX]; int nt = 0;
+    if (g_jf_text[0] && GetTickCount64() < g_jf_until) w += snprintf(all, sizeof all, "%s", g_jf_text);
     nn_init(); EnterCriticalSection(&g_nn_cs);
-    for (int i = 0; i < g_nn_got_n && w < (int)sizeof all - 8; i++) { w += snprintf(all + w, sizeof all - (size_t)w, "%s%s", i ? "   |   " : "", g_nn_got[i]); if (nt < 2) snprintf(toast[nt++], LM_LINE_MAX, "HOST: %.70s", g_nn_got[i]); }
+    for (int i = 0; i < g_nn_got_n && w < (int)sizeof all - 8; i++) { w += snprintf(all + w, sizeof all - (size_t)w, "%s%s", w ? "   |   " : "", g_nn_got[i]); if (nt < 2) snprintf(toast[nt++], LM_LINE_MAX, "HOST: %.70s", g_nn_got[i]); }
     LeaveCriticalSection(&g_nn_cs);
 #ifdef LN_OVERLAY
     ov_set_notice(all);

@@ -940,7 +940,7 @@ static void draw_ui(int w, int h) {
         const ImVec4 hl = ImGui::GetStyleColorVec4(ImGuiCol_HeaderHovered);
         ImGui::PushStyleColor(ImGuiCol_Header, hl); ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(hl.x, hl.y, hl.z, hl.w * 0.30f));
         if (ImGui::Begin(name, &open, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse | (s.kind == OV_MODS && s.form_mod >= 0 ? ImGuiWindowFlags_NoBringToFrontOnFocus : 0))) {   // an open settings form stays above the page
-            if (g_notice[0]) { ImGui::TextColored(ImVec4(1.f, 0.78f, 0.25f, 1.f), "HOST NOTICE  %s", g_notice); ImGui::Separator(); }   // a joiner sees what the host's mods announce
+            if (g_notice[0]) { ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.78f, 0.25f, 1.f)); ImGui::TextWrapped("HOST NOTICE  %s", g_notice); ImGui::PopStyleColor(); ImGui::Separator(); }   // a joiner sees what the host's mods announce
             if (s.kind == OV_MODS) draw_mods(s); else if (s.kind == OV_MENU) draw_menu(s); else draw_lines(s);
         }
         ImGui::End();
