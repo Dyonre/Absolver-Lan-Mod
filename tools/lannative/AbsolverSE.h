@@ -400,6 +400,11 @@ struct AbsApi {
      *      Mods\*\content "npcs" / "bots" entry (groups "Mod NPCs" / "Bots"), each group sorted by label. Game thread. Check self->size first. */
 #define ABS_HAS_NPC_LIST 1                /* v2.34 is in this header (plugins / units can #ifdef on it) */
     int   (*npc_list)(const AbsApi *self, int i, char *group, int gcap, char *label, int lcap, char *spawn, int scap, char *cls, int ccap);   /* i = -1: (re)build the list now (content may have changed), returns the entry count. i >= 0: entry i -> 1 (strings filled; any pointer may be NULL), 0 = past the end. spawn = what npc_spawn takes as archetype (an asset path, or a content entry id); cls = its class_path ("" = the game's generic AI character). -1 = refused (not the game thread) */
+    /* ---- v2.35: host notices to joiners (modsui.inc, docs/API-REFERENCE.md). A host plugin publishes one short line that every joiner with
+     *      the loader sees at the top of its loader windows and as a toast when it changes (e.g. "Host has cheats enabled"); "" clears it. Joiners ask their
+     *      host over the host-mods side channel (verb NOTE) when they join and every 10 s. Any thread. Check self->size first. */
+#define ABS_HAS_NET_NOTICE 1              /* v2.35 is in this header */
+    int   (*net_notice)(const AbsApi *self, const char *text);   /* text up to 99 characters (tabs / line breaks become spaces); "" = no notice. 0 = ok, -1 = refused */
 };
 /* mode_claim groups (v2.31) */
 enum {

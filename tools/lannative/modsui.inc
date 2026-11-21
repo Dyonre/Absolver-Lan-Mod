@@ -415,6 +415,83 @@ static int api_p_ui_tab_show(const AbsApi *self, int show) {                    
 }
 #endif
 
+// ----- host notices to joiners (API 2.35 net_notice). A host plugin publishes one short line (Cheats: "Host has cheats enabled"); a joiner
+// asks its host over the host-mods side channel (verb NOTE, answered even with moddownload = off) when it joins and every 10 s while joined, shows the lines
+// at the top of the loader windows (ov_set_notice) and as a toast when they change. No lines = nothing shown. Old hosts answer "ERR bad request" = none.
+#define NN_LINE 100
+#define NN_MAX 16
+static CRITICAL_SECTION g_nn_cs; static INIT_ONCE g_nn_once = INIT_ONCE_STATIC_INIT;
+static BOOL CALLBACK nn_init_cb(PINIT_ONCE o, PVOID p, PVOID *c) { (void)o; (void)p; (void)c; InitializeCriticalSection(&g_nn_cs); return TRUE; }
+static void nn_init(void) { InitOnceExecuteOnce(&g_nn_once, nn_init_cb, NULL, NULL); }
+static char g_nn_text[PLUG_MAX][NN_LINE];                                            // host side: each plugin's notice ("" = none)
+static char g_nn_got[NN_MAX][NN_LINE + 64]; static int g_nn_got_n; static volatile LONG g_nn_fetching, g_nn_changed; static char g_nn_from[64];
+static int nn_any(void) { nn_init(); EnterCriticalSection(&g_nn_cs); int a = 0; for (int i = 0; i < PLUG_MAX && !a; i++) a = g_nn_text[i][0] != 0; LeaveCriticalSection(&g_nn_cs); return a; }
+static void nn_serve(UINT_PTR c, const char *masked) {                               // host, server thread: "LNNOTE1 <n>\n" + n lines "<plugin>\t<text>\n"
+    nn_init(); static char out[NN_MAX * (NN_LINE + 80) + 32]; char body[NN_MAX * (NN_LINE + 80)] = ""; int n = 0, w = 0;
+    EnterCriticalSection(&g_nn_cs);
+    for (int i = 0; i < PLUG_MAX && n < NN_MAX; i++) if (g_nn_text[i][0]) { w += snprintf(body + w, sizeof body - (size_t)w, "%s\t%s\n", plug_name_of(i), g_nn_text[i]); n++; }
+    LeaveCriticalSection(&g_nn_cs);
+    int len = snprintf(out, sizeof out, "LNNOTE1 %d\n%s", n, body);
+    int ok = hs_send_all((SOCKET)c, out, len);
+    logf_("net notice: NOTE from %s -> %d line(s)%s", masked, n, ok ? "" : " - send failed");
+}
+LN_HS_VERB(netnotice, "NOTE", nn_serve)
+static DWORD WINAPI nn_fetch_thread(LPVOID u) {                                      // joiner, worker thread
+    (void)u; char addr[64] = "", line[NN_LINE + 80], got[NN_MAX][NN_LINE + 64]; int n = -1; uint32_t ip = 0; char why[120] = "";
+    if (hj_host_addr(addr, sizeof addr, &ip)) {
+        SOCKET s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        if (s != INVALID_SOCKET) { DWORD to = 5000; setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char *)&to, sizeof to); setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, (const char *)&to, sizeof to);
+            struct sockaddr_in a; memset(&a, 0, sizeof a); a.sin_family = AF_INET; a.sin_port = htons((u_short)g_hm_port); a.sin_addr.s_addr = htonl(ip);
+            if (connect(s, (struct sockaddr *)&a, sizeof a)) snprintf(why, sizeof why, "cannot reach TCP %u (%d)", g_hm_port, WSAGetLastError());
+            else if (!hs_send_all(s, "NOTE\n", 5) || !hs_recv_line(s, line, sizeof line)) snprintf(why, sizeof why, "no answer");
+            else if (sscanf(line, "LNNOTE1 %d", &n) != 1 || n < 0 || n > NN_MAX) { snprintf(why, sizeof why, "answered '%.40s' (an older loader: no notices)", line); n = 0; }
+            else for (int i = 0; i < n; i++) {
+                if (!hs_recv_line(s, line, sizeof line)) { n = i; break; }
+                char *tab = strchr(line, '\t'); if (tab) *tab = 0;
+                snprintf(got[i], sizeof got[i], "%.40s: %.*s", line, NN_LINE - 1, tab ? tab + 1 : "");
+                for (unsigned char *q = (unsigned char *)got[i]; *q; q++) if (*q < 0x20 || *q == 0x7F) *q = ' ';   // host-supplied network text: no control characters
+            }
+            closesocket(s); }
+    } else snprintf(why, sizeof why, "no host address (ip.txt)");
+    if (n < 0) n = 0;
+    nn_init(); EnterCriticalSection(&g_nn_cs);
+    int changed = n != g_nn_got_n; for (int i = 0; i < n && !changed; i++) changed = strcmp(got[i], g_nn_got[i]) != 0;
+    for (int i = 0; i < n; i++) snprintf(g_nn_got[i], sizeof g_nn_got[i], "%s", got[i]); g_nn_got_n = n; snprintf(g_nn_from, sizeof g_nn_from, "%s", addr);
+    LeaveCriticalSection(&g_nn_cs);
+    if (changed) { InterlockedExchange(&g_nn_changed, 1); logf_("net notice: host %s: %d notice(s)%s%s", addr[0] ? addr : "?", n, why[0] ? " - " : "", why); }
+    InterlockedExchange(&g_nn_fetching, 0);
+    return 0;
+}
+static void nn_publish_overlay(int toast_too) {                                      // game thread: the lines into the loader windows (+ a toast when they changed)
+    char all[400] = ""; int w = 0; char toast[2][LM_LINE_MAX]; int nt = 0;
+    nn_init(); EnterCriticalSection(&g_nn_cs);
+    for (int i = 0; i < g_nn_got_n && w < (int)sizeof all - 8; i++) { w += snprintf(all + w, sizeof all - (size_t)w, "%s%s", i ? "   |   " : "", g_nn_got[i]); if (nt < 2) snprintf(toast[nt++], LM_LINE_MAX, "HOST: %.70s", g_nn_got[i]); }
+    LeaveCriticalSection(&g_nn_cs);
+#ifdef LN_OVERLAY
+    ov_set_notice(all);
+#endif
+    if (nt && toast_too) toast_show(toast, nt, 8);
+}
+LN_TICK(0810, netnotice) {
+    static ULONGLONG next; static int joined_was; ULONGLONG now = GetTickCount64();
+    if (InterlockedExchange(&g_nn_changed, 0)) nn_publish_overlay(1);
+    if (now < next) return; next = now + 10000;
+    nn_publish_overlay(0);                                                            // again every 10 s: the overlay may have started after the last change
+    int joined = hj_server_conn() != NULL;
+    if (joined && !g_nn_fetching) { InterlockedExchange(&g_nn_fetching, 1); HANDLE th = CreateThread(NULL, 0, nn_fetch_thread, NULL, 0, NULL); if (th) CloseHandle(th); else InterlockedExchange(&g_nn_fetching, 0); }
+    if (!joined && joined_was) { nn_init(); EnterCriticalSection(&g_nn_cs); int had = g_nn_got_n; g_nn_got_n = 0; LeaveCriticalSection(&g_nn_cs); if (had) { logf_("net notice: left the host - notices cleared"); InterlockedExchange(&g_nn_changed, 1); } }
+    joined_was = joined;
+}
+#ifdef ABS_HAS_NET_NOTICE
+static int api_p_net_notice(const AbsApi *self, const char *text) {                  // any thread
+    int p = plug_of(self); if (p < 0 || p >= PLUG_MAX) return -1;
+    char t[NN_LINE]; snprintf(t, sizeof t, "%s", text ? text : ""); for (char *c = t; *c; c++) if (*c == '\t' || *c == '\r' || *c == '\n') *c = ' ';
+    nn_init(); EnterCriticalSection(&g_nn_cs); int changed = strcmp(g_nn_text[p], t) != 0; snprintf(g_nn_text[p], sizeof g_nn_text[p], "%s", t); LeaveCriticalSection(&g_nn_cs);
+    if (changed) logf_("plugin %s: net_notice '%s'%s", plug_name_of(p), t, t[0] ? " (joiners see it at the top of their loader window)" : " (cleared)");
+    if (t[0]) hm_init_once();                                                          // the side channel answers NOTE even with moddownload = off
+    return 0;
+}
+#endif
 #ifdef ABS_HAS_NPC_LIST
 // API 2.34 npc_list: the F2 > Spawn NPC list (lannative.c npc_load_list: built-in groups + content npcs / bots), read by entry. Game thread (the list is rebuilt there).
 static ULONGLONG g_nl_built;
@@ -438,5 +515,8 @@ LN_API(modsui) {
 #endif
 #ifdef ABS_HAS_NPC_LIST
     a->npc_list = api_p_npc_list;
+#endif
+#ifdef ABS_HAS_NET_NOTICE
+    a->net_notice = api_p_net_notice;
 #endif
 }

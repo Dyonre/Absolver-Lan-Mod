@@ -162,7 +162,7 @@ static void hs_serve(SOCKET c, uint32_t ip) {
     char line[200], cmd[8] = "", extra[8] = ""; int idx = -1;
     if (!hs_recv_line(c, line, sizeof line)) { logf_("host mods: request from %s: no request line", masked); return; }
     int nf = sscanf(line, "%7s %d %7s", cmd, &idx, extra);
-    if (g_hm_mode == HM_OFF) { hs_send_all(c, "ERR this host does not share mods\n", 34); return; }
+    if (g_hm_mode == HM_OFF && strcmp(cmd, "NOTE")) { hs_send_all(c, "ERR this host does not share mods\n", 34); return; }   // host notices (NOTE) are answered even then
     if (g_hs_n < 0) hs_build();
     char buf[400];
     if (nf == 1) LN_FOREACH(hsverb, LnVerb, v) if (!strcmp(cmd, v->verb)) {          // the units' verbs (lnhooks.h LN_HS_VERB): NI
@@ -198,11 +198,12 @@ static DWORD WINAPI hs_thread(LPVOID u) {
     }
 }
 // 1 = the listener runs (started now or before)
+static int nn_any(void);                                                                // modsui.inc: a plugin published a notice for joiners (API 2.35)
 static int hs_start(void) {
     if (g_hs_sock != INVALID_SOCKET) return 1;
     static int failed; if (failed || !g_hm_wsa) return 0;
     hs_collect();
-    if (!g_hs_pending_n && !g_hsns_n) { logf_("host mods: no loaded gameplay mods to share or name - no listener"); failed = 1; return 0; }
+    if (!g_hs_pending_n && !g_hsns_n && !nn_any()) { logf_("host mods: no loaded gameplay mods to share or name and no notice for joiners - no listener (asked again at the next join)"); return 0; }   // not latched: a notice may come later
     logf_("host mods: %d file(s) of shareable mods, %d gameplay mod(s) not shareable", g_hs_pending_n, g_hsns_n);
     SOCKET s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP); struct sockaddr_in a; memset(&a, 0, sizeof a);
     a.sin_family = AF_INET; a.sin_port = htons((u_short)g_hm_port); a.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -217,7 +218,7 @@ static int hs_start(void) {
 }
 // game thread, PreLogin accepted a joiner: it may ask this host; the listener starts at the first one (never in a solo game)
 static void hs_on_login(uint32_t ip) {
-    if (g_hm_mode == HM_OFF || !g_lm_me.present || !g_lm_me.fp) return;   // switched off, or no gameplay mods to share or name
+    if ((g_hm_mode == HM_OFF || !g_lm_me.present || !g_lm_me.fp) && !nn_any()) return;   // switched off, or no gameplay mods to share or name, and no notice to answer
     hm_init_once();
     EnterCriticalSection(&g_hm_cs); hm_peer_add(&g_hs_peers, ip, GetTickCount64()); LeaveCriticalSection(&g_hm_cs);
     hs_start();

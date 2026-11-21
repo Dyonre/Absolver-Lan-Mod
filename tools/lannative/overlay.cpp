@@ -63,6 +63,7 @@ static volatile LONG g_cursor_mode;                                // 0 none, 1 
 static ImGuiStorage g_win_owner, g_win_frame;                      // window id -> owner + 2, frame it was last seen (render thread)
 static volatile LONG g_tabkey_q, g_tabkey_e, g_tabkey_esc;         // Q / E / Esc presses while a loader menu shows (window thread counts, draw_mods takes them)
 static volatile LONG g_text_input;                                 // 1 = an overlay text box has the keyboard (set each frame)
+static char g_notice[400];                                         // the host's notices (ov_set_notice; guarded by g_cs)
 static volatile LONG g_bgm_x = -1, g_bgm_y = -1;                   // -LNBgInput: the last posted mouse position (client px); -1 = none yet
 
 extern "C" void ov_set_log(void (*fn)(const char *fmt, ...)) { g_log = fn; }
@@ -157,6 +158,7 @@ extern "C" void ov_publish(const OvSnap *s) {
     if (shown) xi_install();                                         // a loader menu on screen: the game gets a neutral gamepad (the menu reads the pad itself)
 }
 extern "C" int ov_focus_owner(void) { return (int)g_focus_owner; }
+extern "C" void ov_set_notice(const char *text) { if (!g_installed) return; EnterCriticalSection(&g_cs); snprintf(g_notice, sizeof g_notice, "%s", text ? text : ""); LeaveCriticalSection(&g_cs); }
 extern "C" int ov_cursor_mode(void) { return (int)g_cursor_mode; }
 extern "C" void ov_keep_key(int vk, int on) {
     if (vk <= 0 || vk > 255) return;
@@ -938,6 +940,7 @@ static void draw_ui(int w, int h) {
         const ImVec4 hl = ImGui::GetStyleColorVec4(ImGuiCol_HeaderHovered);
         ImGui::PushStyleColor(ImGuiCol_Header, hl); ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(hl.x, hl.y, hl.z, hl.w * 0.30f));
         if (ImGui::Begin(name, &open, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse | (s.kind == OV_MODS && s.form_mod >= 0 ? ImGuiWindowFlags_NoBringToFrontOnFocus : 0))) {   // an open settings form stays above the page
+            if (g_notice[0]) { ImGui::TextColored(ImVec4(1.f, 0.78f, 0.25f, 1.f), "HOST NOTICE  %s", g_notice); ImGui::Separator(); }   // a joiner sees what the host's mods announce
             if (s.kind == OV_MODS) draw_mods(s); else if (s.kind == OV_MENU) draw_menu(s); else draw_lines(s);
         }
         ImGui::End();

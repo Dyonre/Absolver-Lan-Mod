@@ -128,6 +128,7 @@ int  ov_bg_key_down(int vk);                                          // that ta
 int  ov_tab_register(int owner, const char *title, void (*draw)(void *user), void *user);   // 0 = ok (again = new title / callback), 1 = bad arguments / not installed
 int  ov_tab_owner_at(int i, char *title, int cap);                     // i-th registered tab: its owner (-1 = past the end); title copied
 int  ov_cursor_mode(void);
+void ov_set_notice(const char *text);                                   // host notices for a joiner, drawn at the top of the loader windows ("" = none)                                            // 0 none drawn, 1 the overlay's virtual cursor, 2 the game's own OS cursor is used (one cursor)
 
 #ifdef __cplusplus
 }
